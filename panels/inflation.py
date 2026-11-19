@@ -398,12 +398,13 @@ def chart_passthrough(model, scenario, country, currency) -> plt.Figure:
     ax.axhline(0, color="grey", linewidth=0.8)
     ax.axvline(0, color="grey", linewidth=0.8)
     ax.set_xlabel(f"Change in oil price in {currency} vs a year earlier, "
-                  f"{model['lag']} months before (%)")
+                  f"{model['lag']} month{'s' if model['lag'] != 1 else ''} before (%)")
     ax.set_ylabel("Energy inflation, % y/y")
     ax.spines[["top", "right"]].set_visible(False)
     ax.legend(frameon=False, fontsize=9)
     ax.set_title(f"In {country}, a 10% oil rise adds about {10 * model['slope']:.1f} points "
-                 f"to energy inflation {model['lag']} months later", loc="left", fontweight="bold")
+                 f"to energy inflation {model['lag']} month{'s' if model['lag'] != 1 else ''} later",
+                 loc="left", fontweight="bold")
     fig.tight_layout()
     return fig
 
