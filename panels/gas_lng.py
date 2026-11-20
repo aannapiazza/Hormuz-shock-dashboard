@@ -11,6 +11,8 @@ Use in app.py:   from panels import gas_lng   then   gas_lng.render()
 
 Data: every chart reads a CSV file in the data/ folder (see DATA_FILES below).
 Each file has a source and url column, so every number can be traced.
+Daily gas prices are downloaded live from Yahoo Finance (yfinance); if that
+fails, the panel uses the saved copy in data/gas_prices_daily.csv.
 Interactive charts use Plotly.
 """
 from pathlib import Path
@@ -33,6 +35,16 @@ DATA_FILES = {
     "storage": "gas_storage.csv",         # EU storage: 2026, 2025, 5-year average
     "events": "gas_events.csv",           # key war events for the price chart
 }
+
+# ---------- live daily prices (Yahoo Finance via yfinance) ----------
+DAILY_TICKERS = {
+    "ttf_eur_mwh": "TTF=F",     # Dutch TTF gas futures, euros per MWh
+    "hh_usd_mmbtu": "NG=F",     # US Henry Hub gas futures, dollars per MMBtu
+    "eurusd": "EURUSD=X",       # US dollars per 1 euro
+}
+DAILY_START = "2025-10-01"                        # a few months before the war, for comparison
+DAILY_BACKUP = DATA_DIR / "gas_prices_daily.csv"  # saved copy, used if the download fails
+MWH_PER_MMBTU = 0.293071                          # energy conversion: 1 MMBtu = 0.293071 MWh
 
 # ---------- colours (same as the design) ----------
 RED, AMBER, TEAL, BLUE, VIOLET, MUTED = "#ff5a4e", "#ffb020", "#2dd4bf", "#5aa9ff", "#a78bfa", "#8fa0bb"
@@ -82,6 +94,59 @@ def load_data() -> dict:
     return data
 
 
+def download_daily_prices() -> pd.DataFrame:
+    """Download daily closing prices for European gas, US gas and EUR/USD.
+
+    Returns one row per trading day with columns: date, ttf_eur_mwh,
+    hh_usd_mmbtu, eurusd. Gaps (e.g. holidays in one market) are filled with
+    the previous day's value; days before all three series start are dropped.
+    """
+    import yfinance as yf   # imported here so the rest of the panel works without it
+    raw = yf.download(list(DAILY_TICKERS.values()), start=DAILY_START,
+                      auto_adjust=True, progress=False)["Close"]
+    raw = raw.ffill().dropna()
+    daily = pd.DataFrame({col: raw[ticker] for col, ticker in DAILY_TICKERS.items()})
+    daily.index = pd.to_datetime(daily.index).tz_localize(None)
+    daily.index.name = "date"
+    return daily.reset_index()
+
+
+def with_backup(download, backup: Path) -> tuple:
+    """Run a download; save a copy if it works, use the copy if it fails.
+
+    Returns (DataFrame or None, status) where status is "live",
+    "saved copy" or "missing (...)". Same approach as panels/inflation.py.
+    """
+    try:
+        df = download()
+        if df is None or df.empty:
+            raise ValueError("no rows returned")
+        try:
+            df.to_csv(backup, index=False)
+        except OSError:
+            pass   # read-only folder: fine, we still have the live data
+        return df, "live"
+    except Exception as error:
+        if backup.exists():
+            return pd.read_csv(backup, parse_dates=["date"]), "saved copy"
+        return None, f"missing ({type(error).__name__})"
+
+
+@st.cache_data(ttl=6 * 60 * 60, show_spinner="Downloading live gas prices...")
+def load_daily_prices() -> tuple:
+    """Live daily prices, cached for 6 hours so the page stays fast."""
+    return with_backup(download_daily_prices, DAILY_BACKUP)
+
+
+def ttf_in_usd(daily: pd.DataFrame) -> pd.Series:
+    """Convert TTF from euros per MWh to dollars per MMBtu, day by day.
+
+    €/MWh × (US$ per €) gives US$/MWh; × 0.293071 MWh per MMBtu gives US$/MMBtu.
+    Using each day's own exchange rate keeps it comparable with US prices.
+    """
+    return daily["ttf_eur_mwh"] * daily["eurusd"] * MWH_PER_MMBTU
+
+
 # ======================================================================
 # CHART HELPERS
 # ======================================================================
@@ -101,7 +166,7 @@ def _add_events(fig, events, y_top):
                            xanchor="right", yanchor="top", font=dict(size=10, color=MUTED))
 
 
-def price_path_chart(prices, events, show_events):
+def price_path_chart(prices, events, show_events, daily=None):
     y = prices["ttf_usd_per_mmbtu"]
     chg = y.pct_change() * 100          # % change from the month before
     fig = go.Figure(go.Scatter(
@@ -110,17 +175,25 @@ def price_path_chart(prices, events, show_events):
         fill="tozeroy", fillcolor="rgba(90,169,255,.10)",
         customdata=["—" if pd.isna(c) else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
+    y_max, x_end = 35, prices["date"].max() + pd.Timedelta(days=20)
+    if daily is not None:       # thin line of live daily prices behind the monthly averages
+        daily_usd = ttf_in_usd(daily)
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF (live)",
+                                 line=dict(color="rgba(167,139,250,.75)", width=1.2),
+                                 hovertemplate="%{x|%d %b %Y}: $%{y:.2f}/MMBtu (daily)<extra></extra>"))
+        y_max = max(y_max, float(daily_usd.max()) * 1.1)
+        x_end = max(x_end, daily["date"].max() + pd.Timedelta(days=5))
     # Price labels as annotations (not trace text), so they don't clutter the slider strip
     for d, v in zip(prices["date"], y):
         fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#c7d2e3"))
     fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
                   annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom right")
     if show_events and events is not None:
-        _add_events(fig, events, 34)
+        _add_events(fig, events, y_max - 1)
     return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
-                   xaxis=dict(type="date", range=["2025-12-20", "2026-11-05"], gridcolor=GRID, tickformat="%b", dtick="M1",
+                   xaxis=dict(type="date", range=["2025-12-20", x_end], gridcolor=GRID, tickformat="%b", dtick="M1",
                               rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
-                   yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, 35], fixedrange=True, automargin=True))
+                   yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, y_max], fixedrange=True, automargin=True))
 
 
 def _convert(values, unit):
@@ -286,7 +359,10 @@ def render() -> None:
     if missing:
         st.error(f"Missing data file(s) in data/: {', '.join(missing)}. Check the files are in the repo.")
         return
-    st.markdown(f"`{DATA_AS_OF}` · 💾 {len(DATA_FILES)} data files loaded from `data/`")
+    daily, daily_status = load_daily_prices()
+    live_note = {"live": "📡 live daily prices from Yahoo Finance",
+                 "saved copy": "💾 daily prices from saved copy (download failed)"}.get(daily_status, "⚠️ daily prices unavailable")
+    st.markdown(f"`{DATA_AS_OF}` · 💾 {len(DATA_FILES)} data files loaded from `data/` · {live_note}")
 
     # ---- KPI tiles ----
     k1, k2, k3, k4 = st.columns(4)
@@ -306,11 +382,19 @@ def render() -> None:
     # ================= TAB 1: PRICES =================
     with tab1:
         st.subheader("European gas prices through the war")
-        show_ev = st.toggle("Show key events", value=True, key="gas_ev")
-        st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev), width="stretch", theme=None, config=CFG)
+        c1, c2 = st.columns(2)
+        show_ev = c1.toggle("Show key events", value=True, key="gas_ev")
+        show_daily = c2.toggle("Show daily prices (live)", value=True, key="gas_daily", disabled=daily is None)
+        st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev, daily if show_daily else None),
+                        width="stretch", theme=None, config=CFG)
+        if daily is not None:
+            last = daily.iloc[-1]
+            st.caption(f"Latest daily close ({last['date']:%d %b %Y}): TTF €{last['ttf_eur_mwh']:.2f}/MWh "
+                       f"≈ ${ttf_in_usd(daily).iloc[-1]:.2f}/MMBtu · US Henry Hub ${last['hh_usd_mmbtu']:.2f}/MMBtu "
+                       f"({daily_status}).")
         st.caption("Monthly average of the European benchmark (Dutch TTF), from the World Bank (data/gas_prices_monthly.csv). "
                    "Hover a month for the price and the change from the month before; drag the slider under the chart to zoom in. "
-                   "For contrast, US gas (Henry Hub) averaged about $3/MMBtu from August to October: the shock is in Europe and Asia.")
+                   "The thin violet line is daily TTF from Yahoo Finance (TTF=F), converted to $/MMBtu with each day's EUR/USD rate.")
 
         st.subheader("How big is this gas shock? 2026 vs 2022")
         bench = data["benchmarks"]

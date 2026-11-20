@@ -3,3 +3,4 @@ pandas
 matplotlib
 xlrd
 plotly>=5.24
+yfinance>=0.2.50
