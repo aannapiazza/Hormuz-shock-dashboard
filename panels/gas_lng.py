@@ -105,18 +105,20 @@ def price_path_chart(prices, events, show_events):
     y = prices["ttf_usd_per_mmbtu"]
     chg = y.pct_change() * 100          # % change from the month before
     fig = go.Figure(go.Scatter(
-        x=prices["date"], y=y, mode="lines+markers+text", line=dict(color=BLUE, width=3, shape="spline", smoothing=0.6),
+        x=prices["date"], y=y, mode="lines+markers", line=dict(color=BLUE, width=3, shape="spline", smoothing=0.6),
         marker=dict(size=10, color=[TEAL if c < 0 else BLUE for c in chg.fillna(0)], line=dict(color=DARK, width=1.5)),
         fill="tozeroy", fillcolor="rgba(90,169,255,.10)",
-        text=[f"${v:.1f}" for v in y], textposition="top center", textfont=dict(size=11, color="#c7d2e3"),
         customdata=["—" if pd.isna(c) else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
+    # Price labels as annotations (not trace text), so they don't clutter the slider strip
+    for d, v in zip(prices["date"], y):
+        fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#c7d2e3"))
     fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
                   annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom right")
     if show_events and events is not None:
         _add_events(fig, events, 34)
     return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
-                   xaxis=dict(type="date", range=["2026-01-01", "2026-11-01"], gridcolor=GRID, tickformat="%b", dtick="M1",
+                   xaxis=dict(type="date", range=["2025-12-20", "2026-11-05"], gridcolor=GRID, tickformat="%b", dtick="M1",
                               rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
                    yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, 35], fixedrange=True, automargin=True))
 
@@ -155,6 +157,9 @@ def dumbbell_chart(bench, unit, highlight):
                              marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=DARK, width=2))))
     fig.add_shape(type="rect", xref="paper", yref="y", x0=0, x1=1, y0=len(rows) - 1.5, y1=len(rows) - 0.5,
                   fillcolor="rgba(255,255,255,.03)", line_width=0)
+    if unit != "% vs pre-war" and abs(ttf[0] - jkm[0]) < 1:   # dots overlap when prices are almost equal
+        fig.add_annotation(x=max(ttf[0], jkm[0]), y=rows[0], text=f"TTF & JKM both ≈{ttf[0]:.0f}", showarrow=False,
+                           xanchor="left", xshift=16, font=dict(size=11, color=MUTED))
     return _layout(fig, height=380, margin=dict(l=10, r=20, t=10, b=60), clickmode="event+select",
                    xaxis=dict(title=unit, gridcolor=GRID, rangemode="tozero", ticksuffix="%" if unit == "% vs pre-war" else ""),
                    yaxis=dict(autorange="reversed", fixedrange=True, automargin=True), legend=dict(orientation="h", y=-0.22, x=0))
