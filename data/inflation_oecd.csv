@@ -1,0 +1,1359 @@
+date,country,measure,value
+2015-01-01,India,Food,6.147186
+2015-02-01,India,Food,6.707317
+2015-03-01,India,Food,5.963699
+2015-04-01,India,Food,5.029838
+2015-05-01,India,Food,4.717776
+2015-06-01,India,Food,5.403159
+2015-07-01,India,Food,2.158273
+2015-08-01,India,Food,2.281668
+2015-09-01,India,Food,3.885805
+2015-10-01,India,Food,5.179283
+2015-11-01,India,Food,6.08
+2015-12-01,India,Food,6.331169
+2016-01-01,India,Food,6.688417
+2016-02-01,India,Food,5.306122
+2016-03-01,India,Food,5.220228
+2016-04-01,India,Food,6.412338
+2016-05-01,India,Food,7.401448
+2016-06-01,India,Food,7.728707
+2016-07-01,India,Food,8.294209
+2016-08-01,India,Food,5.846154
+2016-09-01,India,Food,3.969466
+2016-10-01,India,Food,3.409091
+2016-11-01,India,Food,2.036199
+2016-12-01,India,Food,1.374046
+2017-01-01,India,Food,0.6880734
+2017-02-01,India,Food,2.093023
+2017-03-01,India,Food,2.015504
+2017-04-01,India,Food,0.6864989
+2017-05-01,India,Food,-0.8988764
+2017-06-01,India,Food,-1.976574
+2017-07-01,India,Food,-0.216763
+2017-08-01,India,Food,1.526163
+2017-09-01,India,Food,1.248164
+2017-10-01,India,Food,1.904762
+2017-11-01,India,Food,4.28677
+2017-12-01,India,Food,4.894578
+2018-01-01,India,Food,4.631739
+2018-02-01,India,Food,3.189066
+2018-03-01,India,Food,2.81155
+2018-04-01,India,Food,2.727273
+2018-05-01,India,Food,3.023432
+2018-06-01,India,Food,2.837939
+2018-07-01,India,Food,1.230992
+2018-08-01,India,Food,0.3579098
+2018-09-01,India,Food,0.5076142
+2018-10-01,India,Food,-0.790798
+2018-11-01,India,Food,-2.409639
+2018-12-01,India,Food,-2.440775
+2019-01-01,India,Food,-2.03193
+2019-02-01,India,Food,-0.5886682
+2019-03-01,India,Food,0.3695492
+2019-04-01,India,Food,1.179941
+2019-05-01,India,Food,1.907557
+2015-01-01,India,Headline,7.172996
+2015-02-01,India,Headline,6.302521
+2015-03-01,India,Headline,6.276151
+2015-04-01,India,Headline,5.785124
+2015-05-01,India,Headline,5.737705
+2015-06-01,India,Headline,6.097561
+2015-07-01,India,Headline,4.365079
+2015-08-01,India,Headline,4.347826
+2015-09-01,India,Headline,5.13834
+2015-10-01,India,Headline,6.324111
+2015-11-01,India,Headline,6.719368
+2015-12-01,India,Headline,6.324111
+2016-01-01,India,Headline,5.905512
+2016-02-01,India,Headline,5.533597
+2016-03-01,India,Headline,5.511811
+2016-04-01,India,Headline,5.859375
+2016-05-01,India,Headline,6.589147
+2016-06-01,India,Headline,6.130268
+2016-07-01,India,Headline,6.463878
+2016-08-01,India,Headline,5.30303
+2016-09-01,India,Headline,4.135338
+2016-10-01,India,Headline,3.345725
+2016-11-01,India,Headline,2.592592
+2016-12-01,India,Headline,2.230483
+2017-01-01,India,Headline,1.858736
+2017-02-01,India,Headline,2.621723
+2017-03-01,India,Headline,2.61194
+2017-04-01,India,Headline,2.214022
+2017-05-01,India,Headline,1.090909
+2017-06-01,India,Headline,1.083032
+2017-07-01,India,Headline,1.785714
+2017-08-01,India,Headline,2.517986
+2017-09-01,India,Headline,2.888087
+2017-10-01,India,Headline,3.23741
+2017-11-01,India,Headline,3.971119
+2017-12-01,India,Headline,4.0
+2018-01-01,India,Headline,5.109489
+2018-02-01,India,Headline,4.744525
+2018-03-01,India,Headline,4.363636
+2018-04-01,India,Headline,3.971119
+2018-05-01,India,Headline,3.956835
+2018-06-01,India,Headline,3.928571
+2018-07-01,India,Headline,5.614035
+2018-08-01,India,Headline,5.614035
+2018-09-01,India,Headline,5.614035
+2018-10-01,India,Headline,5.226481
+2018-11-01,India,Headline,4.861111
+2018-12-01,India,Headline,5.244755
+2019-01-01,India,Headline,6.597222
+2019-02-01,India,Headline,6.968641
+2019-03-01,India,Headline,7.665505
+2019-04-01,India,Headline,8.333333
+2019-05-01,India,Headline,8.650519
+2019-06-01,India,Headline,8.591065
+2019-07-01,India,Headline,5.980066
+2019-08-01,India,Headline,6.312293
+2019-09-01,India,Headline,6.976744
+2019-10-01,India,Headline,7.615894
+2019-11-01,India,Headline,8.609271
+2019-12-01,India,Headline,9.634551
+2020-01-01,India,Headline,7.491857
+2020-02-01,India,Headline,6.840391
+2020-03-01,India,Headline,5.501618
+2020-04-01,India,Headline,5.448718
+2020-05-01,India,Headline,5.095541
+2020-06-01,India,Headline,5.063291
+2020-07-01,India,Headline,5.329154
+2020-08-01,India,Headline,5.625
+2020-09-01,India,Headline,5.636574
+2020-10-01,India,Headline,5.902163
+2020-11-01,India,Headline,5.284787
+2020-12-01,India,Headline,3.686636
+2021-01-01,India,Headline,3.162966
+2021-02-01,India,Headline,4.494493
+2021-03-01,India,Headline,5.665658
+2021-04-01,India,Headline,5.13986
+2021-05-01,India,Headline,5.257646
+2021-06-01,India,Headline,5.577841
+2021-07-01,India,Headline,5.26388
+2021-08-01,India,Headline,4.811442
+2021-09-01,India,Headline,4.403048
+2021-10-01,India,Headline,4.518828
+2021-11-01,India,Headline,4.837365
+2021-12-01,India,Headline,5.555555
+2022-01-01,India,Headline,5.837564
+2022-02-01,India,Headline,5.042017
+2022-03-01,India,Headline,5.351171
+2022-04-01,India,Headline,6.32806
+2022-05-01,India,Headline,6.965174
+2022-06-01,India,Headline,6.162695
+2022-07-01,India,Headline,5.781759
+2022-08-01,India,Headline,5.853659
+2022-09-01,India,Headline,6.48824
+2022-10-01,India,Headline,6.084868
+2022-11-01,India,Headline,5.409706
+2022-12-01,India,Headline,5.502392
+2023-01-01,India,Headline,6.155076
+2023-02-01,India,Headline,6.16
+2023-03-01,India,Headline,5.793651
+2023-04-01,India,Headline,5.090055
+2023-05-01,India,Headline,4.418605
+2023-06-01,India,Headline,5.572755
+2023-07-01,India,Headline,7.544265
+2023-08-01,India,Headline,6.912442
+2023-09-01,India,Headline,4.722011
+2023-10-01,India,Headline,4.45283
+2023-11-01,India,Headline,4.981132
+2023-12-01,India,Headline,4.913076
+2024-01-01,India,Headline,4.593373
+2024-02-01,India,Headline,4.898267
+2024-03-01,India,Headline,4.20105
+2024-04-01,India,Headline,3.874814
+2024-05-01,India,Headline,3.86043
+2024-06-01,India,Headline,3.665689
+2024-07-01,India,Headline,2.147459
+2024-08-01,India,Headline,2.442529
+2024-09-01,India,Headline,4.218182
+2024-10-01,India,Headline,4.407515
+2024-11-01,India,Headline,3.882099
+2024-12-01,India,Headline,3.530259
+2025-01-01,India,Headline,3.095752
+2025-02-01,India,Headline,2.586207
+2025-03-01,India,Headline,2.951764
+2025-04-01,India,Headline,2.941176
+2025-05-01,India,Headline,2.930665
+2025-06-01,India,Headline,2.545969
+2025-07-01,India,Headline,2.662929
+2025-08-01,India,Headline,3.15568
+2025-09-01,India,Headline,2.791347
+2025-10-01,India,Headline,2.214533
+2025-11-01,India,Headline,2.560554
+2025-12-01,India,Headline,3.131524
+2026-01-01,India,Headline,3.77095
+2026-02-01,India,Headline,3.991597
+2026-03-01,India,Headline,4.265734
+2026-04-01,India,Headline,4.45993
+2026-05-01,India,Headline,4.722222
+2026-08-01,India,Headline,4.96261
+2026-09-01,India,Headline,5.56687
+2026-07-01,India,Headline,4.573379
+2026-06-01,India,Headline,4.758621
+2015-01-01,China,Food,1.1
+2015-02-01,China,Food,2.4
+2015-03-01,China,Food,2.3
+2015-04-01,China,Food,2.7
+2015-05-01,China,Food,1.6
+2015-06-01,China,Food,1.9
+2015-07-01,China,Food,2.7
+2015-08-01,China,Food,3.7
+2015-09-01,China,Food,2.7
+2015-10-01,China,Food,1.9
+2015-11-01,China,Food,2.3
+2015-12-01,China,Food,2.7
+2016-01-01,China,Food,3.6
+2016-02-01,China,Food,5.8
+2016-03-01,China,Food,6.0
+2016-04-01,China,Food,5.9
+2016-05-01,China,Food,4.7
+2016-06-01,China,Food,3.7
+2016-07-01,China,Food,2.8
+2016-08-01,China,Food,1.5
+2016-09-01,China,Food,2.7
+2016-10-01,China,Food,3.0
+2016-11-01,China,Food,3.2
+2016-12-01,China,Food,2.2
+2017-01-01,China,Food,2.5
+2017-02-01,China,Food,-2.4
+2017-03-01,China,Food,-2.4
+2017-04-01,China,Food,-1.8
+2017-05-01,China,Food,-0.5
+2017-06-01,China,Food,-1.2
+2017-07-01,China,Food,-0.1
+2017-08-01,China,Food,0.4
+2017-09-01,China,Food,-0.4
+2017-10-01,China,Food,-0.4
+2017-11-01,China,Food,-0.5
+2017-12-01,China,Food,-0.4
+2018-01-01,China,Food,-0.5
+2018-02-01,China,Food,3.6
+2018-03-01,China,Food,2.0
+2018-04-01,China,Food,1.1
+2018-05-01,China,Food,0.7
+2018-06-01,China,Food,0.8
+2018-07-01,China,Food,1.0
+2018-08-01,China,Food,1.9
+2018-09-01,China,Food,3.6
+2018-10-01,China,Food,3.3
+2018-11-01,China,Food,2.5
+2018-12-01,China,Food,2.4
+2019-01-01,China,Food,2.0
+2019-02-01,China,Food,1.2
+2019-03-01,China,Food,3.5
+2019-04-01,China,Food,4.7
+2019-05-01,China,Food,5.8
+2019-06-01,China,Food,6.1
+2019-07-01,China,Food,6.7
+2019-08-01,China,Food,7.3
+2019-09-01,China,Food,8.4
+2019-10-01,China,Food,15.5
+2019-11-01,China,Food,19.1
+2019-12-01,China,Food,17.4
+2020-01-01,China,Food,20.6
+2020-02-01,China,Food,21.9
+2020-03-01,China,Food,18.3
+2020-04-01,China,Food,14.8
+2020-05-01,China,Food,10.6
+2020-06-01,China,Food,8.8
+2020-07-01,China,Food,10.2
+2020-08-01,China,Food,11.2
+2020-09-01,China,Food,7.9
+2020-10-01,China,Food,2.2
+2020-11-01,China,Food,-2.0
+2020-12-01,China,Food,1.2
+2021-01-01,China,Food,1.6
+2021-02-01,China,Food,-0.2
+2021-03-01,China,Food,-0.7
+2021-04-01,China,Food,-0.7
+2021-05-01,China,Food,0.3
+2021-06-01,China,Food,-1.7
+2021-07-01,China,Food,-3.7
+2021-08-01,China,Food,-4.1
+2021-09-01,China,Food,-5.2
+2021-10-01,China,Food,-2.4
+2021-11-01,China,Food,1.6
+2021-12-01,China,Food,-1.2
+2022-01-01,China,Food,-3.8
+2022-02-01,China,Food,-3.9
+2022-03-01,China,Food,-1.5
+2022-04-01,China,Food,1.9
+2022-05-01,China,Food,2.3
+2022-06-01,China,Food,2.9
+2022-07-01,China,Food,6.3
+2022-08-01,China,Food,6.1
+2022-09-01,China,Food,8.8
+2022-10-01,China,Food,7.0
+2022-11-01,China,Food,3.7
+2022-12-01,China,Food,4.8
+2023-01-01,China,Food,6.2
+2023-02-01,China,Food,2.6
+2023-03-01,China,Food,2.4
+2023-04-01,China,Food,0.4
+2023-05-01,China,Food,1.0
+2023-06-01,China,Food,2.3
+2023-07-01,China,Food,-1.7
+2023-08-01,China,Food,-1.7
+2023-09-01,China,Food,-3.2
+2023-10-01,China,Food,-4.0
+2023-11-01,China,Food,-4.2
+2023-12-01,China,Food,-3.7
+2024-01-01,China,Food,-5.9
+2024-02-01,China,Food,-0.9
+2024-03-01,China,Food,-2.7
+2024-04-01,China,Food,-2.7
+2024-05-01,China,Food,-2.0
+2024-06-01,China,Food,-2.1
+2024-07-01,China,Food,0.0
+2024-08-01,China,Food,2.8
+2024-09-01,China,Food,3.3
+2024-10-01,China,Food,2.9
+2024-11-01,China,Food,1.0
+2024-12-01,China,Food,-0.5
+2025-01-01,China,Food,0.4
+2025-02-01,China,Food,-3.3
+2025-03-01,China,Food,-1.4
+2025-04-01,China,Food,-0.2
+2025-05-01,China,Food,-0.4
+2025-06-01,China,Food,-0.3
+2025-07-01,China,Food,-1.6
+2025-08-01,China,Food,-4.3
+2025-09-01,China,Food,-4.4
+2025-10-01,China,Food,-2.9
+2025-11-01,China,Food,0.2
+2025-12-01,China,Food,1.1
+2026-01-01,China,Food,-0.7
+2026-02-01,China,Food,1.7
+2026-03-01,China,Food,0.3
+2026-04-01,China,Food,-1.6
+2026-05-01,China,Food,-1.7
+2015-01-01,China,Headline,0.8
+2015-02-01,China,Headline,1.4
+2015-03-01,China,Headline,1.4
+2015-04-01,China,Headline,1.5
+2015-05-01,China,Headline,1.2
+2015-06-01,China,Headline,1.4
+2015-07-01,China,Headline,1.6
+2015-08-01,China,Headline,2.0
+2015-09-01,China,Headline,1.6
+2015-10-01,China,Headline,1.3
+2015-11-01,China,Headline,1.5
+2015-12-01,China,Headline,1.6
+2016-01-01,China,Headline,1.8
+2016-02-01,China,Headline,2.3
+2016-03-01,China,Headline,2.3
+2016-04-01,China,Headline,2.3
+2016-05-01,China,Headline,2.0
+2016-06-01,China,Headline,1.9
+2016-07-01,China,Headline,1.8
+2016-08-01,China,Headline,1.3
+2016-09-01,China,Headline,1.9
+2016-10-01,China,Headline,2.1
+2016-11-01,China,Headline,2.3
+2016-12-01,China,Headline,2.1
+2017-01-01,China,Headline,2.5
+2017-02-01,China,Headline,0.8
+2017-03-01,China,Headline,0.9
+2017-04-01,China,Headline,1.2
+2017-05-01,China,Headline,1.5
+2017-06-01,China,Headline,1.5
+2017-07-01,China,Headline,1.4
+2017-08-01,China,Headline,1.8
+2017-09-01,China,Headline,1.6
+2017-10-01,China,Headline,1.9
+2017-11-01,China,Headline,1.7
+2017-12-01,China,Headline,1.8
+2018-01-01,China,Headline,1.5
+2018-02-01,China,Headline,2.9
+2018-03-01,China,Headline,2.1
+2018-04-01,China,Headline,1.8
+2018-05-01,China,Headline,1.8
+2018-06-01,China,Headline,1.9
+2018-07-01,China,Headline,2.1
+2018-08-01,China,Headline,2.3
+2018-09-01,China,Headline,2.5
+2018-10-01,China,Headline,2.5
+2018-11-01,China,Headline,2.2
+2018-12-01,China,Headline,1.9
+2019-01-01,China,Headline,1.7
+2019-02-01,China,Headline,1.5
+2019-03-01,China,Headline,2.3
+2019-04-01,China,Headline,2.5
+2019-05-01,China,Headline,2.7
+2019-06-01,China,Headline,2.7
+2019-07-01,China,Headline,2.8
+2019-08-01,China,Headline,2.8
+2019-09-01,China,Headline,3.0
+2019-10-01,China,Headline,3.8
+2019-11-01,China,Headline,4.5
+2019-12-01,China,Headline,4.5
+2020-01-01,China,Headline,5.4
+2020-02-01,China,Headline,5.2
+2020-03-01,China,Headline,4.3
+2020-04-01,China,Headline,3.3
+2020-05-01,China,Headline,2.4
+2020-06-01,China,Headline,2.5
+2020-07-01,China,Headline,2.7
+2020-08-01,China,Headline,2.4
+2020-09-01,China,Headline,1.7
+2020-10-01,China,Headline,0.5
+2020-11-01,China,Headline,-0.5
+2020-12-01,China,Headline,0.2
+2021-01-01,China,Headline,-0.3
+2021-02-01,China,Headline,-0.2
+2021-03-01,China,Headline,0.4
+2021-04-01,China,Headline,0.9
+2021-05-01,China,Headline,1.3
+2021-06-01,China,Headline,1.1
+2021-07-01,China,Headline,1.0
+2021-08-01,China,Headline,0.8
+2021-09-01,China,Headline,0.7
+2021-10-01,China,Headline,1.5
+2021-11-01,China,Headline,2.3
+2021-12-01,China,Headline,1.5
+2022-01-01,China,Headline,0.9
+2022-02-01,China,Headline,0.9
+2022-03-01,China,Headline,1.5
+2022-04-01,China,Headline,2.1
+2022-05-01,China,Headline,2.1
+2022-06-01,China,Headline,2.5
+2022-07-01,China,Headline,2.7
+2022-08-01,China,Headline,2.5
+2022-09-01,China,Headline,2.8
+2022-10-01,China,Headline,2.1
+2022-11-01,China,Headline,1.6
+2022-12-01,China,Headline,1.8
+2023-01-01,China,Headline,2.1
+2023-02-01,China,Headline,1.0
+2023-03-01,China,Headline,0.7
+2023-04-01,China,Headline,0.1
+2023-05-01,China,Headline,0.2
+2023-06-01,China,Headline,0.0
+2023-07-01,China,Headline,-0.3
+2023-08-01,China,Headline,0.1
+2023-09-01,China,Headline,0.0
+2023-10-01,China,Headline,-0.2
+2023-11-01,China,Headline,-0.5
+2023-12-01,China,Headline,-0.3
+2024-01-01,China,Headline,-0.8
+2024-02-01,China,Headline,0.7
+2024-03-01,China,Headline,0.1
+2024-04-01,China,Headline,0.3
+2024-05-01,China,Headline,0.3
+2024-06-01,China,Headline,0.2
+2024-07-01,China,Headline,0.5
+2024-08-01,China,Headline,0.6
+2024-09-01,China,Headline,0.4
+2024-10-01,China,Headline,0.3
+2024-11-01,China,Headline,0.2
+2024-12-01,China,Headline,0.1
+2025-01-01,China,Headline,0.5
+2025-02-01,China,Headline,-0.7
+2025-03-01,China,Headline,-0.1
+2025-04-01,China,Headline,-0.1
+2025-05-01,China,Headline,-0.1
+2025-06-01,China,Headline,0.1
+2025-07-01,China,Headline,0.0
+2025-08-01,China,Headline,-0.4
+2025-09-01,China,Headline,-0.3
+2025-10-01,China,Headline,0.2
+2025-11-01,China,Headline,0.7
+2025-12-01,China,Headline,0.8
+2026-01-01,China,Headline,0.2
+2026-02-01,China,Headline,1.3
+2026-03-01,China,Headline,1.0
+2026-04-01,China,Headline,1.2
+2026-05-01,China,Headline,1.2
+2026-06-01,China,Food,-1.6
+2026-06-01,China,Headline,1.0
+2026-07-01,China,Food,-1.5
+2026-07-01,China,Headline,0.5
+2026-08-01,China,Headline,0.8
+2026-08-01,China,Food,-1.4
+2026-09-01,China,Food,-1.7
+2026-09-01,China,Headline,0.9
+2026-10-01,China,Headline,0.7
+2026-10-01,China,Food,-2.9
+2015-01-01,Japan,Energy,-0.4826255
+2015-02-01,Japan,Energy,-1.92864
+2015-03-01,Japan,Energy,-0.8628955
+2015-04-01,Japan,Energy,-3.195489
+2015-05-01,Japan,Energy,-5.818182
+2015-06-01,Japan,Energy,-6.884058
+2015-07-01,Japan,Energy,-8.746618
+2015-08-01,Japan,Energy,-10.58823
+2015-09-01,Japan,Energy,-12.1929
+2015-10-01,Japan,Energy,-12.01835
+2015-11-01,Japan,Energy,-11.31725
+2015-12-01,Japan,Energy,-11.10066
+2016-01-01,Japan,Energy,-10.66925
+2016-02-01,Japan,Energy,-11.01278
+2016-03-01,Japan,Energy,-13.34623
+2016-04-01,Japan,Energy,-12.91262
+2016-05-01,Japan,Energy,-12.83784
+2016-06-01,Japan,Energy,-11.96498
+2016-07-01,Japan,Energy,-11.36364
+2016-08-01,Japan,Energy,-10.22267
+2016-09-01,Japan,Energy,-8.393783
+2016-10-01,Japan,Energy,-7.924922
+2016-11-01,Japan,Energy,-6.694561
+2016-12-01,Japan,Energy,-4.444445
+2017-01-01,Japan,Energy,-0.7600434
+2017-02-01,Japan,Energy,1.546961
+2017-03-01,Japan,Energy,3.90625
+2017-04-01,Japan,Energy,4.570792
+2017-05-01,Japan,Energy,5.094131
+2017-06-01,Japan,Energy,4.972376
+2017-07-01,Japan,Energy,5.685619
+2017-08-01,Japan,Energy,6.989853
+2017-09-01,Japan,Energy,7.466063
+2017-10-01,Japan,Energy,8.607021
+2017-11-01,Japan,Energy,8.408072
+2017-12-01,Japan,Energy,7.641196
+2018-01-01,Japan,Energy,6.673961
+2018-02-01,Japan,Energy,6.964091
+2018-03-01,Japan,Energy,5.692803
+2018-04-01,Japan,Energy,5.330491
+2018-05-01,Japan,Energy,5.6902
+2018-06-01,Japan,Energy,7.263158
+2018-07-01,Japan,Energy,7.383966
+2018-08-01,Japan,Energy,7.376185
+2018-09-01,Japan,Energy,8.105263
+2018-10-01,Japan,Energy,8.8634
+2018-11-01,Japan,Energy,8.169597
+2018-12-01,Japan,Energy,6.069959
+2019-01-01,Japan,Energy,4.923077
+2019-02-01,Japan,Energy,4.476094
+2019-03-01,Japan,Energy,5.182927
+2019-04-01,Japan,Energy,4.65587
+2019-05-01,Japan,Energy,3.688933
+2019-06-01,Japan,Energy,1.177625
+2019-07-01,Japan,Energy,0.4911591
+2019-08-01,Japan,Energy,-0.1962709
+2019-09-01,Japan,Energy,-1.850049
+2019-10-01,Japan,Energy,-2.681992
+2019-11-01,Japan,Energy,-2.103251
+2019-12-01,Japan,Energy,-0.5819592
+2020-01-01,Japan,Energy,0.8797654
+2020-02-01,Japan,Energy,-0.194742
+2020-03-01,Japan,Energy,-1.73913
+2020-04-01,Japan,Energy,-4.642166
+2020-05-01,Japan,Energy,-6.730769
+2020-06-01,Japan,Energy,-5.334627
+2020-07-01,Japan,Energy,-4.398827
+2020-08-01,Japan,Energy,-3.539823
+2020-09-01,Japan,Energy,-3.472222
+2020-10-01,Japan,Energy,-5.708662
+2020-11-01,Japan,Energy,-7.714844
+2020-12-01,Japan,Energy,-8.195122
+2021-01-01,Japan,Energy,-8.666667
+2021-02-01,Japan,Energy,-7.375479
+2021-03-01,Japan,Energy,-4.53668
+2021-04-01,Japan,Energy,0.3984064
+2021-05-01,Japan,Energy,3.842265
+2021-06-01,Japan,Energy,4.317269
+2015-07-01,Japan,Services,0.4012036
+2015-12-01,Japan,Services,0.4008016
+2016-04-01,Japan,Services,0.4004004
+2017-01-01,Japan,Services,0.2002002
+2017-06-01,Japan,Services,-0.0997009
+2017-07-01,Japan,Services,-0.0996016
+2018-05-01,Japan,Services,0.2991027
+2018-11-01,Japan,Services,0.2988048
+2019-09-01,Japan,Services,0.2982107
+2019-10-01,Japan,Services,-0.09920635
+2020-04-01,Japan,Services,-0.4950495
+2020-06-01,Japan,Services,-0.297619
+2020-10-01,Japan,Services,-0.7944389
+2020-12-01,Japan,Services,-0.8919722
+2021-05-01,Japan,Services,-0.5970149
+2015-09-01,United Kingdom,Services,2.2
+2016-05-01,United Kingdom,Services,2.6
+2017-01-01,United Kingdom,Services,2.5
+2017-04-01,United Kingdom,Services,2.8
+2017-09-01,United Kingdom,Services,2.5
+2019-03-01,United Kingdom,Services,2.2
+2020-11-01,United Kingdom,Services,1.5
+2021-01-01,United Kingdom,Services,1.7
+2021-09-01,United Kingdom,Services,2.5
+2022-04-01,United Kingdom,Services,4.1
+2023-04-01,United Kingdom,Services,6.0
+2023-08-01,United Kingdom,Services,6.1
+2025-12-01,United Kingdom,Services,4.5
+2026-05-01,United Kingdom,Services,3.6
+2015-01-01,United Kingdom,Energy,-8.6
+2015-02-01,United Kingdom,Energy,-9.0
+2015-03-01,United Kingdom,Energy,-8.0
+2015-04-01,United Kingdom,Energy,-7.1
+2015-05-01,United Kingdom,Energy,-6.5
+2015-06-01,United Kingdom,Energy,-6.3
+2015-07-01,United Kingdom,Energy,-6.8
+2015-08-01,United Kingdom,Energy,-7.7
+2015-09-01,United Kingdom,Energy,-9.1
+2015-10-01,United Kingdom,Energy,-8.6
+2015-11-01,United Kingdom,Energy,-8.2
+2015-12-01,United Kingdom,Energy,-7.4
+2016-01-01,United Kingdom,Energy,-5.5
+2016-02-01,United Kingdom,Energy,-5.6
+2016-03-01,United Kingdom,Energy,-6.3
+2016-04-01,United Kingdom,Energy,-5.6
+2016-05-01,United Kingdom,Energy,-5.0
+2016-06-01,United Kingdom,Energy,-4.1
+2016-07-01,United Kingdom,Energy,-3.5
+2016-08-01,United Kingdom,Energy,-2.6
+2016-09-01,United Kingdom,Energy,-0.1
+2016-10-01,United Kingdom,Energy,1.8
+2016-11-01,United Kingdom,Energy,3.0
+2016-12-01,United Kingdom,Energy,4.5
+2017-01-01,United Kingdom,Energy,7.7
+2017-02-01,United Kingdom,Energy,9.1
+2017-03-01,United Kingdom,Energy,8.7
+2017-04-01,United Kingdom,Energy,7.0
+2017-05-01,United Kingdom,Energy,6.1
+2017-06-01,United Kingdom,Energy,4.2
+2017-07-01,United Kingdom,Energy,3.7
+2017-08-01,United Kingdom,Energy,5.3
+2017-09-01,United Kingdom,Energy,5.7
+2017-10-01,United Kingdom,Energy,4.6
+2017-11-01,United Kingdom,Energy,5.0
+2017-12-01,United Kingdom,Energy,5.5
+2018-01-01,United Kingdom,Energy,4.2
+2018-02-01,United Kingdom,Energy,3.6
+2018-03-01,United Kingdom,Energy,3.3
+2018-04-01,United Kingdom,Energy,4.5
+2018-05-01,United Kingdom,Energy,5.8
+2018-06-01,United Kingdom,Energy,8.7
+2018-07-01,United Kingdom,Energy,9.4
+2018-08-01,United Kingdom,Energy,9.0
+2018-09-01,United Kingdom,Energy,9.4
+2018-10-01,United Kingdom,Energy,10.5
+2018-11-01,United Kingdom,Energy,8.7
+2018-12-01,United Kingdom,Energy,5.8
+2019-01-01,United Kingdom,Energy,1.1
+2019-02-01,United Kingdom,Energy,1.1
+2019-03-01,United Kingdom,Energy,2.1
+2019-04-01,United Kingdom,Energy,7.4
+2019-05-01,United Kingdom,Energy,6.9
+2019-06-01,United Kingdom,Energy,4.3
+2019-07-01,United Kingdom,Energy,3.4
+2019-08-01,United Kingdom,Energy,3.2
+2019-09-01,United Kingdom,Energy,1.4
+2019-10-01,United Kingdom,Energy,-2.6
+2019-11-01,United Kingdom,Energy,-2.3
+2019-12-01,United Kingdom,Energy,-0.4
+2020-01-01,United Kingdom,Energy,4.8
+2020-02-01,United Kingdom,Energy,3.6
+2020-03-01,United Kingdom,Energy,0.8
+2020-04-01,United Kingdom,Energy,-9.4
+2020-05-01,United Kingdom,Energy,-11.7
+2020-06-01,United Kingdom,Energy,-11.3
+2020-07-01,United Kingdom,Energy,-9.2
+2020-08-01,United Kingdom,Energy,-8.9
+2020-09-01,United Kingdom,Energy,-8.6
+2020-10-01,United Kingdom,Energy,-9.4
+2020-11-01,United Kingdom,Energy,-9.3
+2020-12-01,United Kingdom,Energy,-8.3
+2021-01-01,United Kingdom,Energy,-8.2
+2021-02-01,United Kingdom,Energy,-5.7
+2021-03-01,United Kingdom,Energy,-2.3
+2021-04-01,United Kingdom,Energy,7.6
+2021-05-01,United Kingdom,Energy,9.6
+2021-06-01,United Kingdom,Energy,10.5
+2021-07-01,United Kingdom,Energy,9.5
+2021-08-01,United Kingdom,Energy,9.5
+2021-09-01,United Kingdom,Energy,9.7
+2021-10-01,United Kingdom,Energy,22.4
+2021-11-01,United Kingdom,Energy,25.6
+2021-12-01,United Kingdom,Energy,24.5
+2022-01-01,United Kingdom,Energy,23.2
+2022-02-01,United Kingdom,Energy,22.7
+2022-03-01,United Kingdom,Energy,27.8
+2022-04-01,United Kingdom,Energy,51.9
+2022-05-01,United Kingdom,Energy,52.6
+2022-06-01,United Kingdom,Energy,57.1
+2022-07-01,United Kingdom,Energy,57.7
+2022-08-01,United Kingdom,Energy,51.8
+2022-09-01,United Kingdom,Energy,49.4
+2022-10-01,United Kingdom,Energy,58.6
+2022-11-01,United Kingdom,Energy,55.2
+2022-12-01,United Kingdom,Energy,52.3
+2023-01-01,United Kingdom,Energy,50.7
+2023-02-01,United Kingdom,Energy,48.3
+2023-03-01,United Kingdom,Energy,39.7
+2023-04-01,United Kingdom,Energy,10.5
+2023-05-01,United Kingdom,Energy,8.1
+2023-06-01,United Kingdom,Energy,2.9
+2023-07-01,United Kingdom,Energy,-8.2
+2023-08-01,United Kingdom,Energy,-3.6
+2023-09-01,United Kingdom,Energy,-0.7
+2023-10-01,United Kingdom,Energy,-16.0
+2023-11-01,United Kingdom,Energy,-17.1
+2023-12-01,United Kingdom,Energy,-17.4
+2024-01-01,United Kingdom,Energy,-15.0
+2024-02-01,United Kingdom,Energy,-13.9
+2024-03-01,United Kingdom,Energy,-12.8
+2024-04-01,United Kingdom,Energy,-16.8
+2024-05-01,United Kingdom,Energy,-16.0
+2024-06-01,United Kingdom,Energy,-16.1
+2024-07-01,United Kingdom,Energy,-10.9
+2024-08-01,United Kingdom,Energy,-13.2
+2024-09-01,United Kingdom,Energy,-16.2
+2024-10-01,United Kingdom,Energy,-10.0
+2024-11-01,United Kingdom,Energy,-8.7
+2024-12-01,United Kingdom,Energy,-6.0
+2025-01-01,United Kingdom,Energy,-6.6
+2025-02-01,United Kingdom,Energy,-6.8
+2025-03-01,United Kingdom,Energy,-8.0
+2025-04-01,United Kingdom,Energy,-0.9
+2025-05-01,United Kingdom,Energy,-1.7
+2025-06-01,United Kingdom,Energy,-0.7
+2025-07-01,United Kingdom,Energy,1.4
+2025-08-01,United Kingdom,Energy,2.5
+2025-09-01,United Kingdom,Energy,4.3
+2025-10-01,United Kingdom,Energy,1.8
+2025-11-01,United Kingdom,Energy,1.9
+2025-12-01,United Kingdom,Energy,1.7
+2026-01-01,United Kingdom,Energy,0.2
+2026-02-01,United Kingdom,Energy,-1.0
+2026-03-01,United Kingdom,Energy,4.9
+2026-04-01,United Kingdom,Energy,7.1
+2026-05-01,United Kingdom,Energy,7.4
+2015-01-01,United Kingdom,Food,-2.5
+2015-02-01,United Kingdom,Food,-3.3
+2015-03-01,United Kingdom,Food,-3.0
+2015-04-01,United Kingdom,Food,-2.9
+2015-05-01,United Kingdom,Food,-1.8
+2015-06-01,United Kingdom,Food,-2.2
+2015-07-01,United Kingdom,Food,-2.7
+2015-08-01,United Kingdom,Food,-2.4
+2015-09-01,United Kingdom,Food,-2.2
+2015-10-01,United Kingdom,Food,-2.7
+2015-11-01,United Kingdom,Food,-2.4
+2015-12-01,United Kingdom,Food,-2.9
+2016-01-01,United Kingdom,Food,-2.6
+2016-02-01,United Kingdom,Food,-2.2
+2016-03-01,United Kingdom,Food,-2.8
+2016-04-01,United Kingdom,Food,-2.5
+2016-05-01,United Kingdom,Food,-2.8
+2016-06-01,United Kingdom,Food,-3.0
+2016-07-01,United Kingdom,Food,-2.6
+2016-08-01,United Kingdom,Food,-2.2
+2016-09-01,United Kingdom,Food,-2.3
+2016-10-01,United Kingdom,Food,-2.4
+2016-11-01,United Kingdom,Food,-2.1
+2016-12-01,United Kingdom,Food,-1.1
+2017-01-01,United Kingdom,Food,-0.5
+2017-02-01,United Kingdom,Food,0.2
+2017-03-01,United Kingdom,Food,1.3
+2017-04-01,United Kingdom,Food,1.6
+2017-05-01,United Kingdom,Food,2.1
+2017-06-01,United Kingdom,Food,2.4
+2017-07-01,United Kingdom,Food,2.6
+2017-08-01,United Kingdom,Food,2.2
+2017-09-01,United Kingdom,Food,3.1
+2017-10-01,United Kingdom,Food,4.1
+2017-11-01,United Kingdom,Food,4.2
+2017-12-01,United Kingdom,Food,4.1
+2018-01-01,United Kingdom,Food,3.7
+2018-02-01,United Kingdom,Food,3.0
+2018-03-01,United Kingdom,Food,3.1
+2018-04-01,United Kingdom,Food,2.7
+2018-05-01,United Kingdom,Food,2.3
+2018-06-01,United Kingdom,Food,2.0
+2018-07-01,United Kingdom,Food,2.3
+2018-08-01,United Kingdom,Food,2.4
+2018-09-01,United Kingdom,Food,1.5
+2018-10-01,United Kingdom,Food,0.9
+2018-11-01,United Kingdom,Food,0.5
+2018-12-01,United Kingdom,Food,0.7
+2019-01-01,United Kingdom,Food,0.9
+2019-02-01,United Kingdom,Food,1.2
+2019-03-01,United Kingdom,Food,0.8
+2019-04-01,United Kingdom,Food,0.7
+2019-05-01,United Kingdom,Food,1.1
+2019-06-01,United Kingdom,Food,1.7
+2019-07-01,United Kingdom,Food,1.5
+2019-08-01,United Kingdom,Food,1.8
+2019-09-01,United Kingdom,Food,1.7
+2019-10-01,United Kingdom,Food,1.4
+2019-11-01,United Kingdom,Food,2.1
+2019-12-01,United Kingdom,Food,1.7
+2020-01-01,United Kingdom,Food,1.4
+2020-02-01,United Kingdom,Food,1.3
+2020-03-01,United Kingdom,Food,1.3
+2020-04-01,United Kingdom,Food,1.4
+2020-05-01,United Kingdom,Food,1.9
+2020-06-01,United Kingdom,Food,1.2
+2020-07-01,United Kingdom,Food,0.8
+2020-08-01,United Kingdom,Food,0.4
+2020-09-01,United Kingdom,Food,0.0
+2020-10-01,United Kingdom,Food,0.6
+2020-11-01,United Kingdom,Food,-0.5
+2020-12-01,United Kingdom,Food,-1.4
+2021-01-01,United Kingdom,Food,-0.7
+2021-02-01,United Kingdom,Food,-0.6
+2021-03-01,United Kingdom,Food,-1.4
+2021-04-01,United Kingdom,Food,-0.5
+2021-05-01,United Kingdom,Food,-1.3
+2021-06-01,United Kingdom,Food,-0.6
+2021-07-01,United Kingdom,Food,-0.6
+2021-08-01,United Kingdom,Food,0.3
+2021-09-01,United Kingdom,Food,0.8
+2021-10-01,United Kingdom,Food,1.3
+2021-11-01,United Kingdom,Food,2.5
+2021-12-01,United Kingdom,Food,4.2
+2022-01-01,United Kingdom,Food,4.4
+2022-02-01,United Kingdom,Food,5.1
+2022-03-01,United Kingdom,Food,5.9
+2022-04-01,United Kingdom,Food,6.7
+2022-05-01,United Kingdom,Food,8.7
+2022-06-01,United Kingdom,Food,9.8
+2022-07-01,United Kingdom,Food,12.7
+2022-08-01,United Kingdom,Food,13.1
+2022-09-01,United Kingdom,Food,14.6
+2022-10-01,United Kingdom,Food,16.4
+2022-11-01,United Kingdom,Food,16.5
+2022-12-01,United Kingdom,Food,16.9
+2023-01-01,United Kingdom,Food,16.8
+2023-02-01,United Kingdom,Food,18.2
+2023-03-01,United Kingdom,Food,19.2
+2023-04-01,United Kingdom,Food,19.1
+2023-05-01,United Kingdom,Food,18.4
+2023-06-01,United Kingdom,Food,17.4
+2023-07-01,United Kingdom,Food,14.9
+2023-08-01,United Kingdom,Food,13.6
+2023-09-01,United Kingdom,Food,12.2
+2023-10-01,United Kingdom,Food,10.1
+2023-11-01,United Kingdom,Food,9.2
+2023-12-01,United Kingdom,Food,8.0
+2024-01-01,United Kingdom,Food,7.0
+2024-02-01,United Kingdom,Food,5.0
+2024-03-01,United Kingdom,Food,4.0
+2024-04-01,United Kingdom,Food,2.9
+2024-05-01,United Kingdom,Food,1.7
+2024-06-01,United Kingdom,Food,1.5
+2024-07-01,United Kingdom,Food,1.5
+2024-08-01,United Kingdom,Food,1.3
+2024-09-01,United Kingdom,Food,1.8
+2024-10-01,United Kingdom,Food,1.9
+2024-11-01,United Kingdom,Food,2.0
+2024-12-01,United Kingdom,Food,2.0
+2025-01-01,United Kingdom,Food,3.3
+2025-02-01,United Kingdom,Food,3.3
+2025-03-01,United Kingdom,Food,3.0
+2025-04-01,United Kingdom,Food,3.4
+2025-05-01,United Kingdom,Food,4.4
+2025-06-01,United Kingdom,Food,4.5
+2025-07-01,United Kingdom,Food,4.9
+2025-08-01,United Kingdom,Food,5.1
+2025-09-01,United Kingdom,Food,4.5
+2025-10-01,United Kingdom,Food,4.9
+2025-11-01,United Kingdom,Food,4.2
+2025-12-01,United Kingdom,Food,4.5
+2026-01-01,United Kingdom,Food,3.6
+2026-02-01,United Kingdom,Food,3.3
+2026-03-01,United Kingdom,Food,3.7
+2026-04-01,United Kingdom,Food,3.0
+2026-05-01,United Kingdom,Food,2.2
+2015-01-01,United Kingdom,Headline,0.5
+2015-02-01,United Kingdom,Headline,0.4
+2015-03-01,United Kingdom,Headline,0.3
+2015-04-01,United Kingdom,Headline,0.3
+2015-05-01,United Kingdom,Headline,0.4
+2015-06-01,United Kingdom,Headline,0.3
+2015-07-01,United Kingdom,Headline,0.5
+2015-08-01,United Kingdom,Headline,0.4
+2015-09-01,United Kingdom,Headline,0.2
+2015-10-01,United Kingdom,Headline,0.2
+2015-11-01,United Kingdom,Headline,0.4
+2015-12-01,United Kingdom,Headline,0.5
+2016-01-01,United Kingdom,Headline,0.6
+2016-02-01,United Kingdom,Headline,0.6
+2016-03-01,United Kingdom,Headline,0.8
+2016-04-01,United Kingdom,Headline,0.7
+2016-05-01,United Kingdom,Headline,0.7
+2016-06-01,United Kingdom,Headline,0.8
+2016-07-01,United Kingdom,Headline,0.9
+2016-08-01,United Kingdom,Headline,1.0
+2016-09-01,United Kingdom,Headline,1.3
+2016-10-01,United Kingdom,Headline,1.3
+2016-11-01,United Kingdom,Headline,1.5
+2016-12-01,United Kingdom,Headline,1.8
+2017-01-01,United Kingdom,Headline,1.9
+2017-02-01,United Kingdom,Headline,2.3
+2017-03-01,United Kingdom,Headline,2.3
+2017-04-01,United Kingdom,Headline,2.6
+2017-05-01,United Kingdom,Headline,2.7
+2017-06-01,United Kingdom,Headline,2.6
+2017-07-01,United Kingdom,Headline,2.6
+2017-08-01,United Kingdom,Headline,2.7
+2017-09-01,United Kingdom,Headline,2.8
+2017-10-01,United Kingdom,Headline,2.8
+2017-11-01,United Kingdom,Headline,2.8
+2017-12-01,United Kingdom,Headline,2.7
+2018-01-01,United Kingdom,Headline,2.7
+2018-02-01,United Kingdom,Headline,2.5
+2018-03-01,United Kingdom,Headline,2.3
+2018-04-01,United Kingdom,Headline,2.2
+2018-05-01,United Kingdom,Headline,2.3
+2018-06-01,United Kingdom,Headline,2.3
+2018-07-01,United Kingdom,Headline,2.3
+2018-08-01,United Kingdom,Headline,2.4
+2018-09-01,United Kingdom,Headline,2.2
+2018-10-01,United Kingdom,Headline,2.2
+2018-11-01,United Kingdom,Headline,2.2
+2018-12-01,United Kingdom,Headline,2.0
+2019-01-01,United Kingdom,Headline,1.8
+2019-02-01,United Kingdom,Headline,1.8
+2019-03-01,United Kingdom,Headline,1.8
+2019-04-01,United Kingdom,Headline,2.0
+2019-05-01,United Kingdom,Headline,1.9
+2019-06-01,United Kingdom,Headline,1.9
+2019-07-01,United Kingdom,Headline,2.0
+2019-08-01,United Kingdom,Headline,1.7
+2019-09-01,United Kingdom,Headline,1.7
+2019-10-01,United Kingdom,Headline,1.5
+2019-11-01,United Kingdom,Headline,1.5
+2019-12-01,United Kingdom,Headline,1.4
+2020-01-01,United Kingdom,Headline,1.8
+2020-02-01,United Kingdom,Headline,1.7
+2020-03-01,United Kingdom,Headline,1.5
+2020-04-01,United Kingdom,Headline,0.9
+2020-05-01,United Kingdom,Headline,0.7
+2020-06-01,United Kingdom,Headline,0.8
+2020-07-01,United Kingdom,Headline,1.1
+2020-08-01,United Kingdom,Headline,0.5
+2020-09-01,United Kingdom,Headline,0.7
+2020-10-01,United Kingdom,Headline,0.9
+2020-11-01,United Kingdom,Headline,0.6
+2020-12-01,United Kingdom,Headline,0.8
+2021-01-01,United Kingdom,Headline,0.9
+2021-02-01,United Kingdom,Headline,0.7
+2021-03-01,United Kingdom,Headline,1.0
+2021-04-01,United Kingdom,Headline,1.6
+2021-05-01,United Kingdom,Headline,2.1
+2021-06-01,United Kingdom,Headline,2.4
+2021-07-01,United Kingdom,Headline,2.1
+2021-08-01,United Kingdom,Headline,3.0
+2021-09-01,United Kingdom,Headline,2.9
+2021-10-01,United Kingdom,Headline,3.8
+2021-11-01,United Kingdom,Headline,4.6
+2021-12-01,United Kingdom,Headline,4.8
+2022-01-01,United Kingdom,Headline,4.9
+2022-02-01,United Kingdom,Headline,5.5
+2022-03-01,United Kingdom,Headline,6.2
+2022-04-01,United Kingdom,Headline,7.8
+2022-05-01,United Kingdom,Headline,7.9
+2022-06-01,United Kingdom,Headline,8.2
+2022-07-01,United Kingdom,Headline,8.8
+2022-08-01,United Kingdom,Headline,8.6
+2022-09-01,United Kingdom,Headline,8.8
+2022-10-01,United Kingdom,Headline,9.6
+2022-11-01,United Kingdom,Headline,9.3
+2022-12-01,United Kingdom,Headline,9.2
+2023-01-01,United Kingdom,Headline,8.8
+2023-02-01,United Kingdom,Headline,9.2
+2023-03-01,United Kingdom,Headline,8.9
+2023-04-01,United Kingdom,Headline,7.8
+2023-05-01,United Kingdom,Headline,7.9
+2023-06-01,United Kingdom,Headline,7.3
+2023-07-01,United Kingdom,Headline,6.4
+2023-08-01,United Kingdom,Headline,6.3
+2023-09-01,United Kingdom,Headline,6.3
+2023-10-01,United Kingdom,Headline,4.7
+2023-11-01,United Kingdom,Headline,4.2
+2023-12-01,United Kingdom,Headline,4.2
+2024-01-01,United Kingdom,Headline,4.2
+2024-02-01,United Kingdom,Headline,3.8
+2024-03-01,United Kingdom,Headline,3.8
+2024-04-01,United Kingdom,Headline,3.0
+2024-05-01,United Kingdom,Headline,2.8
+2024-06-01,United Kingdom,Headline,2.8
+2024-07-01,United Kingdom,Headline,3.1
+2024-08-01,United Kingdom,Headline,3.1
+2024-09-01,United Kingdom,Headline,2.6
+2024-10-01,United Kingdom,Headline,3.2
+2024-11-01,United Kingdom,Headline,3.5
+2024-12-01,United Kingdom,Headline,3.5
+2025-01-01,United Kingdom,Headline,3.9
+2025-02-01,United Kingdom,Headline,3.7
+2025-03-01,United Kingdom,Headline,3.4
+2025-04-01,United Kingdom,Headline,4.1
+2025-05-01,United Kingdom,Headline,4.0
+2025-06-01,United Kingdom,Headline,4.1
+2025-07-01,United Kingdom,Headline,4.2
+2025-08-01,United Kingdom,Headline,4.1
+2025-09-01,United Kingdom,Headline,4.1
+2025-10-01,United Kingdom,Headline,3.8
+2025-11-01,United Kingdom,Headline,3.5
+2025-12-01,United Kingdom,Headline,3.6
+2026-01-01,United Kingdom,Headline,3.2
+2026-02-01,United Kingdom,Headline,3.2
+2026-03-01,United Kingdom,Headline,3.4
+2026-04-01,United Kingdom,Headline,3.0
+2026-05-01,United Kingdom,Headline,3.0
+2015-01-01,Japan,Food,4.479435
+2015-02-01,Japan,Food,4.201595
+2015-03-01,Japan,Food,4.354798
+2015-04-01,Japan,Food,3.117474
+2015-05-01,Japan,Food,3.773522
+2015-06-01,Japan,Food,3.329888
+2015-07-01,Japan,Food,3.198524
+2015-08-01,Japan,Food,3.306697
+2015-09-01,Japan,Food,2.757976
+2015-10-01,Japan,Food,4.424436
+2015-11-01,Japan,Food,3.512985
+2015-12-01,Japan,Food,2.500856
+2016-01-01,Japan,Food,1.795111
+2016-02-01,Japan,Food,3.171078
+2016-03-01,Japan,Food,3.01167
+2016-04-01,Japan,Food,1.505264
+2016-05-01,Japan,Food,0.685396
+2016-06-01,Japan,Food,1.276764
+2016-07-01,Japan,Food,1.236494
+2016-08-01,Japan,Food,0.5847449
+2016-09-01,Japan,Food,0.454761
+2016-10-01,Japan,Food,3.001905
+2016-11-01,Japan,Food,4.688574
+2016-12-01,Japan,Food,3.370497
+2017-01-01,Japan,Food,2.235536
+2017-02-01,Japan,Food,0.8899479
+2017-03-01,Japan,Food,0.5842438
+2017-04-01,Japan,Food,1.068341
+2017-05-01,Japan,Food,0.9823263
+2017-06-01,Japan,Food,0.7999017
+2017-07-01,Japan,Food,0.5817947
+2017-08-01,Japan,Food,0.8644648
+2017-09-01,Japan,Food,1.128674
+2017-10-01,Japan,Food,-1.97421
+2017-11-01,Japan,Food,-0.5970238
+2017-12-01,Japan,Food,1.974269
+2018-01-01,Japan,Food,3.796815
+2018-02-01,Japan,Food,3.688359
+2018-03-01,Japan,Food,2.132318
+2018-04-01,Japan,Food,0.5282714
+2018-05-01,Japan,Food,0.6265816
+2018-06-01,Japan,Food,0.4132777
+2018-07-01,Japan,Food,1.563033
+2018-08-01,Japan,Food,2.699548
+2018-09-01,Japan,Food,2.157916
+2018-10-01,Japan,Food,2.945791
+2018-11-01,Japan,Food,0.5726278
+2018-12-01,Japan,Food,-1.595637
+2019-01-01,Japan,Food,-2.218713
+2019-02-01,Japan,Food,-2.071805
+2019-03-01,Japan,Food,-0.6089209
+2019-04-01,Japan,Food,0.6914412
+2019-05-01,Japan,Food,0.8097858
+2019-06-01,Japan,Food,1.745915
+2019-07-01,Japan,Food,1.115973
+2019-08-01,Japan,Food,-0.1749098
+2019-09-01,Japan,Food,0.4856109
+2019-10-01,Japan,Food,0.2610748
+2019-11-01,Japan,Food,0.9613665
+2019-12-01,Japan,Food,1.632024
+2020-01-01,Japan,Food,0.7206255
+2020-02-01,Japan,Food,0.7250915
+2020-03-01,Japan,Food,0.9237207
+2020-04-01,Japan,Food,2.147976
+2020-05-01,Japan,Food,2.055601
+2020-06-01,Japan,Food,1.275164
+2020-07-01,Japan,Food,1.685756
+2020-08-01,Japan,Food,3.085589
+2020-09-01,Japan,Food,1.751283
+2020-10-01,Japan,Food,1.438792
+2020-11-01,Japan,Food,-0.2460497
+2020-12-01,Japan,Food,-1.13343
+2021-01-01,Japan,Food,-0.1459795
+2021-02-01,Japan,Food,-0.005808565
+2021-03-01,Japan,Food,-0.3770425
+2021-04-01,Japan,Food,-1.695632
+2021-05-01,Japan,Food,-1.325422
+2021-06-01,Japan,Food,-0.07065607
+2015-01-01,Japan,Headline,2.4
+2015-02-01,Japan,Headline,2.2
+2015-03-01,Japan,Headline,2.3
+2015-04-01,Japan,Headline,0.6
+2015-05-01,Japan,Headline,0.5
+2015-06-01,Japan,Headline,0.4
+2015-07-01,Japan,Headline,0.2
+2015-08-01,Japan,Headline,0.2
+2015-09-01,Japan,Headline,0.0
+2015-10-01,Japan,Headline,0.3
+2015-11-01,Japan,Headline,0.3
+2015-12-01,Japan,Headline,0.2
+2016-01-01,Japan,Headline,-0.1
+2016-02-01,Japan,Headline,0.2
+2016-03-01,Japan,Headline,0.0
+2016-04-01,Japan,Headline,-0.3
+2016-05-01,Japan,Headline,-0.5
+2016-06-01,Japan,Headline,-0.4
+2016-07-01,Japan,Headline,-0.4
+2016-08-01,Japan,Headline,-0.5
+2016-09-01,Japan,Headline,-0.5
+2016-10-01,Japan,Headline,0.1
+2016-11-01,Japan,Headline,0.5
+2016-12-01,Japan,Headline,0.3
+2017-01-01,Japan,Headline,0.4
+2017-02-01,Japan,Headline,0.3
+2017-03-01,Japan,Headline,0.2
+2017-04-01,Japan,Headline,0.4
+2017-05-01,Japan,Headline,0.4
+2017-06-01,Japan,Headline,0.4
+2017-07-01,Japan,Headline,0.4
+2017-08-01,Japan,Headline,0.7
+2017-09-01,Japan,Headline,0.7
+2017-10-01,Japan,Headline,0.2
+2017-11-01,Japan,Headline,0.6
+2017-12-01,Japan,Headline,1.0
+2018-01-01,Japan,Headline,1.4
+2018-02-01,Japan,Headline,1.5
+2018-03-01,Japan,Headline,1.1
+2018-04-01,Japan,Headline,0.6
+2018-05-01,Japan,Headline,0.7
+2018-06-01,Japan,Headline,0.7
+2018-07-01,Japan,Headline,0.9
+2018-08-01,Japan,Headline,1.3
+2018-09-01,Japan,Headline,1.2
+2018-10-01,Japan,Headline,1.4
+2018-11-01,Japan,Headline,0.8
+2018-12-01,Japan,Headline,0.3
+2019-01-01,Japan,Headline,0.2
+2019-02-01,Japan,Headline,0.2
+2019-03-01,Japan,Headline,0.5
+2019-04-01,Japan,Headline,0.9
+2019-05-01,Japan,Headline,0.7
+2019-06-01,Japan,Headline,0.7
+2019-07-01,Japan,Headline,0.5
+2019-08-01,Japan,Headline,0.3
+2019-09-01,Japan,Headline,0.2
+2019-10-01,Japan,Headline,0.2
+2019-11-01,Japan,Headline,0.5
+2019-12-01,Japan,Headline,0.8
+2020-01-01,Japan,Headline,0.7
+2020-02-01,Japan,Headline,0.4
+2020-03-01,Japan,Headline,0.4
+2020-04-01,Japan,Headline,0.1
+2020-05-01,Japan,Headline,0.1
+2020-06-01,Japan,Headline,0.1
+2020-07-01,Japan,Headline,0.3
+2020-08-01,Japan,Headline,0.2
+2020-09-01,Japan,Headline,0.0
+2020-10-01,Japan,Headline,-0.4
+2020-11-01,Japan,Headline,-0.9
+2020-12-01,Japan,Headline,-1.2
+2021-01-01,Japan,Headline,-0.7
+2021-02-01,Japan,Headline,-0.5
+2021-03-01,Japan,Headline,-0.4
+2021-04-01,Japan,Headline,-1.1
+2021-05-01,Japan,Headline,-0.8
+2021-06-01,Japan,Headline,-0.5
+2015-01-01,United Kingdom,Services,2.1
+2015-02-01,United Kingdom,Services,2.2
+2015-03-01,United Kingdom,Services,2.2
+2015-04-01,United Kingdom,Services,2.0
+2015-05-01,United Kingdom,Services,2.1
+2015-06-01,United Kingdom,Services,2.1
+2015-07-01,United Kingdom,Services,2.2
+2015-08-01,United Kingdom,Services,2.2
+2015-10-01,United Kingdom,Services,2.1
+2015-11-01,United Kingdom,Services,2.2
+2015-12-01,United Kingdom,Services,2.5
+2016-01-01,United Kingdom,Services,2.2
+2016-02-01,United Kingdom,Services,2.3
+2016-03-01,United Kingdom,Services,2.6
+2016-04-01,United Kingdom,Services,2.4
+2016-06-01,United Kingdom,Services,2.7
+2016-07-01,United Kingdom,Services,2.6
+2016-08-01,United Kingdom,Services,2.7
+2016-09-01,United Kingdom,Services,2.6
+2016-10-01,United Kingdom,Services,2.5
+2016-11-01,United Kingdom,Services,2.4
+2016-12-01,United Kingdom,Services,2.5
+2017-02-01,United Kingdom,Services,2.6
+2017-03-01,United Kingdom,Services,2.2
+2017-05-01,United Kingdom,Services,2.6
+2017-06-01,United Kingdom,Services,2.5
+2017-07-01,United Kingdom,Services,2.4
+2017-08-01,United Kingdom,Services,2.5
+2017-10-01,United Kingdom,Services,2.4
+2017-11-01,United Kingdom,Services,2.4
+2017-12-01,United Kingdom,Services,2.2
+2018-01-01,United Kingdom,Services,2.3
+2018-02-01,United Kingdom,Services,2.1
+2018-03-01,United Kingdom,Services,2.1
+2018-04-01,United Kingdom,Services,1.9
+2018-05-01,United Kingdom,Services,2.1
+2018-06-01,United Kingdom,Services,2.0
+2018-07-01,United Kingdom,Services,2.0
+2018-08-01,United Kingdom,Services,2.2
+2018-09-01,United Kingdom,Services,2.0
+2018-10-01,United Kingdom,Services,2.1
+2018-11-01,United Kingdom,Services,2.2
+2018-12-01,United Kingdom,Services,2.1
+2019-01-01,United Kingdom,Services,2.2
+2019-02-01,United Kingdom,Services,2.2
+2019-04-01,United Kingdom,Services,2.5
+2019-05-01,United Kingdom,Services,2.3
+2019-06-01,United Kingdom,Services,2.2
+2019-07-01,United Kingdom,Services,2.2
+2019-08-01,United Kingdom,Services,2.0
+2019-09-01,United Kingdom,Services,2.2
+2019-10-01,United Kingdom,Services,2.2
+2019-11-01,United Kingdom,Services,2.2
+2019-12-01,United Kingdom,Services,1.9
+2020-01-01,United Kingdom,Services,2.1
+2020-02-01,United Kingdom,Services,2.2
+2020-03-01,United Kingdom,Services,2.2
+2020-04-01,United Kingdom,Services,1.9
+2020-05-01,United Kingdom,Services,1.8
+2020-06-01,United Kingdom,Services,1.7
+2020-07-01,United Kingdom,Services,2.0
+2020-08-01,United Kingdom,Services,1.0
+2020-09-01,United Kingdom,Services,1.5
+2020-10-01,United Kingdom,Services,1.5
+2020-12-01,United Kingdom,Services,1.6
+2021-02-01,United Kingdom,Services,1.6
+2021-03-01,United Kingdom,Services,1.6
+2021-04-01,United Kingdom,Services,1.7
+2021-05-01,United Kingdom,Services,1.9
+2021-06-01,United Kingdom,Services,2.1
+2021-07-01,United Kingdom,Services,1.8
+2021-08-01,United Kingdom,Services,2.7
+2021-10-01,United Kingdom,Services,2.9
+2021-11-01,United Kingdom,Services,3.0
+2021-12-01,United Kingdom,Services,3.1
+2022-01-01,United Kingdom,Services,3.1
+2022-02-01,United Kingdom,Services,3.2
+2022-03-01,United Kingdom,Services,3.7
+2022-05-01,United Kingdom,Services,4.3
+2022-06-01,United Kingdom,Services,4.5
+2022-07-01,United Kingdom,Services,4.9
+2022-08-01,United Kingdom,Services,5.1
+2022-09-01,United Kingdom,Services,5.3
+2022-10-01,United Kingdom,Services,5.3
+2022-11-01,United Kingdom,Services,5.4
+2022-12-01,United Kingdom,Services,5.8
+2023-01-01,United Kingdom,Services,5.2
+2023-02-01,United Kingdom,Services,5.6
+2023-03-01,United Kingdom,Services,5.7
+2023-05-01,United Kingdom,Services,6.3
+2023-06-01,United Kingdom,Services,6.3
+2023-07-01,United Kingdom,Services,6.5
+2023-09-01,United Kingdom,Services,6.3
+2023-10-01,United Kingdom,Services,6.2
+2023-11-01,United Kingdom,Services,6.0
+2023-12-01,United Kingdom,Services,6.0
+2024-01-01,United Kingdom,Services,6.1
+2024-02-01,United Kingdom,Services,6.0
+2024-03-01,United Kingdom,Services,6.0
+2024-04-01,United Kingdom,Services,6.0
+2024-05-01,United Kingdom,Services,5.9
+2024-06-01,United Kingdom,Services,6.0
+2024-07-01,United Kingdom,Services,5.7
+2024-08-01,United Kingdom,Services,5.9
+2024-09-01,United Kingdom,Services,5.6
+2024-10-01,United Kingdom,Services,5.6
+2024-11-01,United Kingdom,Services,5.7
+2024-12-01,United Kingdom,Services,5.4
+2025-01-01,United Kingdom,Services,5.8
+2025-02-01,United Kingdom,Services,5.7
+2025-03-01,United Kingdom,Services,5.4
+2025-04-01,United Kingdom,Services,5.8
+2025-05-01,United Kingdom,Services,5.3
+2025-06-01,United Kingdom,Services,5.2
+2025-07-01,United Kingdom,Services,5.2
+2025-08-01,United Kingdom,Services,4.9
+2025-09-01,United Kingdom,Services,4.9
+2025-10-01,United Kingdom,Services,4.6
+2025-11-01,United Kingdom,Services,4.5
+2026-01-01,United Kingdom,Services,4.3
+2026-02-01,United Kingdom,Services,4.2
+2026-03-01,United Kingdom,Services,4.3
+2026-04-01,United Kingdom,Services,3.4
+2015-01-01,Japan,Services,1.738241
+2015-02-01,Japan,Services,1.840491
+2015-03-01,Japan,Services,1.836735
+2015-04-01,Japan,Services,0.5030181
+2015-05-01,Japan,Services,0.4020101
+2015-06-01,Japan,Services,0.5030181
+2015-08-01,Japan,Services,0.3996004
+2015-09-01,Japan,Services,0.502008
+2015-10-01,Japan,Services,0.3003003
+2015-11-01,Japan,Services,0.5015045
+2016-01-01,Japan,Services,0.4020101
+2016-02-01,Japan,Services,0.4016064
+2016-03-01,Japan,Services,0.3006012
+2016-05-01,Japan,Services,0.4004004
+2016-06-01,Japan,Services,0.4004004
+2016-07-01,Japan,Services,0.2997003
+2016-08-01,Japan,Services,0.199005
+2016-09-01,Japan,Services,0.2997003
+2016-10-01,Japan,Services,0.2994012
+2016-11-01,Japan,Services,0.0998004
+2016-12-01,Japan,Services,0.1996008
+2017-02-01,Japan,Services,0.0
+2017-03-01,Japan,Services,0.0999001
+2017-04-01,Japan,Services,0.0
+2017-05-01,Japan,Services,0.0
+2017-08-01,Japan,Services,0.0
+2017-09-01,Japan,Services,0.0
+2017-10-01,Japan,Services,0.0
+2017-11-01,Japan,Services,0.0997009
+2017-12-01,Japan,Services,0.0
+2018-01-01,Japan,Services,0.0999001
+2018-02-01,Japan,Services,0.3
+2018-03-01,Japan,Services,0.1996008
+2018-04-01,Japan,Services,0.1994018
+2018-06-01,Japan,Services,0.1996008
+2018-07-01,Japan,Services,0.1994018
+2018-08-01,Japan,Services,0.4965243
+2018-09-01,Japan,Services,0.1992032
+2018-10-01,Japan,Services,0.2985075
+2018-12-01,Japan,Services,0.2988048
+2019-01-01,Japan,Services,0.499002
+2019-02-01,Japan,Services,0.4985045
+2019-03-01,Japan,Services,0.2988048
+2019-04-01,Japan,Services,0.4975124
+2019-05-01,Japan,Services,0.2982107
+2019-06-01,Japan,Services,0.3984064
+2019-07-01,Japan,Services,0.2985075
+2019-08-01,Japan,Services,0.1976285
+2019-11-01,Japan,Services,0.09930486
+2019-12-01,Japan,Services,0.1986097
+2020-01-01,Japan,Services,0.0
+2020-02-01,Japan,Services,-0.09920635
+2020-03-01,Japan,Services,0.0
+2020-05-01,Japan,Services,-0.3964321
+2020-07-01,Japan,Services,-0.09920635
+2020-08-01,Japan,Services,-0.9861933
+2020-09-01,Japan,Services,-0.8919722
+2020-11-01,Japan,Services,-0.8928571
+2021-01-01,Japan,Services,0.0
+2021-02-01,Japan,Services,0.0
+2021-03-01,Japan,Services,0.09930486
+2021-04-01,Japan,Services,-0.5970149
+2021-06-01,Japan,Services,-0.5970149
+2026-10-01,United Kingdom,Energy,19.4
+2026-10-01,United Kingdom,Headline,3.7
+2026-10-01,United Kingdom,Services,3.9
+2026-10-01,United Kingdom,Food,0.9
+2026-09-01,United Kingdom,Food,1.3
+2026-09-01,United Kingdom,Services,3.9
+2026-09-01,United Kingdom,Headline,3.6
+2026-09-01,United Kingdom,Energy,17.9
+2026-08-01,United Kingdom,Energy,13.8
+2026-08-01,United Kingdom,Headline,3.3
+2026-08-01,United Kingdom,Services,3.6
+2026-08-01,United Kingdom,Food,1.3
+2026-06-01,United Kingdom,Food,1.7
+2026-06-01,United Kingdom,Services,3.6
+2026-06-01,United Kingdom,Headline,2.8
+2026-06-01,United Kingdom,Energy,5.7
+2026-07-01,United Kingdom,Food,1.3
+2026-07-01,United Kingdom,Services,3.6
+2026-07-01,United Kingdom,Headline,3.1
+2026-07-01,United Kingdom,Energy,9.8

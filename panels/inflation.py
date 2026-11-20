@@ -215,6 +215,68 @@ def download_bls() -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
+def download_oil() -> pd.DataFrame:
+    """Monthly average Brent price in US$ and in each country's own currency (yfinance)."""
+    import yfinance as yf
+    tickers = [OIL_TICKER] + [t for t, _ in FX_TICKERS.values()]
+    raw = yf.download(tickers, start=(START - pd.DateOffset(years=1)).strftime("%Y-%m-%d"),
+                      auto_adjust=True, progress=False)["Close"].ffill()
+    monthly = raw.resample("MS").mean()
+    oil = pd.DataFrame({"USD": monthly[OIL_TICKER]})
+    for currency, (ticker, kind) in FX_TICKERS.items():
+        rate = monthly[ticker]
+        oil[currency] = oil["USD"] / rate if kind == "usd_per" else oil["USD"] * rate
+    oil.index.name = "date"
+    return oil.dropna().reset_index()
+
+
+SOURCES = {   # file name in data/: (label shown on screen, download function)
+    "eurostat": ("Eurostat (Europe)", download_eurostat),
+    "oecd": ("OECD (UK and Asia)", download_oecd),
+    "bls": ("BLS (USA)", download_bls),
+    "weights": ("Eurostat basket weights", download_weights),
+    "oil": ("Brent and exchange rates (yfinance)", download_oil),
+}
+
+
+@st.cache_data(show_spinner="Loading inflation and oil data...")
+def load_data() -> dict:
+    """Load every dataset this panel needs. Cached, so it runs once per session."""
+    tables, status = {}, {}
+    for name, (label, download) in SOURCES.items():
+        try:
+            tables[name], status[label] = load(name, download)
+        except Exception as error:
+            tables[name], status[label] = None, f"missing ({type(error).__name__})"
+
+    parts = [tables[n] for n in ("eurostat", "oecd", "bls") if tables[n] is not None]
+    inflation = None
+    if parts:
+        inflation = pd.concat(parts, ignore_index=True)
+        inflation["date"] = pd.to_datetime(inflation["date"])
+        inflation["value"] = pd.to_numeric(inflation["value"], errors="coerce")
+        inflation = inflation.dropna()
+    weights = {}
+    if tables["weights"] is not None:
+        weights = dict(zip(tables["weights"]["country"], tables["weights"]["weight"]))
+    oil = None
+    if tables["oil"] is not None:
+        oil = tables["oil"].assign(date=pd.to_datetime(tables["oil"]["date"])).set_index("date")
+    return {"inflation": inflation, "weights": weights, "oil": oil, "status": status}
+
+
+def save_all() -> None:
+    """Download every dataset again and save it in data/ (run before submitting)."""
+    for name, (label, download) in SOURCES.items():
+        try:
+            df = up_to_end(download())
+            DATA_DIR.mkdir(exist_ok=True)
+            df.to_csv(DATA_DIR / f"inflation_{name}.csv", index=False)
+            print(f"saved   {label}: {len(df)} rows, to {pd.to_datetime(df['date']).max():%b %Y}")
+        except Exception as error:
+            print(f"FAILED  {label}: {error}")
+
+
 # =============================================================================
 # PANEL
 # =============================================================================
@@ -222,7 +284,10 @@ def download_bls() -> pd.DataFrame:
 def render() -> None:
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
     st.header("🧾 Inflation & households: the bill arrives")
-    st.info("This panel is being built: the data and charts are coming next.")
+    data = load_data()
+    st.write("Where each dataset came from:", data["status"])
+    if data["inflation"] is not None:
+        st.dataframe(data["inflation"].tail(20))
 
 
 if __name__ == "__main__":
