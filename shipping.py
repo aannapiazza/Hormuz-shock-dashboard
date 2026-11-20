@@ -8,6 +8,31 @@ st.set_page_config(
     layout="wide"
 )
 
+st.markdown("""
+<style>
+
+[data-testid="stMetric"]{
+    background-color:#0f172a;
+    padding:20px;
+    border-radius:15px;
+    border:1px solid #334155;
+}
+
+h1{
+    color:white;
+}
+
+.main{
+    background-color:#020617;
+}
+
+.block-container{
+    padding-top:2rem;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 st.title("Hormuz: Economic Impact")
 
 st.header("Shipping: traffic collapses, risk gets priced in")
@@ -16,16 +41,29 @@ st.header("Shipping: traffic collapses, risk gets priced in")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("SHIP TRANSITS PER DAY", "1.0", "-84 vs normal")
+    st.metric(
+        "SHIP TRANSITS PER DAY",
+        "1.0",
+        "-84 vs normal"
+    )
 
 with col2:
-    st.metric("TANKER TONNAGE", "0.1%")
+    st.metric(
+        "TANKER TONNAGE",
+        "0.1%"
+    )
 
 with col3:
-    st.metric("WAR-RISK PREMIUM", "6%")
+    st.metric(
+        "WAR-RISK PREMIUM",
+        "6%"
+    )
 
 with col4:
-    st.metric("MARITIME INCIDENTS", "130")
+    st.metric(
+        "MARITIME INCIDENTS",
+        "130"
+    )
 
 st.divider()
 
@@ -34,84 +72,88 @@ left, right = st.columns(2)
 # COLONNA SINISTRA
 with left:
 
-    st.subheader("85 squares = one normal day of traffic")
+  st.subheader("85 squares = one normal day of traffic")
 
-    squares = ""
+active = st.slider(
+    "Current crossings",
+    min_value=0,
+    max_value=85,
+    value=1
+)
 
-    for i in range(85):
-        color = "#cccccc"
+squares = ""
 
-        if i == 0:
-            color = "#666666"
+for i in range(85):
 
-        squares += f"""
-        <div style="
-            width:18px;
-            height:18px;
-            background:{color};
-            display:inline-block;
-            margin:3px;
-            border-radius:2px;
-        "></div>
-        """
+    color = "#1e293b"
 
-    st.markdown(squares, unsafe_allow_html=True)
+    if i < active:
+        color = "#f59e0b"
 
-    st.markdown("### Recent daily crossings (all ships)")
+    squares += f"""
+    <div style="
+        width:18px;
+        height:18px;
+        background:{color};
+        display:inline-block;
+        margin:3px;
+        border-radius:3px;
+    "></div>
+    """
 
-    shipping_df = pd.DataFrame({
-        "Day": ["1","2","3","4","5","6","7","8"],
-        "Crossings": [12,10,5,7,7,9,13,5]
-    })
+st.markdown(squares, unsafe_allow_html=True)
+st.markdown("### Recent daily crossings (all ships)")
 
-    fig1, ax1 = plt.subplots(figsize=(8,4))
+period = st.selectbox(
+    "Period",
+    ["Last 8 days", "Last 30 days"]
+)
 
-    ax1.bar(
-        shipping_df["Day"],
-        shipping_df["Crossings"]
-    )
+shipping_df = pd.DataFrame({
+    "Day": ["1","2","3","4","5","6","7","8"],
+    "Crossings": [12,10,5,7,7,9,13,5]
+})
 
-    ax1.set_xlabel("Day")
-    ax1.set_ylabel("Crossings")
-    ax1.set_title("Recent Daily Crossings")
+st.bar_chart(
+    shipping_df.set_index("Day")
+)
 
-    st.pyplot(fig1)
 
 # COLONNA DESTRA
 with right:
 
-    st.subheader("War-risk premium (% of hull value)")
+    st.markdown("### War-risk premium")
 
-    risk_df = pd.DataFrame({
-        "Month": ["Feb","Mar","Apr","May","Jun","Jul"],
-        "Premium": [0.25,1,2.5,1,1,6]
-    })
-
-    fig2, ax2 = plt.subplots(figsize=(8,4))
-
-    ax2.plot(
-        risk_df["Month"],
-        risk_df["Premium"],
-        marker="o"
+    show_peak = st.toggle(
+        "Show peak value",
+        value=True
     )
 
-    ax2.set_xlabel("Month")
-    ax2.set_ylabel("Premium %")
-    ax2.set_title("War-Risk Premium")
+    risk_df = pd.DataFrame({
+        "Month":["Feb","Mar","Apr","May","Jun","Jul"],
+        "Premium":[0.25,1,2.5,1,1,6]
+    })
 
-    st.pyplot(fig2)
+    st.line_chart(
+        risk_df.set_index("Month")
+    )
 
-    st.subheader("Key observations")
+    if show_peak:
+        st.success("Peak premium reached: 6%")
+
+    st.markdown("### Key observations")
 
     st.write("""
-    • Ship traffic is significantly below normal levels.
+    • Ship traffic is well below normal levels.
 
-    • Tanker tonnage remains extremely weak.
+    • Tanker tonnage remains extremely low.
 
-    • Insurance costs have risen sharply.
+    • Insurance costs have increased sharply.
 
-    • Maritime incidents have increased.
+    • Maritime incidents have risen.
 
-    • Shipping companies are avoiding the route where possible.
+    • The route is considered high risk.
     """)
+    
+
        
