@@ -1,0 +1,204 @@
+"""
+panels/oil.py — Oil prices panel (Erin)
+Hormuz Oil Shock Dashboard (Streamlit)
+
+How the 2026 Iran war and the near-closure of the Strait of Hormuz moved the
+price of crude oil.
+
+HOW TO USE
+  • In the group app: listed in PANELS as ("🛢️ Oil prices", "panels/oil.py", "Erin").
+    The main app runs this file, and the dashboard draws itself.
+  • On its own, for testing:   streamlit run panels/oil.py
+
+HOW TO CHANGE IT
+  Everything you're likely to edit is in the "EDIT HERE" section just below.
+  The KPI cards, charts, labels and dates all update from it automatically,
+  so you shouldn't need to touch anything further down.
+
+Requires: streamlit (1.35+ for clickable charts, 1.40+ for pill buttons), plotly,
+pandas, numpy. Older Streamlit versions still work, with radio buttons instead.
+All widget keys start with "ho_" so they can't clash with the other panels.
+"""
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+
+# =============================================================================
+# ✏️  EDIT HERE
+# =============================================================================
+
+# 1) MONTHLY PRICES — one line per month: ("YYYY-MM", Brent, WTI)
+#    Monthly averages in $ per barrel, from the FRED files in data/:
+#    MCOILBRENTEU.csv (Brent) and MCOILWTICO.csv (WTI). Use None if a figure isn't available.
+#    To add a new month, add a line at the bottom of the list.
+MONTHLY_PRICES = [
+    ("2025-09", 67.99, 63.96),
+    ("2025-10", 64.54, 60.89),
+    ("2025-11", 63.80, 60.06),
+    ("2025-12", 62.54, 57.97),
+    ("2026-01", 66.60, 60.04),
+    ("2026-02", 70.89, 64.51),
+    ("2026-03", 103.13, 91.38),
+    ("2026-04", 117.29, 100.32),
+    ("2026-05", 107.14, 102.13),
+    ("2026-06", 85.40, 84.81),
+    ("2026-07", 83.76, 80.46),
+    ("2026-08", 91.08, 83.90),
+    ("2026-09", 114.16, 97.31),
+    ("2026-10", 123.93, 102.07),
+]
+
+# 2) LATEST PRICE — the most recent daily Brent price (shown on the first KPI card
+#    and as a dotted line at the end of the chart)
+LATEST_DATE = "2026-11-19"
+LATEST_PRICE = 91.98
+LATEST_LABEL = "Settlement"          # e.g. "Settlement" or "Spot"
+
+# 3) PRE-WAR REFERENCE — the price everything is compared against
+PREWAR_DATE = "2026-02-27"
+PREWAR_PRICE = 71.32
+
+# 4) ESTIMATED FIGURES — months marked with * on the page.
+#    Delete a line once you have the real figure.
+ESTIMATED_MONTHS = {
+    # "YYYY-MM": "note explaining the estimate",
+}
+
+# 5) EVENTS — the phase buttons that shade the chart.
+#    "Button name": ("start YYYY-MM-DD", "end YYYY-MM-DD", "colour", "description")
+EVENTS = {
+    "Build-up": ("2026-01-01", "2026-02-28", "#e0a800",
+                 "Prices drift up as markets price in the risk of war with Iran."),
+    "War & closure": ("2026-02-28", "2026-04-08", "#d64545",
+                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. "
+                      "The IEA calls it the largest supply disruption in history, and Brent "
+                      "peaks near $138 on 7 Apr."),
+    "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
+                  "Brent drops about 16% on the 8 Apr ceasefire and falls again after the "
+                  "17 Jun US–Iran MOU, but tanker traffic barely recovers."),
+    "Conflict resumes": ("2026-07-07", "2026-11-19", "#8e44ad",
+                         "Strikes resume on 7 Jul. With inventories falling, Brent rises for "
+                         "three months to a $124 average in October, then eases in November."),
+}
+
+# 6) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
+#    Months without a note show their event's description instead.
+MONTH_NOTES = {
+    "2026-03": "War begins on 28 Feb. This is the biggest one-month jump in the series.",
+    "2026-04": "The peak month. Brent hit $138 on 7 Apr, before the next day's ceasefire.",
+    "2026-05": "Talks stall and the strait stays effectively shut.",
+    "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
+    "2026-07": "Strikes resume on 7 Jul, and Iran declares the strait closed on 12 Jul.",
+    "2026-09": "Prices rebound as global inventories keep falling.",
+    "2026-10": "The highest monthly average since July 2022, and 37 ships attacked in the month.",
+}
+BEFORE_EVENTS_NOTE = ("Before the war.",
+                      "Prices sit in the low-to-mid $60s on oversupply, the lowest levels since 2021.")
+
+# 7) TEXT
+TITLE = "Hormuz Oil Shock Dashboard"
+SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
+SOURCES = ("Data: U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU) and "
+           "Cushing WTI (MCOILWTICO) spot prices, monthly averages (copies in data/). The latest price "
+           "is the Brent futures settlement on 19 Nov 2026 (Reuters).")
+
+# 8) COLOURS
+COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
+          "red": "#d64545", "green": "#27ae60", "blue": "#2e86de",
+          "purple": "#8e44ad", "grey": "#7f8c8d"}
+
+# =============================================================================
+# (You shouldn't need to change anything below this line.)
+# =============================================================================
+
+
+# ----------------------------- data preparation -----------------------------
+def build_data():
+    df = pd.DataFrame(MONTHLY_PRICES, columns=["Month", "Brent", "WTI"])
+    df["Date"] = pd.to_datetime(df["Month"] + "-01")
+    df["WTI"] = pd.to_numeric(df["WTI"], errors="coerce")
+    df = df.sort_values("Date").reset_index(drop=True)
+    df["MoM"] = (df["Brent"] / df["Brent"].shift(1) - 1) * 100
+    df["Volatility"] = df["MoM"].rolling(window=3).std() * np.sqrt(12)
+    df["Spread"] = df["Brent"] - df["WTI"]
+    df["YoY"] = (df["Brent"] / df["Brent"].shift(12) - 1) * 100
+    df["vsPrewar"] = (df["Brent"] / PREWAR_PRICE - 1) * 100
+    df["DateStr"] = df["Date"].dt.strftime("%Y-%m-%d")
+    return df
+
+
+OIL = build_data()
+N = len(OIL)
+DATES = OIL["DateStr"].tolist()
+PHASES = {name: {"start": s, "end": e, "color": c, "text": t} for name, (s, e, c, t) in EVENTS.items()}
+
+VIEW_OPTIONS = ["$ per barrel", "% vs pre-war"]
+SECOND_OPTIONS = ["Monthly change", "3-month volatility", "Brent–WTI gap"]
+
+
+def shift_days(date_str, days):
+    return (pd.Timestamp(date_str) + pd.Timedelta(days=days)).strftime("%Y-%m-%d")
+
+
+CHART_START = shift_days(DATES[0], -17)
+MAIN_CHART_END = shift_days(max(LATEST_DATE, DATES[-1]), 11)
+SECOND_CHART_END = shift_days(DATES[-1], 19)
+
+
+def pct(old, new):
+    return (new / old - 1) * 100
+
+
+def signed(v, decimals=1):
+    return f"{'+' if v > 0 else ''}{v:.{decimals}f}"
+
+
+def month_label(date_str):
+    return pd.Timestamp(date_str).strftime("%B %Y")
+
+
+def nice_date(date_str):
+    ts = pd.Timestamp(date_str)
+    return f"{ts.day} {ts.strftime('%b %Y')}"
+
+# ------------------------------- HTML snippets -------------------------------
+
+def header_html():
+    return f"""
+<div style="background:{COLORS['navy']};color:#fff;padding:18px 24px;border-radius:8px;
+            display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+  <div>
+    <div style="font-size:22px;font-weight:700">{TITLE}</div>
+    <div style="color:#b8c4d3;font-size:13px;margin-top:3px">{SUBTITLE}</div>
+  </div>
+  <span style="background:{COLORS['orange']};color:#fff;font-weight:700;font-size:12px;padding:6px 10px;
+               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(LATEST_DATE).upper()}</span>
+</div>"""
+
+# ----------------------------------- page ------------------------------------
+
+def render():
+    """Draw the oil prices panel."""
+    st.markdown(header_html(), unsafe_allow_html=True)
+
+    # stage 1: show the data as a table to check it loaded correctly
+    st.dataframe(OIL[["Month", "Brent", "WTI", "MoM", "YoY", "vsPrewar"]].round(2),
+                 use_container_width=True, hide_index=True)
+
+
+# -----------------------------------------------------------------------------
+# The group app runs this file directly (see PANELS in the main app), so the
+# dashboard draws as soon as the file is run. set_page_config is only for
+# testing on its own (streamlit run panels/oil.py). Inside the group app the
+# main app has already set it, so any error from a second call is ignored.
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    try:
+        st.set_page_config(page_title=TITLE, layout="wide")
+    except Exception:
+        pass
+
+render()
