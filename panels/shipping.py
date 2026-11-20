@@ -110,6 +110,33 @@ market_symbols = {
     "VIX": "^VIX",
     "DOLLAR INDEX": "DX-Y.NYB",
 }
+# LOAD MARKET DATA
+
+@st.cache_data(ttl=300)
+def load_market_data(symbol):
+    try:
+        history = yf.Ticker(symbol).history(period="6mo")
+
+        if history.empty or "Close" not in history.columns:
+            return pd.Series(dtype=float)
+
+        return history["Close"].dropna()
+
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+market_symbols = {
+    "BRENT": "BZ=F",
+    "WTI": "CL=F",
+    "VIX": "^VIX",
+    "DOLLAR INDEX": "DX-Y.NYB",
+}
+
+market_data = {
+    label: load_market_data(symbol)
+    for label, symbol in market_symbols.items()
+}
 
 # MAIN METRICS
 
