@@ -175,6 +175,21 @@ def download_weights() -> pd.DataFrame:
                          "weight": latest.values / 10})          # per 1000 -> %
 
 
+def download_oecd() -> pd.DataFrame:
+    """CPI annual inflation for the UK, Japan, China and India from the OECD."""
+    url = OECD_URL.format(countries="+".join(OECD_COUNTRIES.values()),
+                          codes="+".join(OECD_CODES.values()), start=START.strftime("%Y-%m"))
+    response = requests.get(url, headers=HEADERS, timeout=TIMEOUT_SECONDS)
+    response.raise_for_status()
+    raw = pd.read_csv(io.StringIO(response.text))
+    names = {code: name for name, code in OECD_COUNTRIES.items()}
+    measures = {code: name for name, code in OECD_CODES.items()}
+    return pd.DataFrame({"date": pd.to_datetime(raw["TIME_PERIOD"]),
+                         "country": raw["REF_AREA"].map(names),
+                         "measure": raw["EXPENDITURE"].map(measures),
+                         "value": raw["OBS_VALUE"]}).dropna()
+
+
 # =============================================================================
 # PANEL
 # =============================================================================
