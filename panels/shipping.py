@@ -23,8 +23,8 @@ st.caption(
 script_folder = Path(__file__).resolve().parent
 
 possible_paths = [
-    script_folder / "portwatch_hormuz.csv",
-    script_folder.parent / "portwatch_hormuz.csv",
+    script_folder / "Daily_Chokepoints_Data.csv",
+    script_folder.parent / "Daily_Chokepoints_Data.csv",
 ]
 
 csv_path = next(
