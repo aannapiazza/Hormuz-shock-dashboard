@@ -56,7 +56,7 @@ CFG = {"displayModeBar": False}
 TTF_2025_AVG = 11.96          # World Bank, 2025 average TTF, $/MMBtu
 USD_PER_EUR_MWH = 0.346       # 1 €/MWh ≈ 0.346 $/MMBtu (approximate FX)
 WORLD_AVG_QATAR_SHARE = 19.6  # Qatar's share of world LNG imports, 2024 (EPRINC)
-DATA_AS_OF = "Data as of 15 November 2026 · monthly prices to October 2026"
+QATAR_CAPACITY_OFFLINE = "16–17%"       # after the 19 March Ras Laffan strike (S&P Global, IEA) – no dataset, so set here
 WAR_START = pd.Timestamp("2026-02-28")   # US–Israel strikes on Iran
 VOL_WINDOW = 30                          # trading days used for rolling volatility
 TRADING_DAYS = 252                       # trading days in a year, to annualise volatility
@@ -216,6 +216,25 @@ def gas_at_risk(exposure: pd.DataFrame) -> dict:
     return {"asia_share": by_region.get("Asia", 0) / by_region.sum() * 100,
             "top_volume": top["country"], "top_volume_bcfd": top["from_qatar_bcfd"],
             "most_dependent": most_dependent["country"], "most_dependent_pct": most_dependent["qatar_share_pct"]}
+
+
+def benchmark_change(bench: pd.DataFrame, column: str) -> dict:
+    """Latest 2026 benchmark (October average) compared with before the war.
+
+    Reads the first row (before the war) and the last 2026 row of
+    gas_benchmarks.csv, so the tile updates if the file gets a newer month.
+    """
+    rows_2026 = bench[bench["period"].str.contains("2026")]
+    first, last = rows_2026.iloc[0], rows_2026.iloc[-1]
+    return {"label": last["period"].replace(" 2026 avg", ""), "latest": last[column], "before": first[column],
+            "pct": (last[column] / first[column] - 1) * 100}
+
+
+def data_as_of(data: dict) -> str:
+    """Build the 'Data as of …' label from the newest date in the data itself."""
+    newest = data["storage"]["date"].max()
+    last_month = pd.to_datetime(data["prices"]["month"]).max()
+    return f"Data as of {newest:%d %B %Y} · monthly prices to {last_month:%B %Y}"
 
 
 def storage_position(storage: pd.DataFrame) -> dict:
@@ -450,20 +469,25 @@ def render() -> None:
     daily, daily_status = load_daily_prices()
     live_note = {"live": "📡 live daily prices from Yahoo Finance",
                  "saved copy": "💾 daily prices from saved copy (download failed)"}.get(daily_status, "⚠️ daily prices unavailable")
-    st.markdown(f"`{DATA_AS_OF}` · 💾 {len(DATA_FILES)} data files loaded from `data/` · {live_note}")
+    st.markdown(f"`{data_as_of(data)}` · 💾 {len(DATA_FILES)} data files loaded from `data/` · {live_note}")
 
-    # ---- KPI tiles ----
+    # ---- KPI tiles: calculated from the data (see ANALYSIS) ----
+    rec = tanker_recovery(data["tankers"])
+    jkm = benchmark_change(data["benchmarks"], "jkm_usd_per_mmbtu")
+    pos = storage_position(data["storage"])
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Qatari LNG capacity offline", "16–17%",
+    k1.metric("Qatari LNG capacity offline", QATAR_CAPACITY_OFFLINE,
               help="After the 19 March strike on Ras Laffan. This damage lasts even if the strait reopens. Sources: S&P Global, IEA.")
     k1.caption("For about 4 years")
-    k2.metric("Hormuz LNG tankers, Oct", "31",
-              help="Laden LNG tankers exiting in October, the most since the war began (pre-war ≈ 85 a month). Source: S&P Global.")
-    k2.caption("About a third of the pre-war ~85 a month")
-    k3.metric("Asian LNG (JKM), Oct avg", "$28.59", delta="+164% vs Feb", delta_color="inverse",
-              help="Per MMBtu, near-month, October average vs $10.82 in February. Source: EIA, citing Bloomberg.")
-    k4.metric("EU gas storage, 15 Nov", "70.4%", delta="-18 pts vs 5-yr avg", delta_color="normal",
-              help="Lowest for the date since records began in 2011. Source: GIE data, via TASS.")
+    k2.metric(f"Hormuz LNG tankers, {rec['month']}", f"{rec['count']}",
+              help=f"From data/gas_tankers.csv. Pre-war month (Feb 2026): {rec['prewar']}.")
+    k2.caption(f"{rec['pct']:.0f}% of the pre-war {rec['prewar']} a month")
+    k3.metric(f"Asian LNG (JKM), {jkm['label']} avg", f"${jkm['latest']:.2f}",
+              delta=f"{jkm['pct']:+.0f}% vs before the war", delta_color="inverse",
+              help=f"Per MMBtu, from data/gas_benchmarks.csv: ${jkm['before']:.2f} before the war. Source: EIA, citing Bloomberg.")
+    k4.metric(f"EU gas storage, {pos['latest_date']:%d %b}", f"{pos['latest']:.1f}%",
+              delta=f"{pos['gap_to_avg']:+.0f} pts vs 5-yr avg", delta_color="normal",
+              help="From data/gas_storage.csv (GIE AGSI data). Lowest for the date since records began in 2011.")
 
     tab1, tab2, tab3, tab4 = st.tabs(["📈 Prices", "🚢 Supply & shipping", "🌍 Who's exposed", "🏭 Europe's winter"])
 
