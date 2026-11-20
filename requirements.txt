@@ -1,4 +1,9 @@
-streamlit
+streamlit>=1.47
 pandas
 matplotlib
 xlrd
+
+numpy
+plotly
+requests
+yfinance
