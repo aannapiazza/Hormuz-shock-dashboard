@@ -1,134 +1,243 @@
 from pathlib import Path
-import streamlit as st
+
 import pandas as pd
-import matplotlib.pyplot as plt
+import streamlit as st
+import yfinance as yf
+
+
 
 st.set_page_config(
     page_title="Hormuz Dashboard",
     layout="wide"
 )
 
-st.title("Hormuz: Economic Impact")
+st.header("Shipping: Strait of Hormuz traffic and market prices")
 
-st.header("Shipping: traffic collapses, risk gets priced in")
+st.caption(
+    "Shipping: daily IMF PortWatch data from a local CSV. "
+    "Market prices: latest available from Yahoo Finance; may be delayed."
+)
 
-# KPI
-col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.metric(
-        "SHIP TRANSITS PER DAY",
-        "1.0",
-        "-84 vs normal"
+# SHIPPING DATA
+
+script_folder = Path(__file__).resolve().parent
+
+possible_paths = [
+    script_folder / "portwatch_hormuz.csv",
+    script_folder.parent / "portwatch_hormuz.csv",
+]
+
+csv_path = next(
+    (path for path in possible_paths if path.is_file()),
+    None
+)
+
+shipping_df = None
+
+if csv_path is None:
+    st.error(
+        "Cannot find portwatch_hormuz.csv. "
+        "Place it in the script folder or its parent folder."
     )
+else:
+    try:
+        shipping_df = pd.read_csv(csv_path)
+        shipping_df.columns = shipping_df.columns.str.strip()
 
-with col2:
-    st.metric(
-        "TANKER TONNAGE",
-        "0.1%"
-    )
+        required_columns = {"date", "n_total", "n_tanker"}
+        missing_columns = required_columns - set(shipping_df.columns)
 
-with col3:
-    st.metric(
-        "WAR-RISK PREMIUM",
-        "6%"
-    )
+        if missing_columns:
+            st.error(
+                "Missing CSV columns: "
+                + ", ".join(sorted(missing_columns))
+            )
+            shipping_df = None
+        else:
+            shipping_df["date"] = pd.to_datetime(
+                shipping_df["date"],
+                errors="coerce"
+            )
 
-with col4:
-    st.metric(
-        "MARITIME INCIDENTS",
-        "130"
-    )
+            for column in ["n_total", "n_tanker"]:
+                shipping_df[column] = pd.to_numeric(
+                    shipping_df[column],
+                    errors="coerce"
+                )
+
+            shipping_df = (
+                shipping_df
+                .dropna(subset=["date", "n_total", "n_tanker"])
+                .sort_values("date")
+                .reset_index(drop=True)
+            )
+
+            if shipping_df.empty:
+                st.error("The CSV contains no valid shipping records.")
+                shipping_df = None
+
+    except Exception as error:
+        st.error(f"Cannot read the shipping CSV: {error}")
+        shipping_df = None
+
+
+# MARKET DATA
+# Cache downloads for 5 minutes to avoid repeated requests.
+
+@st.cache_data(ttl=300)
+def load_market_data(symbol):
+    try:
+        history = yf.Ticker(symbol).history(period="6mo")
+
+        if history.empty or "Close" not in history.columns:
+            return pd.Series(dtype=float)
+
+        return history["Close"].dropna()
+
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+market_symbols = {
+    "BRENT": "BZ=F",
+    "WTI": "CL=F",
+    "VIX": "^VIX",
+    "DOLLAR INDEX": "DX-Y.NYB",
+}
+
+market_data = {
+    label: load_market_data(symbol)
+    for label, symbol in market_symbols.items()
+}
+
+st.subheader("Latest available market prices")
+
+market_columns = st.columns(4)
+
+for column, (label, prices) in zip(
+    market_columns,
+    market_data.items()
+):
+    with column:
+        if prices.empty:
+            st.metric(label, "Unavailable")
+        else:
+            latest_price = float(prices.iloc[-1])
+
+            if label in ["BRENT", "WTI"]:
+                value = f"${latest_price:.2f}"
+            else:
+                value = f"{latest_price:.2f}"
+
+            st.metric(label, value)
+
+            st.caption(
+                f"Observation: {prices.index[-1]:%d/%m/%Y}"
+            )
+
+st.caption(
+    "Brent and WTI refer to futures prices. "
+    "Prices refresh on the next app rerun after the cache expires."
+)
 
 st.divider()
 
 left, right = st.columns(2)
 
-# COLONNA SINISTRA
+
+# LEFT COLUMN: SHIPPING
+
 with left:
+    st.subheader("Hormuz daily ship transits")
 
-  st.subheader("85 squares = one normal day of traffic")
+    if shipping_df is not None:
+        latest = shipping_df.iloc[-1]
 
-active = st.slider(
-    "Current crossings",
-    min_value=0,
-    max_value=85,
-    value=1
-)
+        latest_date = latest["date"]
+        latest_total = int(latest["n_total"])
+        latest_tanker = int(latest["n_tanker"])
 
-squares = ""
+        st.caption(
+            f"Latest shipping observation: {latest_date:%d/%m/%Y}. "
+            "This CSV does not update automatically."
+        )
 
-for i in range(85):
+        total_column, tanker_column = st.columns(2)
 
-    color = "#1e293b"
+        with total_column:
+            st.metric("Daily ship transits", latest_total)
 
-    if i < active:
-        color = "#f59e0b"
+        with tanker_column:
+            st.metric("Daily tanker transits", latest_tanker)
 
-    squares += f"""
-    <div style="
-        width:18px;
-        height:18px;
-        background:{color};
-        display:inline-block;
-        margin:3px;
-        border-radius:3px;
-    "></div>
-    """
+        st.markdown("### Recent daily crossings")
 
-st.markdown(squares, unsafe_allow_html=True)
-st.markdown("### Recent daily crossings (all ships)")
+        start_date = latest_date - pd.Timedelta(days=29)
 
-period = st.selectbox(
-    "Period",
-    ["Last 8 days", "Last 30 days"]
-)
+        recent = shipping_df.loc[
+            shipping_df["date"] >= start_date
+        ]
 
-shipping_df = pd.DataFrame({
-    "Day": ["1","2","3","4","5","6","7","8"],
-    "Crossings": [12,10,5,7,7,9,13,5]
-})
+        st.line_chart(
+            recent.set_index("date")[["n_total", "n_tanker"]]
+            .rename(
+                columns={
+                    "n_total": "All ships",
+                    "n_tanker": "Tankers",
+                }
+            )
+        )
 
-st.bar_chart(
-    shipping_df.set_index("Day")
-)
+        st.caption(
+            "Source: IMF PortWatch. "
+            "Tanker transits measure vessel counts, not tonnage."
+        )
+
+        with st.expander("View shipping data"):
+            st.dataframe(
+                recent,
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info(
+            "Shipping charts will appear once a valid CSV is available."
+        )
 
 
-# COLONNA DESTRA
+# RIGHT COLUMN: BRENT
+
 with right:
+    st.subheader("Brent futures — last 6 months")
 
-    st.markdown("### War-risk premium")
+    brent_prices = market_data["BRENT"]
 
-    show_peak = st.toggle(
-        "Show peak value",
-        value=True
+    if brent_prices.empty:
+        st.warning(
+            "Brent prices are temporarily unavailable from Yahoo Finance."
+        )
+    else:
+        st.line_chart(
+            brent_prices.rename("Brent futures (USD/barrel)")
+        )
+
+        show_price = st.toggle(
+            "Show latest Brent price",
+            value=True
+        )
+
+        if show_price:
+            st.success(
+                f"Latest available Brent price: "
+                f"${float(brent_prices.iloc[-1]):.2f}"
+            )
+
+    st.markdown("### Reading this dashboard")
+
+    st.write(
+        "Shipping figures describe the latest date in the CSV. "
+        "Market prices may refer to a different date. "
+        "These charts alone do not establish that changes in "
+        "Hormuz traffic caused changes in oil prices."
     )
-
-    risk_df = pd.DataFrame({
-        "Month":["Feb","Mar","Apr","May","Jun","Jul"],
-        "Premium":[0.25,1,2.5,1,1,6]
-    })
-
-    st.line_chart(
-        risk_df.set_index("Month")
-    )
-
-    if show_peak:
-        st.success("Peak premium reached: 6%")
-
-    st.markdown("### Key observations")
-
-    st.write("""
-    • Ship traffic is well below normal levels.
-
-    • Tanker tonnage remains extremely low.
-
-    • Insurance costs have increased sharply.
-
-    • Maritime incidents have risen.
-
-    • The route is considered high risk.
-    """)
-    
-
-       
