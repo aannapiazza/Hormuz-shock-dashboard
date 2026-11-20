@@ -24,9 +24,24 @@ CFG = {"displayModeBar": False}
 # DATA
 # ======================================================================
 
+# --- Key events (marked on the price chart) ---
+EVENTS = [
+    ("2026-02-28", "War begins"),
+    ("2026-03-19", "Ras Laffan hit"),
+    ("2026-04-08", "Ceasefire"),
+    ("2026-06-17", "US–Iran MOU"),
+    ("2026-07-07", "Strikes resume"),
+    ("2026-08-01", "LNG tanker struck"),
+]
+
+# --- 1. Price path: World Bank monthly average of Dutch TTF, $/MMBtu (one consistent series) ---
+WB_TTF = [("2026-01-15", 11.76), ("2026-02-15", 11.24), ("2026-03-15", 17.91), ("2026-04-15", 15.41),
+          ("2026-05-15", 16.17), ("2026-06-15", 15.17), ("2026-07-15", 18.06), ("2026-08-15", 21.11),
+          ("2026-09-15", 25.42), ("2026-10-15", 28.50)]
+TTF_2025_AVG = 11.96
 DATA_AS_OF = "Data as of 15 November 2026 · monthly prices to October 2026"
 
-# --- 1. Dumbbell: monthly averages vs 2022 ---
+# --- 2. Dumbbell: monthly averages vs 2022 ---
 ROWS = ["Before the war (Feb 2026 avg)", "March 2026 avg", "October 2026 avg", "2022 crisis peak (approx.)"]
 TTF = [11.24, 17.91, 28.50, 90]   # World Bank monthly averages (2022: approx.)
 JKM = [10.82, 21.0, 28.59, 70]
@@ -51,6 +66,33 @@ def _layout(fig, **kw):
         font=dict(family="IBM Plex Sans, sans-serif", color=INK, size=13),
         hoverlabel=dict(bgcolor=DARK, bordercolor="#26354f"), **kw)
     return fig
+
+
+def _add_events(fig, y_top):
+    for d, label in EVENTS:
+        fig.add_vline(x=d, line=dict(color="#33445f", width=1, dash="dot"))
+        fig.add_annotation(x=d, y=y_top, text=label, showarrow=False, textangle=-90,
+                           xanchor="right", yanchor="top", font=dict(size=10, color=MUTED))
+
+
+def price_path_chart(show_events):
+    x = [p[0] for p in WB_TTF]; y = [p[1] for p in WB_TTF]
+    chg = [None] + [(y[i] / y[i - 1] - 1) * 100 for i in range(1, len(y))]
+    fig = go.Figure(go.Scatter(
+        x=x, y=y, mode="lines+markers+text", line=dict(color=BLUE, width=3, shape="spline", smoothing=0.6),
+        marker=dict(size=10, color=[TEAL if c is not None and c < 0 else BLUE for c in chg], line=dict(color=DARK, width=1.5)),
+        fill="tozeroy", fillcolor="rgba(90,169,255,.10)",
+        text=[f"${v:.1f}" for v in y], textposition="top center", textfont=dict(size=11, color="#c7d2e3"),
+        customdata=["—" if c is None else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
+        hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
+    fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
+                  annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom left")
+    if show_events:
+        _add_events(fig, 34)
+    return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
+                   xaxis=dict(type="date", range=["2026-01-01", "2026-11-01"], gridcolor=GRID, tickformat="%b", dtick="M1",
+                              rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
+                   yaxis=dict(title="$ per MMBtu", gridcolor=GRID, range=[0, 35], fixedrange=True))
 
 
 def _convert(values, unit):
@@ -126,6 +168,13 @@ def render() -> None:
 
     # ================= TAB 1: PRICES =================
     with tab1:
+        st.subheader("European gas prices through the war")
+        show_ev = st.toggle("Show key events", value=True, key="gas_ev")
+        st.plotly_chart(price_path_chart(show_ev), width="stretch", theme=None, config=CFG)
+        st.caption("Monthly average of the European benchmark (Dutch TTF), from the World Bank. Hover a month for the price and "
+                   "the change from the month before; drag the slider under the chart to zoom in. For contrast, US gas (Henry Hub) "
+                   "averaged about $3/MMBtu from August to October: the shock is in Europe and Asia. The chart below compares the two.")
+
         st.subheader("How big is this gas shock? 2026 vs 2022")
         unit = st.radio("Units", ["$/MMBtu", "€/MWh", "% vs pre-war"], horizontal=True, key="gas_unit")
         row = _selected_row()
