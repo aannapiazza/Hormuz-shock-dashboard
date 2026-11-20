@@ -79,6 +79,20 @@ EXPOSURE = [  # country, region, total LNG imports, from Qatar, Qatar share %
     ("France", "Europe", 2.5, 0.0, 1.6),
 ]
 
+# --- 5. EU gas storage, % full ---
+STORE_2026 = [  # date, % full
+    ("2026-04-01", 27.7), ("2026-06-09", 42.8), ("2026-07-26", 55.4), ("2026-08-15", 60.8),
+    ("2026-08-27", 63.3), ("2026-09-23", 70.4), ("2026-09-30", 71.5), ("2026-10-06", 73.0),
+    ("2026-10-27", 75.0), ("2026-11-01", 74.6), ("2026-11-15", 70.4),
+]
+STORE_2025 = [  # same calendar dates, one year earlier
+    ("2026-04-01", 34.1), ("2026-06-09", 51.4), ("2026-08-27", 76.0), ("2026-09-30", 82.5),
+    ("2026-10-06", 82.9), ("2026-10-27", 82.9), ("2026-11-15", 82.0),
+]
+STORE_5YR = [  # five-year average for the date, derived from the reported gap
+    ("2026-08-27", 80.5), ("2026-09-30", 87.2), ("2026-10-06", 88.1), ("2026-11-15", 88.4),
+]
+
 
 
 # ======================================================================
@@ -212,6 +226,35 @@ def exposure_chart(view, regions, metric):
                    yaxis=dict(title="% from Qatar – how exposed", gridcolor=GRID, range=[-5, 100], ticksuffix="%"))
 
 
+def storage_chart(show_2025, show_5yr, show_targets):
+    fig = go.Figure()
+    if show_5yr:
+        fig.add_trace(go.Scatter(x=[p[0] for p in STORE_5YR], y=[p[1] for p in STORE_5YR], name="5-year average",
+                                 mode="lines+markers", line=dict(color=MUTED, dash="dash", width=2), marker=dict(size=7),
+                                 hovertemplate="5-yr avg: %{y:.1f}%<extra></extra>"))
+    if show_2025:
+        fig.add_trace(go.Scatter(x=[p[0] for p in STORE_2025], y=[p[1] for p in STORE_2025], name="Same date in 2025",
+                                 mode="lines+markers", line=dict(color=AMBER, width=2), marker=dict(size=7),
+                                 hovertemplate="2025: %{y:.1f}%<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[p[0] for p in STORE_2026], y=[p[1] for p in STORE_2026], name="2026",
+                             mode="lines+markers", line=dict(color=RED, width=3.5), marker=dict(size=9),
+                             fill="tozeroy", fillcolor="rgba(255,90,78,.08)",
+                             hovertemplate="<b>2026: %{y:.1f}%</b><extra></extra>"))
+    if show_targets:
+        fig.add_hline(y=90, line=dict(color=TEAL, dash="dot"), annotation_text="EU target 90%",
+                      annotation_font_color=TEAL, annotation_position="top left")
+        fig.add_hline(y=80, line=dict(color=TEAL, dash="dot", width=1), annotation_text="Flexible target 80%",
+                      annotation_font_color=TEAL, annotation_position="bottom left")
+    fig.add_annotation(x="2026-10-27", y=75.0, text="Peak 75% (27 Oct)", showarrow=True, arrowcolor=MUTED,
+                       ax=-60, ay=-35, font=dict(size=11, color=INK))
+    fig.add_annotation(x="2026-04-01", y=27.7, text="Summer starts at 28%", showarrow=True, arrowcolor=MUTED,
+                       ax=50, ay=-40, font=dict(size=11, color=INK))
+    return _layout(fig, height=420, margin=dict(l=10, r=20, t=10, b=40), hovermode="x unified",
+                   xaxis=dict(type="date", range=["2026-03-20", "2026-11-25"], tickformat="%b", gridcolor=GRID),
+                   yaxis=dict(title="% full", range=[0, 100], ticksuffix="%", gridcolor=GRID),
+                   legend=dict(orientation="h", y=1.08, x=0))
+
+
 def sunburst_chart():
     fig = go.Figure(go.Sunburst(
         ids=["all", "hz", "nh", "asia", "oth"],
@@ -235,16 +278,18 @@ def render() -> None:
 
     # ---- KPI tiles ----
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Qatari LNG capacity offline", "16–17%", delta="for about 4 years", delta_color="off",
+    k1.metric("Qatari LNG capacity offline", "16–17%",
               help="After the 19 March strike on Ras Laffan. This damage lasts even if the strait reopens. Sources: S&P Global, IEA.")
-    k2.metric("Hormuz LNG tankers, Oct", "31", delta="≈ a third of pre-war", delta_color="off",
+    k1.caption("For about 4 years")
+    k2.metric("Hormuz LNG tankers, Oct", "31",
               help="Laden LNG tankers exiting in October, the most since the war began (pre-war ≈ 85 a month). Source: S&P Global.")
+    k2.caption("About a third of the pre-war ~85 a month")
     k3.metric("Asian LNG (JKM), Oct avg", "$28.59", delta="+164% vs Feb", delta_color="inverse",
               help="Per MMBtu, near-month, October average vs $10.82 in February. Source: EIA, citing Bloomberg.")
-    k4.metric("EU gas storage, 15 Nov", "70.4%", delta="−18 pts vs 5-yr avg", delta_color="normal",
+    k4.metric("EU gas storage, 15 Nov", "70.4%", delta="-18 pts vs 5-yr avg", delta_color="normal",
               help="Lowest for the date since records began in 2011. Source: GIE data, via TASS.")
 
-    tab1, tab2, tab3 = st.tabs(["📈 Prices", "🚢 Supply & shipping", "🌍 Who's exposed"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Prices", "🚢 Supply & shipping", "🌍 Who's exposed", "🏭 Europe's winter"])
 
     # ================= TAB 1: PRICES =================
     with tab1:
@@ -300,9 +345,22 @@ def render() -> None:
                    "LNG buyer, higher up means more dependent on Qatar, and a bigger bubble means more gas at risk. "
                    "Pakistan is the most exposed. China has the most gas at risk. Japan buys a lot of LNG but little of it from Qatar.")
 
+    # ================= TAB 4: EUROPE'S WINTER =================
+    with tab4:
+        st.subheader("EU gas storage: refilling fell short")
+        c1, c2, c3 = st.columns(3)
+        s25 = c1.checkbox("Compare with 2025", value=True, key="gas_s25")
+        s5 = c2.checkbox("Show 5-year average", value=True, key="gas_s5")
+        tg = c3.checkbox("Show EU targets", value=True, key="gas_tg")
+        st.plotly_chart(storage_chart(s25, s5, tg), width="stretch", theme=None, config=CFG)
+        st.caption("Hover anywhere to compare years on the same date. 2026 values are GIE AGSI data as reported by Argus, "
+                   "S&P Global, GMK Center and TASS. The 5-year average is derived from the reported gap to it. "
+                   "Europe started summer at only 28%, never reached the 80% flexible target, and by mid-November "
+                   "was drawing down faster than usual.")
+
     # ---- Takeaway + sources ----
-    st.success("**Takeaway:** gas prices are at their highest since 2022: TTF and JKM both averaged about $28.5/MMBtu "
-               "in October, still well below the 2022 peak. LNG traffic through Hormuz is only slowly recovering.")
+    st.success("**Takeaway:** gas prices are at their highest since 2022, and LNG traffic through Hormuz is only a third "
+               "of normal. Europe enters winter with record-low storage, so a cold snap could push prices higher still.")
     st.caption(
         "Sources: World Bank [Pink Sheet](https://www.worldbank.org/en/research/commodity-markets) (monthly TTF, US gas); [EIA Today in Energy](https://www.eia.gov/todayinenergy/detail.php?id=67604) and November 2026 STEO (via "
         "[Energy News Beat](https://theenergynewsbeat.substack.com/p/two-gas-markets-this-winter-about)); "
