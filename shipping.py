@@ -76,14 +76,35 @@ left, right = st.columns(2)
 
 with left:
 
+    shipping_df = pd.read_csv("portwatch_hormuz.csv")
+
+    shipping_df["date"] = pd.to_datetime(
+        shipping_df["date"]
+    )
+
+    shipping_df = shipping_df.sort_values("date")
+
+    latest_total = int(
+        shipping_df["n_total"].iloc[-1]
+    )
+
+    latest_tanker = int(
+        shipping_df["n_tanker"].iloc[-1]
+    )
+
+    st.metric(
+        "Current Daily Traffic",
+        latest_total
+    )
+
+    st.metric(
+        "Tankers",
+        latest_tanker
+    )
+
     st.subheader("85 squares = one normal day of traffic")
 
-    active = st.slider(
-        "Current crossings",
-        min_value=0,
-        max_value=85,
-        value=1
-    )
+    active = min(85, latest_total)
 
     squares = ""
 
@@ -109,18 +130,10 @@ with left:
 
     st.markdown("### Recent daily crossings (all ships)")
 
-    period = st.selectbox(
-        "Period",
-        ["Last 8 days", "Last 30 days"]
-    )
+    recent = shipping_df.tail(30)
 
-    shipping_df = pd.DataFrame({
-        "Day": ["1", "2", "3", "4", "5", "6", "7", "8"],
-        "Crossings": [12, 10, 5, 7, 7, 9, 13, 5]
-    })
-
-    st.bar_chart(
-        shipping_df.set_index("Day")
+    st.line_chart(
+        recent.set_index("date")["n_total"]
     )
 
 # RIGHT COLUMN
