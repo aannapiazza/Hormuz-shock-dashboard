@@ -164,6 +164,86 @@ def nice_date(date_str):
     ts = pd.Timestamp(date_str)
     return f"{ts.day} {ts.strftime('%b %Y')}"
 
+# --------------------------------- figures ----------------------------------
+
+def base_layout(**kwargs):
+    layout = dict(template="plotly_white", font=dict(size=12, color="#1f2933"),
+                  margin=dict(l=55, r=20, t=20, b=40))
+    layout.update(kwargs)
+    return layout
+
+
+def build_main_figure(phase, view, show_wti, sel):
+    as_pct = view == VIEW_OPTIONS[1]
+
+    def transform(values):
+        values = np.array(values, dtype=float)
+        return pct(PREWAR_PRICE, values) if as_pct else values
+
+    unit = "% vs pre-war" if as_pct else "$/bbl"
+    fmt = "%{y:+.1f}%" if as_pct else "$%{y:.2f}"
+    keep_visible = dict(marker=dict(opacity=1))   # stops Plotly fading points after a click
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=DATES, y=transform(OIL["Brent"]), name="Brent", mode="lines+markers",
+        line=dict(color=COLORS["navy"], width=3),
+        marker=dict(size=[13 if i == sel else 7 for i in range(N)],
+                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(N)],
+                    line=dict(color="#ffffff", width=1.5)),
+        selected=keep_visible, unselected=keep_visible,
+        hovertemplate=f"Brent: {fmt}<extra></extra>",
+    ))
+    if LATEST_DATE > DATES[-1]:   # dotted extension to the latest daily price
+        fig.add_trace(go.Scatter(
+            x=[DATES[-1], LATEST_DATE], y=transform([OIL["Brent"].iloc[-1], LATEST_PRICE]),
+            name="Latest", mode="lines+markers", showlegend=False,
+            line=dict(color=COLORS["navy"], width=2, dash="dot"),
+            marker=dict(size=[0, 9], symbol="diamond", color=COLORS["orange"]),
+            selected=keep_visible, unselected=keep_visible,
+            hovertemplate=f"{nice_date(LATEST_DATE)} {LATEST_LABEL.lower()}: {fmt}<extra></extra>",
+        ))
+    if show_wti:
+        fig.add_trace(go.Scatter(
+            x=DATES, y=transform(OIL["WTI"]), name="WTI", mode="lines+markers",
+            line=dict(color=COLORS["grey"], width=2), marker=dict(size=5),
+            selected=keep_visible, unselected=keep_visible,
+            connectgaps=False, hovertemplate=f"WTI: {fmt}<extra></extra>",
+        ))
+
+    ref = 0 if as_pct else PREWAR_PRICE
+    shapes = [dict(type="line", xref="paper", x0=0, x1=1, y0=ref, y1=ref,
+                   line=dict(dash="dash", color="#9aa5b1", width=1))]
+    annotations = [dict(xref="paper", x=0.005, y=ref, xanchor="left", yshift=10,
+                        showarrow=False, font=dict(size=11, color=COLORS["muted"]),
+                        text="Pre-war level" if as_pct else f"Pre-war ${PREWAR_PRICE:.2f}")]
+
+    if phase and phase in PHASES:
+        p = PHASES[phase]
+        shapes.append(dict(type="rect", xref="x", yref="paper", x0=p["start"], x1=p["end"],
+                           y0=0, y1=1, fillcolor=p["color"], opacity=0.15,
+                           layer="below", line=dict(width=0)))
+        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+        annotations.append(dict(x=mid.strftime("%Y-%m-%d"), yref="paper", y=1, yanchor="bottom",
+                                showarrow=False, text=f"<b>{phase}</b>",
+                                font=dict(color=p["color"], size=12)))
+
+    fig.update_layout(**base_layout(
+        height=430, hovermode="x unified", showlegend=bool(show_wti),
+        legend=dict(orientation="h", x=1, xanchor="right", y=1.12),
+        margin=dict(l=55, r=20, t=40, b=40),
+        yaxis=dict(title=unit, gridcolor="#edf0f3", zeroline=False),
+        xaxis=dict(type="date", range=[CHART_START, MAIN_CHART_END],
+                   rangeselector=dict(
+                       x=0, y=1.1, bgcolor="#f2f4f7", activecolor="#d6dde6",
+                       buttons=[dict(count=3, label="3M", step="month", stepmode="backward"),
+                                dict(count=6, label="6M", step="month", stepmode="backward"),
+                                dict(step="all", label="All")])),
+        shapes=shapes, annotations=annotations,
+    ))
+    return fig
+
+
 # ------------------------------- HTML snippets -------------------------------
 
 def header_html():
@@ -192,6 +272,7 @@ def kpi_html(title, value, description, color):
 
 def render():
     """Draw the oil prices panel."""
+    sel = N - 1   # latest month (made interactive in a later stage)
     st.markdown(header_html(), unsafe_allow_html=True)
 
     # KPI row
@@ -211,6 +292,14 @@ def render():
     for col, (title, value, desc, colour) in zip(st.columns(4), kpis):
         col.markdown(kpi_html(title, value, desc, colour), unsafe_allow_html=True)
     st.write("")
+
+    # main chart
+    with st.container(border=True):
+        st.markdown(f"**Brent crude, monthly average**  \n"
+                    f"<span style='font-size:12.5px;color:{COLORS['muted']}'>Use the buttons on the chart to zoom to the last 3 or 6 months.</span>",
+                    unsafe_allow_html=True)
+        st.plotly_chart(build_main_figure(None, VIEW_OPTIONS[0], False, sel), use_container_width=True,
+                        config={"displayModeBar": False})
 
 
 # -----------------------------------------------------------------------------
