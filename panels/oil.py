@@ -178,15 +178,39 @@ def header_html():
                border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(LATEST_DATE).upper()}</span>
 </div>"""
 
+
+def kpi_html(title, value, description, color):
+    return f"""
+<div style="background:#fff;border-radius:6px;padding:14px 16px;border-top:4px solid {color};
+            box-shadow:0 1px 3px rgba(16,24,40,.12);height:100%">
+  <div style="font-size:12px;color:{COLORS['muted']};font-weight:500;text-transform:uppercase;letter-spacing:.5px">{title}</div>
+  <div style="font-size:27px;font-weight:700;color:{COLORS['navy']};margin:6px 0 2px">{value}</div>
+  <div style="font-size:12px;color:{COLORS['muted']}">{description}</div>
+</div>"""
+
 # ----------------------------------- page ------------------------------------
 
 def render():
     """Draw the oil prices panel."""
     st.markdown(header_html(), unsafe_allow_html=True)
 
-    # stage 1: show the data as a table to check it loaded correctly
-    st.dataframe(OIL[["Month", "Brent", "WTI", "MoM", "YoY", "vsPrewar"]].round(2),
-                 use_container_width=True, hide_index=True)
+    # KPI row
+    peak_idx = OIL["Brent"].idxmax()
+    spread_rows = OIL.dropna(subset=["Spread"])
+    kpis = [
+        ("Latest Brent price", f"${LATEST_PRICE:.2f}", f"{LATEST_LABEL}, {nice_date(LATEST_DATE)}", COLORS["blue"]),
+        ("Change since pre-war", f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}%",
+         f"vs ${PREWAR_PRICE:.2f} on {nice_date(PREWAR_DATE)}", COLORS["red"]),
+        ("Highest monthly average", f"${OIL.loc[peak_idx, 'Brent']:.2f}",
+         month_label(OIL.loc[peak_idx, "DateStr"]), COLORS["orange"]),
+        ("Brent–WTI gap",
+         f"${spread_rows['Spread'].iloc[-1]:.2f}" if not spread_rows.empty else "n/a",
+         f"{month_label(spread_rows['DateStr'].iloc[-1])} average" if not spread_rows.empty else "",
+         COLORS["purple"]),
+    ]
+    for col, (title, value, desc, colour) in zip(st.columns(4), kpis):
+        col.markdown(kpi_html(title, value, desc, colour), unsafe_allow_html=True)
+    st.write("")
 
 
 # -----------------------------------------------------------------------------
