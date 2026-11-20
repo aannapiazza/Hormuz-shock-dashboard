@@ -190,6 +190,31 @@ def download_oecd() -> pd.DataFrame:
                          "value": raw["OBS_VALUE"]}).dropna()
 
 
+def download_bls() -> pd.DataFrame:
+    """US CPI price indexes from the BLS, turned into annual % changes.
+
+    The BLS publishes index levels (e.g. 337.5), not inflation rates, so the
+    rate is worked out here: (this month / same month a year ago - 1) x 100.
+    Months the BLS didn't publish (shown as "-") are left empty.
+    """
+    body = {"seriesid": list(BLS_CODES.values()), "startyear": str(END.year - 9),
+            "endyear": str(END.year)}                              # the free API allows 10 years
+    response = requests.post(BLS_URL, json=body, headers=HEADERS, timeout=TIMEOUT_SECONDS)
+    response.raise_for_status()
+    measures = {code: name for name, code in BLS_CODES.items()}
+    parts = []
+    for series in response.json()["Results"]["series"]:
+        months = [d for d in series["data"] if d["period"] != "M13"]   # M13 = yearly average
+        index = pd.Series(
+            pd.to_numeric([d["value"] for d in months], errors="coerce"),
+            index=pd.to_datetime([f"{d['year']}-{d['period'][1:]}-01" for d in months]),
+        ).sort_index().asfreq("MS")                # one row per month, gaps stay empty
+        rate = ((index / index.shift(12) - 1) * 100).dropna()
+        parts.append(pd.DataFrame({"date": rate.index, "country": "United States",
+                                   "measure": measures[series["seriesID"]], "value": rate.values}))
+    return pd.concat(parts, ignore_index=True)
+
+
 # =============================================================================
 # PANEL
 # =============================================================================
