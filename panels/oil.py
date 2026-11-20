@@ -244,6 +244,60 @@ def build_main_figure(phase, view, show_wti, sel):
     return fig
 
 
+def build_second_figure(mode, sel):
+    def highlight(i, normal):
+        return COLORS["orange"] if i == sel else normal
+
+    keep_visible = dict(marker=dict(opacity=1))
+
+    if mode == SECOND_OPTIONS[1]:
+        title = "Rolling 3-month volatility"
+        sub = "Annualised standard deviation of monthly % changes. Higher means a more erratic market."
+        fig = go.Figure(go.Scatter(
+            x=DATES, y=OIL["Volatility"], mode="lines+markers", fill="tozeroy",
+            fillcolor="rgba(142,68,173,.12)",
+            line=dict(color=COLORS["purple"], width=2.5, shape="spline"),
+            marker=dict(size=[11 if i == sel else 6 for i in range(N)],
+                        color=[highlight(i, COLORS["purple"]) for i in range(N)]),
+            selected=keep_visible, unselected=keep_visible,
+            hovertemplate="%{x|%b %Y}: %{y:.1f}<extra></extra>",
+        ))
+        yaxis = dict(gridcolor="#edf0f3")
+    elif mode == SECOND_OPTIONS[2]:
+        title = "Brent–WTI price gap"
+        sub = "$ per barrel. The gap widens when Middle East supply is cut and the US is relatively insulated."
+        spread = OIL["Spread"]
+        fig = go.Figure(go.Bar(
+            x=DATES, y=spread,
+            marker_color=[highlight(i, COLORS["blue"]) for i in range(N)],
+            text=["" if pd.isna(v) else f"${v:.1f}" for v in spread],
+            textposition="outside", cliponaxis=False,
+            selected=keep_visible, unselected=keep_visible,
+            hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>",
+        ))
+        yaxis = dict(gridcolor="#edf0f3", tickprefix="$")
+    else:
+        title = "Month-on-month change"
+        sub = "% change in the monthly average. Red bars are rises and green bars are falls."
+        mom = OIL["MoM"]
+        colors = ["#cccccc" if pd.isna(v) else highlight(i, COLORS["red"] if v > 0 else COLORS["green"])
+                  for i, v in enumerate(mom)]
+        fig = go.Figure(go.Bar(
+            x=DATES, y=mom, marker_color=colors,
+            text=["" if pd.isna(v) else f"{signed(v)}%" for v in mom],
+            textposition="outside", cliponaxis=False,
+            selected=keep_visible, unselected=keep_visible,
+            hovertemplate="%{x|%b %Y}: %{y:+.1f}%<extra></extra>",
+        ))
+        yaxis = dict(gridcolor="#edf0f3", ticksuffix="%", zeroline=True, zerolinecolor="#9aa5b1")
+
+    fig.update_layout(**base_layout(
+        height=330, showlegend=False, yaxis=yaxis,
+        xaxis=dict(type="date", tickformat="%b %y", range=[CHART_START, SECOND_CHART_END]),
+    ))
+    return fig, title, sub
+
+
 # ------------------------------- HTML snippets -------------------------------
 
 def header_html():
@@ -328,6 +382,14 @@ def render():
                     unsafe_allow_html=True)
         st.plotly_chart(build_main_figure(phase, view, show_wti, sel), use_container_width=True,
                         config={"displayModeBar": False})
+
+    # second chart
+    with st.container(border=True):
+        mode = choice("Second chart", SECOND_OPTIONS, SECOND_OPTIONS[0], key="ho_second")
+        fig, title, sub = build_second_figure(mode, sel)
+        st.markdown(f"**{title}**  \n<span style='font-size:12.5px;color:{COLORS['muted']}'>{sub}</span>",
+                    unsafe_allow_html=True)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
 
 # -----------------------------------------------------------------------------
