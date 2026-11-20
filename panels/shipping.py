@@ -43,6 +43,12 @@ else:
     try:
         shipping_df = pd.read_csv(csv_path)
         shipping_df.columns = shipping_df.columns.str.strip()
+ 
+        shipping_df = shipping_df.loc[
+        shipping_df["portname"]
+            .astype(str)
+            .str.contains("Hormuz", case=False, na=False)
+        ].copy()
 
         required_columns = {"date", "n_total", "n_tanker"}
         missing_columns = required_columns - set(shipping_df.columns)
