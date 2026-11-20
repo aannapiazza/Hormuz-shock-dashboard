@@ -11,13 +11,15 @@ Use in app.py:   from panels import gas_lng   then   gas_lng.render()
 
 Data: every chart reads a CSV file in the data/ folder (see DATA_FILES below).
 Each file has a source and url column, so every number can be traced.
-Daily gas prices are downloaded live from Yahoo Finance (yfinance); if that
-fails, the panel uses the saved copy in data/gas_prices_daily.csv.
+Daily gas prices come from Yahoo Finance (yfinance). By default (LIVE = False)
+the panel reads the saved copy in data/gas_prices_daily.csv, so it opens fast,
+works offline and shows the same numbers every time. Set LIVE = True to
+download fresh prices (the saved copy is still used if the download fails).
 Interactive charts use Plotly.
 
 How this file is organised (same order as the group's panel template):
     1. SETTINGS  - data files, tickers, colours and fixed numbers you might change
-    2. DATA      - read the CSV files and download live prices (saved copy as backup)
+    2. DATA      - read the saved CSV files in data/, with code to download prices again
     3. ANALYSIS  - the calculations, as small functions with docstrings
     4. CHARTS    - one function per Plotly figure
     5. LAYOUT    - the header, KPI tiles and one function per tab (Streamlit)
@@ -45,7 +47,13 @@ DATA_FILES = {
     "events": "gas_events.csv",           # key war events for the price chart
 }
 
-# ---------- live daily prices (Yahoo Finance via yfinance) ----------
+# ---------- data mode (same rule as the rest of the dashboard) ----------
+# False = read the saved copies in data/ (fast, offline, same numbers every time).
+# True  = download fresh daily prices first; fall back to the saved copy if that fails.
+LIVE = False
+END = pd.Timestamp("2026-10-31")   # last day of prices shown (same for the whole dashboard)
+
+# ---------- daily prices (Yahoo Finance via yfinance) ----------
 DAILY_TICKERS = {
     "ttf_eur_mwh": "TTF=F",     # Dutch TTF gas futures, euros per MWh
     "hh_usd_mmbtu": "NG=F",     # US Henry Hub gas futures, dollars per MMBtu
@@ -55,9 +63,14 @@ DAILY_START = "2025-10-01"                        # a few months before the war,
 DAILY_BACKUP = DATA_DIR / "gas_prices_daily.csv"  # saved copy, used if the download fails
 MWH_PER_MMBTU = 0.293071                          # energy conversion: 1 MMBtu = 0.293071 MWh
 
-# ---------- colours (same as the design) ----------
-RED, AMBER, TEAL, BLUE, VIOLET, MUTED = "#ff5a4e", "#ffb020", "#2dd4bf", "#5aa9ff", "#a78bfa", "#8fa0bb"
-GRID, INK, DARK = "#22314a", "#e8edf5", "#0b1320"
+# ---------- colours: the group's light theme (same palette as panels/inflation.py) ----------
+RED, AMBER, TEAL, BLUE, VIOLET = "#d23f3f", "#d48806", "#0f9b8e", "#2e6fd8", "#7c5cd6"
+MUTED = "#667085"          # secondary text, reference lines
+INK = "#17202e"            # main text
+GRID = "#e5e7eb"           # gridlines
+LINE = "#c4cad4"           # connectors and event lines
+BG = "#ffffff"             # marker outlines and hover boxes
+PANEL = "#f4f6f9"          # light grey fills (slider strip, shaded rows)
 CFG = {"displayModeBar": False}
 
 # ---------- fixed numbers used in the story ----------
@@ -79,7 +92,7 @@ ROW_NOTES = {
 
 
 # ===========================================================================
-# 2. DATA - read the CSV files; download live prices (saved copy if that fails)
+# 2. DATA - read the saved copies in data/; download fresh prices when LIVE = True
 # ===========================================================================
 
 @st.cache_data
@@ -145,10 +158,20 @@ def with_backup(download, backup: Path) -> tuple:
         return None, f"missing ({type(error).__name__})"
 
 
-@st.cache_data(ttl=6 * 60 * 60, show_spinner="Downloading live gas prices...")
+@st.cache_data(ttl=6 * 60 * 60, show_spinner="Loading daily gas prices...")
 def load_daily_prices() -> tuple:
-    """Live daily prices, cached for 6 hours so the page stays fast."""
-    return with_backup(download_daily_prices, DAILY_BACKUP)
+    """Daily prices: the saved copy by default, or a fresh download if LIVE is True.
+
+    If there is no saved copy yet, it downloads one even when LIVE is False.
+    Cached for 6 hours so the page stays fast.
+    """
+    if LIVE or not DAILY_BACKUP.exists():
+        daily, status = with_backup(download_daily_prices, DAILY_BACKUP)
+    else:
+        daily, status = pd.read_csv(DAILY_BACKUP, parse_dates=["date"]), "saved copy"
+    if daily is not None:
+        daily = daily[daily["date"] <= END].reset_index(drop=True)   # same cut-off as the other panels
+    return daily, status
 
 
 # ===========================================================================
@@ -241,10 +264,13 @@ def benchmark_change(bench: pd.DataFrame, column: str) -> dict:
 
 
 def data_as_of(data: dict) -> str:
-    """Build the 'Data as of …' label from the newest date in the data itself."""
+    """Build the date label: prices stop at the shared END date; storage shows its latest reading.
+
+    Storage is a snapshot reported every few days, so its newest reading is kept
+    (it shows the winter drawdown that started after the October peak).
+    """
     newest = data["storage"]["date"].max()
-    last_month = pd.to_datetime(data["prices"]["month"]).max()
-    return f"Data as of {newest:%d %B %Y} · monthly prices to {last_month:%B %Y}"
+    return f"Prices to {END:%d %B %Y} · EU storage to {newest:%d %B %Y}"
 
 
 def storage_position(storage: pd.DataFrame) -> dict:
@@ -272,14 +298,14 @@ def _layout(fig, **kw):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="IBM Plex Sans, sans-serif", color=INK, size=13),
-        hoverlabel=dict(bgcolor=DARK, bordercolor="#26354f"), **kw)
+        hoverlabel=dict(bgcolor=BG, font=dict(color=INK), bordercolor=GRID), **kw)
     return fig
 
 
 def _add_events(fig, events, y_top):
     for _, ev in events.iterrows():
         d = ev["date"].strftime("%Y-%m-%d")
-        fig.add_vline(x=d, line=dict(color="#33445f", width=1, dash="dot"))
+        fig.add_vline(x=d, line=dict(color=LINE, width=1, dash="dot"))
         fig.add_annotation(x=d, y=y_top, text=ev["event"], showarrow=False, textangle=-90,
                            xanchor="right", yanchor="top", font=dict(size=10, color=MUTED))
 
@@ -289,28 +315,28 @@ def price_path_chart(prices, events, show_events, daily=None):
     chg = y.pct_change() * 100          # % change from the month before
     fig = go.Figure(go.Scatter(
         x=prices["date"], y=y, mode="lines+markers", line=dict(color=BLUE, width=3, shape="spline", smoothing=0.6),
-        marker=dict(size=10, color=[TEAL if c < 0 else BLUE for c in chg.fillna(0)], line=dict(color=DARK, width=1.5)),
-        fill="tozeroy", fillcolor="rgba(90,169,255,.10)",
+        marker=dict(size=10, color=[TEAL if c < 0 else BLUE for c in chg.fillna(0)], line=dict(color=BG, width=1.5)),
+        fill="tozeroy", fillcolor="rgba(46,111,216,.10)",
         customdata=["—" if pd.isna(c) else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
     y_max, x_end = 35, prices["date"].max() + pd.Timedelta(days=20)
-    if daily is not None:       # thin line of live daily prices behind the monthly averages
+    if daily is not None:       # thin line of daily prices behind the monthly averages
         daily_usd = ttf_in_usd(daily)
-        fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF (live)",
-                                 line=dict(color="rgba(167,139,250,.75)", width=1.2),
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF",
+                                 line=dict(color="rgba(124,92,214,.65)", width=1.2),
                                  hovertemplate="%{x|%d %b %Y}: $%{y:.2f}/MMBtu (daily)<extra></extra>"))
         y_max = max(y_max, float(daily_usd.max()) * 1.1)
         x_end = max(x_end, daily["date"].max() + pd.Timedelta(days=5))
     # Price labels as annotations (not trace text), so they don't clutter the slider strip
     for d, v in zip(prices["date"], y):
-        fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#c7d2e3"))
+        fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#475467"))
     fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
                   annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom right")
     if show_events and events is not None:
         _add_events(fig, events, y_max - 1)
     return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
                    xaxis=dict(type="date", range=["2025-12-20", x_end], gridcolor=GRID, tickformat="%b", dtick="M1",
-                              rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
+                              rangeslider=dict(visible=True, thickness=0.06, bgcolor=PANEL)),
                    yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, y_max], fixedrange=True, automargin=True))
 
 
@@ -324,7 +350,7 @@ def europe_us_chart(gap: pd.DataFrame, vol: pd.Series, show: str, show_vol: bool
                                  line=dict(color=TEAL, width=2),
                                  hovertemplate="US: $%{y:.2f}<extra></extra>"), row=1, col=1)
         fig.add_trace(go.Scatter(x=gap["date"], y=gap["ttf_usd"], name="Europe (TTF)", mode="lines",
-                                 line=dict(color=BLUE, width=2), fill="tonexty", fillcolor="rgba(255,90,78,.15)",
+                                 line=dict(color=BLUE, width=2), fill="tonexty", fillcolor="rgba(210,63,63,.12)",
                                  customdata=gap[["gap_usd"]].values,
                                  hovertemplate="Europe: $%{y:.2f}<br>Gap: $%{customdata[0]:.2f}<extra></extra>"), row=1, col=1)
         fig.update_yaxes(title_text="$ per MMBtu", rangemode="tozero", row=1, col=1)
@@ -340,7 +366,7 @@ def europe_us_chart(gap: pd.DataFrame, vol: pd.Series, show: str, show_vol: bool
                            xanchor="left", yanchor="top", xshift=4, font=dict(size=11, color=MUTED))
     if show_vol:
         fig.add_trace(go.Scatter(x=gap["date"], y=vol, name=f"Volatility ({VOL_WINDOW}-day)", mode="lines",
-                                 line=dict(color=AMBER, width=1.8), fill="tozeroy", fillcolor="rgba(255,176,32,.10)",
+                                 line=dict(color=AMBER, width=1.8), fill="tozeroy", fillcolor="rgba(212,136,6,.12)",
                                  hovertemplate="Volatility: %{y:.0f}%<extra></extra>"), row=2, col=1)
         fig.update_yaxes(title_text="Volatility", ticksuffix="%", rangemode="tozero", row=2, col=1)
     fig.update_xaxes(gridcolor=GRID, tickformat="%b %Y")
@@ -374,15 +400,15 @@ def dumbbell_chart(bench, unit, highlight):
     fig = go.Figure()
     for i, row in enumerate(rows):
         fig.add_trace(go.Scatter(x=[ttf[i], jkm[i]], y=[row, row], mode="lines", hoverinfo="skip", showlegend=False,
-                                 line=dict(color=MUTED if i == highlight else "#33445f", width=9 if i == highlight else 6)))
+                                 line=dict(color=MUTED if i == highlight else LINE, width=9 if i == highlight else 6)))
     opac = [1 if highlight is None or i == highlight else 0.35 for i in range(len(rows))]
     fmt = "%{x:+.0f}%" if unit == "% vs pre-war" else "%{x:.1f} " + unit
     fig.add_trace(go.Scatter(x=ttf, y=rows, mode="markers", name="Europe (TTF)", hovertemplate="TTF: " + fmt + "<extra></extra>",
-                             marker=dict(size=16, color=BLUE, opacity=opac, line=dict(color=DARK, width=2))))
+                             marker=dict(size=16, color=BLUE, opacity=opac, line=dict(color=BG, width=2))))
     fig.add_trace(go.Scatter(x=jkm, y=rows, mode="markers", name="Asia (JKM)", hovertemplate="JKM: " + fmt + "<extra></extra>",
-                             marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=DARK, width=2))))
+                             marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=BG, width=2))))
     fig.add_shape(type="rect", xref="paper", yref="y", x0=0, x1=1, y0=len(rows) - 1.5, y1=len(rows) - 0.5,
-                  fillcolor="rgba(255,255,255,.03)", line_width=0)
+                  fillcolor="rgba(23,32,46,.04)", line_width=0)
     for i, row in enumerate(rows):          # dots overlap when the two prices are almost equal: say so
         close = abs(ttf[i] - jkm[i]) <= 0.05 * max(abs(ttf[i]), abs(jkm[i]), 1)   # within 5% of each other
         if close and not (unit == "% vs pre-war" and i == 0):
@@ -440,9 +466,9 @@ def exposure_chart(exposure, view, regions, metric):
         rr = rows[rows["region"] == reg]
         fig.add_trace(go.Scatter(
             x=rr["total_lng_imports_bcfd"], y=rr["qatar_share_pct"], mode="markers+text", name=reg,
-            text=rr["country"], textposition="top center", textfont=dict(size=11, color="#c7d2e3"),
+            text=rr["country"], textposition="top center", textfont=dict(size=11, color="#475467"),
             marker=dict(size=[max(10, v * 38) for v in rr["from_qatar_bcfd"]], color=colour[reg], opacity=0.75,
-                        line=dict(color=DARK, width=1.5)),
+                        line=dict(color=BG, width=1.5)),
             customdata=rr[["from_qatar_bcfd"]].values,
             hovertemplate="<b>%{text}</b><br>Total LNG imports: %{x:.1f} Bcf/d<br>Qatar share: %{y:.1f}%<br>"
                           "At risk: %{customdata[0]:.1f} Bcf/d<extra></extra>"))
@@ -471,7 +497,7 @@ def storage_chart(storage, show_2025, show_5yr, show_targets):
     s26 = series("2026")
     fig.add_trace(go.Scatter(x=s26["date"], y=s26["pct_full"], name="2026",
                              mode="lines+markers", line=dict(color=RED, width=3.5), marker=dict(size=9),
-                             fill="tozeroy", fillcolor="rgba(255,90,78,.08)",
+                             fill="tozeroy", fillcolor="rgba(210,63,63,.08)",
                              hovertemplate="<b>2026: %{y:.1f}%</b><extra></extra>"))
     if show_targets:
         fig.add_hline(y=90, line=dict(color=TEAL, dash="dot"), annotation_text="EU target 90%",
@@ -495,8 +521,8 @@ def sunburst_chart():
         ids=["all", "hz", "nh", "asia", "oth"],
         labels=["World LNG trade", "Via Hormuz<br>~20%", "Not via Hormuz<br>~80%", "To Asia<br>83%", "Europe &<br>other 17%"],
         parents=["", "all", "all", "hz", "hz"], values=[100, 20, 80, 16.6, 3.4], branchvalues="total",
-        marker=dict(colors=["#121c2d", "#ff6b5e", "#2c3d5c", "#6fb4ff", "#9aabc6"], line=dict(color="#121c2d", width=1)),
-        rotation=90, sort=False, textfont=dict(size=13, color=INK), insidetextorientation="horizontal",
+        marker=dict(colors=[PANEL, RED, "#98a2b3", BLUE, "#b8c4d6"], line=dict(color=BG, width=2)),
+        rotation=90, sort=False, textfont=dict(size=13, color=[INK, "#ffffff", INK, "#ffffff", INK]), insidetextorientation="horizontal",
         hovertemplate="<b>%{label}</b><br>%{value:.1f}% of world LNG trade<extra></extra>"))
     return _layout(fig, height=380, margin=dict(l=4, r=4, t=4, b=4), uniformtext=dict(minsize=10, mode="show"))
 
@@ -506,11 +532,11 @@ def sunburst_chart():
 # ===========================================================================
 
 def section_prices(data: dict, daily, daily_status: str) -> None:
-    """Tab 1: monthly price path, live daily prices and the 2026 vs 2022 comparison."""
+    """Tab 1: monthly price path, daily prices and the 2026 vs 2022 comparison."""
     st.subheader("European gas prices through the war")
     c1, c2 = st.columns(2)
     show_ev = c1.toggle("Show key events", value=True, key="gas_ev")
-    show_daily = c2.toggle("Show daily prices (live)", value=True, key="gas_daily", disabled=daily is None)
+    show_daily = c2.toggle("Show daily prices", value=True, key="gas_daily", disabled=daily is None)
     st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev, daily if show_daily else None),
                     width="stretch", theme=None, config=CFG)
     if daily is not None:
@@ -566,7 +592,7 @@ def section_europe_us(data: dict, daily, daily_status: str) -> None:
     """Tab 2: daily Europe vs US prices with a date-range slider."""
     st.subheader("Two gas markets: Europe vs the US")
     if daily is None:
-        st.info("Live daily prices are unavailable right now, so this chart can't be drawn. "
+        st.info("Daily prices are unavailable right now, so this chart can't be drawn. "
                 "It needs data/gas_prices_daily.csv or an internet connection.")
     else:
         gap_all = europe_us_gap(daily)
@@ -667,8 +693,9 @@ def render() -> None:
         st.error(f"Missing data file(s) in data/: {', '.join(missing)}. Check the files are in the repo.")
         return
     daily, daily_status = load_daily_prices()
-    live_note = {"live": "📡 live daily prices from Yahoo Finance",
-                 "saved copy": "💾 daily prices from saved copy (download failed)"}.get(daily_status, "⚠️ daily prices unavailable")
+    live_note = {"live": "📡 daily prices downloaded just now from Yahoo Finance",
+                 "saved copy": ("💾 daily prices from saved copy (download failed)" if LIVE
+                                else "💾 daily prices from saved copy (Yahoo Finance)")}.get(daily_status, "⚠️ daily prices unavailable")
     st.markdown(f"`{data_as_of(data)}` · 💾 {len(DATA_FILES)} data files loaded from `data/` · {live_note}")
 
     # ---- KPI tiles: calculated from the data (see ANALYSIS) ----
