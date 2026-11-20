@@ -42,12 +42,10 @@ def show_panel(file: str) -> None:
     if not path.exists():
         st.info(f"This panel is coming soon ({file} isn't in the repo yet).")
         return
-    spec = importlib.util.spec_from_file_location(path.stem, path)
+    spec = importlib.util.spec_from_file_location("__main__", path)
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)       # runs the file's top-level code
-        if hasattr(module, "render"):
-            module.render()
     except Exception as error:                # one broken panel can't break the rest
         st.error(f"This panel hit an error: {error}")
         st.exception(error)
