@@ -1,8 +1,9 @@
-"""Gas & LNG section of the Hormuz Shock dashboard (Streamlit + Plotly).
+"""
+Panel 3 - Gas & LNG
+Author: Eabha Kelly
 
-Run on its own:     streamlit run gas_lng.py
-Use inside app.py:  from gas_lng import render_gas_lng
-                    render_gas_lng()
+Run on its own:  python3 -m streamlit run panels/gas_lng.py
+Use in app.py:   from panels import gas_lng   then   gas_lng.render()
 """
 import plotly.graph_objects as go
 import streamlit as st
@@ -103,7 +104,8 @@ def sunburst_chart():
     return _layout(fig, height=400, margin=dict(l=4, r=4, t=4, b=4), uniformtext=dict(minsize=10, mode="show"))
 
 
-def render_gas_lng():
+def render() -> None:
+    """Draw the whole panel. app.py calls this inside the panel's tab."""
     st.header("🔥 Gas & LNG: Qatar's exports cut off")
     st.caption("Nearly all of Qatar's LNG, about a fifth of world supply, has to pass through Hormuz. "
                "Then the 19 March strike on Ras Laffan knocked out part of its capacity for years.")
@@ -173,5 +175,6 @@ def render_gas_lng():
 
 # Lets you run this file on its own with `streamlit run gas_lng.py`
 if __name__ == "__main__":
+    # Run this panel on its own:  python3 -m streamlit run panels/gas_lng.py
     st.set_page_config(page_title="Hormuz Shock – Gas & LNG", layout="wide")
-    render_gas_lng()
+    render()
