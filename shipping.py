@@ -2,6 +2,7 @@ from pathlib import Path
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import yfinance as yf
 
 st.set_page_config(
     page_title="Hormuz Dashboard",
@@ -39,8 +40,43 @@ with col4:
         "MARITIME INCIDENTS",
         "130"
     )
+    brent = yf.Ticker("BZ=F")
+
+brent_price = brent.history(period="1d")["Close"].iloc[-1]
+
+st.metric(
+    "BRENT OIL LIVE",
+    f"${brent_price:.2f}"
+)
+...
+st.metric(
+    "BRENT OIL LIVE",
+    f"${brent_price:.2f}"
+)
+
+col_a, col_b, col_c = st.columns(3)
+
+wti = yf.Ticker("CL=F")
+wti_price = wti.history(period="1d")["Close"].iloc[-1]
+
+vix = yf.Ticker("^VIX")
+vix_price = vix.history(period="1d")["Close"].iloc[-1]
+
+dxy = yf.Ticker("DX-Y.NYB")
+dxy_price = dxy.history(period="1d")["Close"].iloc[-1]
+
+with col_a:
+    st.metric("WTI OIL", f"${wti_price:.2f}")
+
+with col_b:
+    st.metric("VIX", f"{vix_price:.2f}")
+
+with col_c:
+    st.metric("DOLLAR INDEX", f"{dxy_price:.2f}")
 
 st.divider()
+st.divider()
+
 
 left, right = st.columns(2)
 
@@ -104,14 +140,13 @@ with right:
         value=True
     )
 
-    risk_df = pd.DataFrame({
-        "Month":["Feb","Mar","Apr","May","Jun","Jul"],
-        "Premium":[0.25,1,2.5,1,1,6]
-    })
+   st.markdown("### Brent Oil - Last 6 Months")
 
-    st.line_chart(
-        risk_df.set_index("Month")
-    )
+brent_hist = brent.history(period="6mo")
+
+st.line_chart(
+    brent_hist["Close"]
+)
 
     if show_peak:
         st.success("Peak premium reached: 6%")
