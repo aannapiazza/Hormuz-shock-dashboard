@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,25 @@ st.set_page_config(
     page_icon="🚢",
     layout="wide"
 )
+
+
+# DATA SETTINGS
+
+# Nothing after this date is ever shown or saved.
+END = pd.Timestamp("2026-10-31")
+
+# LIVE = False: market prices come from saved copies (downloaded once if missing).
+# LIVE = True:  market prices are downloaded fresh from Yahoo Finance.
+# Either way, everything is cut at END.
+LIVE = False
+
+
+def up_to_end(data):
+    """Drop everything after END (DataFrame with a 'date' column, or a Series
+    indexed by date)."""
+    if isinstance(data, pd.DataFrame):
+        return data.loc[data["date"] <= END].copy()
+    return data.loc[data.index <= END]
 
 
 # STYLE
@@ -131,7 +151,8 @@ st.title("🚢 Hormuz | Shipping & Markets")
 
 st.caption(
     "Shipping: daily IMF PortWatch data from a local CSV. "
-    "Market prices: latest available from Yahoo Finance; may be delayed."
+    "Market prices: Yahoo Finance. "
+    f"Data shown up to {END:%d %b %Y}."
 )
 
 
@@ -195,6 +216,9 @@ else:
                 .reset_index(drop=True)
             )
 
+            # Cut everything after END (the CSV may run further).
+            shipping_df = up_to_end(shipping_df).reset_index(drop=True)
+
             if shipping_df.empty:
                 st.error("The CSV contains no valid shipping records.")
                 shipping_df = None
@@ -217,16 +241,47 @@ else:
 
 # LOAD MARKET DATA
 
+SAVED_FOLDER = script_folder / "saved_market_data"
+
+
+def saved_path(symbol):
+    safe_name = re.sub(r"[^A-Za-z0-9]+", "_", symbol).strip("_")
+    return SAVED_FOLDER / f"{safe_name}.csv"
+
+
 @st.cache_data(ttl=300)
-def load_market_data(symbol):
+def load_market_data(symbol, live):
+    path = saved_path(symbol)
+
+    # Saved copy first (cut again at END, just in case).
+    if not live and path.is_file():
+        try:
+            saved = pd.read_csv(path, index_col=0, parse_dates=True)["Close"]
+            return up_to_end(saved.dropna())
+        except Exception:
+            pass
+
+    # Otherwise download, cut at END, and save the copy.
     try:
-        history = yf.Ticker(symbol).history(period="6mo")
+        history = yf.Ticker(symbol).history(
+            start=END - pd.DateOffset(months=6),
+            end=END + pd.Timedelta(days=1)  # Yahoo's end date is exclusive
+        )
 
         if history.empty or "Close" not in history.columns:
             return pd.Series(dtype=float)
 
         closes = history["Close"].dropna()
         closes.index = pd.to_datetime(closes.index).tz_localize(None)
+        closes.index.name = "Date"
+        closes = up_to_end(closes)
+
+        try:
+            SAVED_FOLDER.mkdir(exist_ok=True)
+            closes.rename("Close").to_csv(path)
+        except Exception:
+            pass  # saving is best effort
+
         return closes
 
     except Exception:
@@ -241,7 +296,7 @@ market_symbols = {
 }
 
 market_data = {
-    label: load_market_data(symbol)
+    label: load_market_data(symbol, LIVE)
     for label, symbol in market_symbols.items()
 }
 
@@ -587,3 +642,4 @@ st.caption(
     "These charts show traffic and prices separately; "
     "they do not establish a causal relationship."
 )
+
