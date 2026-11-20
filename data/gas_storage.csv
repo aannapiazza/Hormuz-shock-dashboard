@@ -1,0 +1,23 @@
+date,series,pct_full,source,how,url
+2026-04-01,2026,27.7,GIE AGSI via Argus,reported,https://www.argusmedia.com/news-and-insights/latest-market-news/2810699-europe-faces-challenging-gas-restocking-season
+2026-06-09,2026,42.8,GIE AGSI via GMK Center,reported,https://gmk.center/en/news/european-gas-prices-stood-at-e48-49-mwh-at-the-start-of-june/
+2026-07-26,2026,55.4,GIE AGSI via General Index,reported,https://www.general-index.com/analytics-posts/july-pricing-analysis-european-natural-gas
+2026-08-15,2026,60.8,GIE AGSI via S&P Global,reported,https://www.spglobal.com/energy/en/news-research/latest-news/electric-power/081726-eu-gas-storage-passes-60-full-but-still-lags-recent-years-gie
+2026-08-27,2026,63.3,GIE AGSI via TASS/Tasnim,reported,https://www.tasnimnews.ir/en/news/2026/08/27/3681581/gas-stocks-in-european-ugs-facilities-at-lowest-level-since-2013/amp
+2026-09-23,2026,70.4,GIE AGSI via TASS,reported,https://tass.com/economy/2192993
+2026-09-30,2026,71.5,GIE AGSI via TASS,reported,https://tass.com/economy/2196473
+2026-10-06,2026,73.0,GIE AGSI via TASS,reported,https://tass.com/economy/2199199
+2026-10-27,2026,75.0,GIE AGSI via oEnergetice,reported,https://oenergetice.cz/en/natural-gas/eu-gas-storage-is-less-than-three-quarters-full-how-much-will-be-left-after-winter
+2026-11-01,2026,74.6,GIE AGSI via oEnergetice,reported,https://oenergetice.cz/en/natural-gas/eu-gas-storage-is-less-than-three-quarters-full-how-much-will-be-left-after-winter
+2026-11-15,2026,70.4,GIE AGSI via TASS,reported,https://tass.com/economy/2219477
+2026-04-01,2025 (same date),34.1,Argus (387 TWh a year earlier),derived: 387 TWh / EU capacity,https://www.argusmedia.com/news-and-insights/latest-market-news/2810699-europe-faces-challenging-gas-restocking-season
+2026-06-09,2025 (same date),51.4,GIE AGSI via GMK Center,reported,https://gmk.center/en/news/european-gas-prices-stood-at-e48-49-mwh-at-the-start-of-june/
+2026-08-27,2025 (same date),76.0,GIE AGSI via TASS/Tasnim,reported,https://www.tasnimnews.ir/en/news/2026/08/27/3681581/gas-stocks-in-european-ugs-facilities-at-lowest-level-since-2013/amp
+2026-09-30,2025 (same date),82.5,GIE AGSI via TASS,reported,https://tass.com/economy/2196473
+2026-10-06,2025 (same date),82.9,GIE AGSI via TASS,reported,https://tass.com/economy/2199199
+2026-10-27,2025 (same date),82.9,GIE AGSI via oEnergetice,reported,https://oenergetice.cz/en/natural-gas/eu-gas-storage-is-less-than-three-quarters-full-how-much-will-be-left-after-winter
+2026-11-15,2025 (same date),82.0,GIE AGSI via TASS,reported,https://tass.com/economy/2219477
+2026-08-27,5-year average,80.5,GIE AGSI via TASS/Tasnim,derived: 2026 level + reported gap of 17.24 pts,https://www.tasnimnews.ir/en/news/2026/08/27/3681581/gas-stocks-in-european-ugs-facilities-at-lowest-level-since-2013/amp
+2026-09-30,5-year average,87.2,GIE AGSI via TASS/Tasnim,derived: 2026 level + reported gap of 15.68 pts,https://tass.com/economy/2196473
+2026-10-06,5-year average,88.1,GIE AGSI via TASS/Tasnim,derived: 2026 level + reported gap of 15.11 pts,https://tass.com/economy/2199199
+2026-11-15,5-year average,88.4,GIE AGSI via TASS/Tasnim,derived: 2026 level + reported gap of 17.99 pts,https://tass.com/economy/2219477
