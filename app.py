@@ -29,7 +29,7 @@ PANELS = [
 TITLE = "Hormuz Shock: four ways the Strait's closure hits the world"
 SUBTITLE = "MIS20080 Introduction to Programming · Group project · UCD 2026"
 
-ROOT = Path(_file_).resolve().parent
+ROOT = Path(__file__).resolve().parent
 
 
 def show_panel(file: str) -> None:
