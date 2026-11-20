@@ -21,8 +21,8 @@ import streamlit as st
 # =============================================================================
 PANELS = [
     ("🛢️ Oil prices",            "panels/oil.py",       "Erin"),
-    ("🚢 Shipping & insurance",  "shipping.py",   "Anna Piazzaa"),
-    ("🔥 Gas & LNG",             "gas_lng.py",          "Eabha Kelly"),
+    ("🚢 Shipping & insurance",  "panels/shipping.py",   "Anna Piazza"),
+    ("🔥 Gas & LNG",             "panels/gas_lng.py",          "Eabha Kelly"),
     ("🧾 Inflation & households", "panels/inflation.py", "Eleena Golchin"),
 ]
 
