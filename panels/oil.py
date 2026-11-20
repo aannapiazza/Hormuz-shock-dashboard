@@ -164,8 +164,8 @@ def nice_date(date_str):
     ts = pd.Timestamp(date_str)
     return f"{ts.day} {ts.strftime('%b %Y')}"
 
-# --------------------------------- figures ----------------------------------
 
+# --------------------------------- figures ----------------------------------
 def base_layout(**kwargs):
     layout = dict(template="plotly_white", font=dict(size=12, color="#1f2933"),
                   margin=dict(l=55, r=20, t=20, b=40))
@@ -307,7 +307,6 @@ def phase_for(date_str):
 
 
 # ------------------------------- HTML snippets -------------------------------
-
 def header_html():
     return f"""
 <div style="background:{COLORS['navy']};color:#fff;padding:18px 24px;border-radius:8px;
@@ -372,7 +371,6 @@ def detail_html(sel):
 
 
 # ----------------------------- Streamlit helpers -----------------------------
-
 def choice(label, options, default, key, style="segmented"):
     """Pills / segmented control on Streamlit 1.40+, radio buttons on older versions."""
     widget = getattr(st, "pills" if style == "pills" else "segmented_control", None)
@@ -419,8 +417,8 @@ def show_chart(fig, key):
 def step_month(delta):
     st.session_state["ho_sel"] = max(0, min(N - 1, st.session_state["ho_sel"] + delta))
 
-# ----------------------------------- page ------------------------------------
 
+# ----------------------------------- page ------------------------------------
 def render():
     """Draw the oil prices panel."""
     st.session_state.setdefault("ho_sel", N - 1)
@@ -487,6 +485,11 @@ def render():
             b2.button("Next ▶", key="ho_next", on_click=step_month, args=(1,),
                       use_container_width=True, disabled=sel == N - 1)
             st.caption("Or click a point on either chart.")
+
+    notes = " ".join(f"*{text}" for text in ESTIMATED_MONTHS.values())
+    footer = (f"{SOURCES} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
+              f"(${PREWAR_PRICE:.2f}).")
+    st.caption(footer.replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
 
 
 # -----------------------------------------------------------------------------
