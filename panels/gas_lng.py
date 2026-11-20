@@ -51,6 +51,7 @@ DATA_FILES = {
 # False = read the saved copies in data/ (fast, offline, same numbers every time).
 # True  = download fresh daily prices first; fall back to the saved copy if that fails.
 LIVE = False
+END = pd.Timestamp("2026-10-31")   # last day of prices shown (same for the whole dashboard)
 
 # ---------- daily prices (Yahoo Finance via yfinance) ----------
 DAILY_TICKERS = {
@@ -165,8 +166,12 @@ def load_daily_prices() -> tuple:
     Cached for 6 hours so the page stays fast.
     """
     if LIVE or not DAILY_BACKUP.exists():
-        return with_backup(download_daily_prices, DAILY_BACKUP)
-    return pd.read_csv(DAILY_BACKUP, parse_dates=["date"]), "saved copy"
+        daily, status = with_backup(download_daily_prices, DAILY_BACKUP)
+    else:
+        daily, status = pd.read_csv(DAILY_BACKUP, parse_dates=["date"]), "saved copy"
+    if daily is not None:
+        daily = daily[daily["date"] <= END].reset_index(drop=True)   # same cut-off as the other panels
+    return daily, status
 
 
 # ===========================================================================
@@ -259,10 +264,13 @@ def benchmark_change(bench: pd.DataFrame, column: str) -> dict:
 
 
 def data_as_of(data: dict) -> str:
-    """Build the 'Data as of …' label from the newest date in the data itself."""
+    """Build the date label: prices stop at the shared END date; storage shows its latest reading.
+
+    Storage is a snapshot reported every few days, so its newest reading is kept
+    (it shows the winter drawdown that started after the October peak).
+    """
     newest = data["storage"]["date"].max()
-    last_month = pd.to_datetime(data["prices"]["month"]).max()
-    return f"Data as of {newest:%d %B %Y} · monthly prices to {last_month:%B %Y}"
+    return f"Prices to {END:%d %B %Y} · EU storage to {newest:%d %B %Y}"
 
 
 def storage_position(storage: pd.DataFrame) -> dict:
