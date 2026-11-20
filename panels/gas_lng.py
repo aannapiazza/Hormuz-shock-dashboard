@@ -11,13 +11,15 @@ Use in app.py:   from panels import gas_lng   then   gas_lng.render()
 
 Data: every chart reads a CSV file in the data/ folder (see DATA_FILES below).
 Each file has a source and url column, so every number can be traced.
-Daily gas prices are downloaded live from Yahoo Finance (yfinance); if that
-fails, the panel uses the saved copy in data/gas_prices_daily.csv.
+Daily gas prices come from Yahoo Finance (yfinance). By default (LIVE = False)
+the panel reads the saved copy in data/gas_prices_daily.csv, so it opens fast,
+works offline and shows the same numbers every time. Set LIVE = True to
+download fresh prices (the saved copy is still used if the download fails).
 Interactive charts use Plotly.
 
 How this file is organised (same order as the group's panel template):
     1. SETTINGS  - data files, tickers, colours and fixed numbers you might change
-    2. DATA      - read the CSV files and download live prices (saved copy as backup)
+    2. DATA      - read the saved CSV files in data/, with code to download prices again
     3. ANALYSIS  - the calculations, as small functions with docstrings
     4. CHARTS    - one function per Plotly figure
     5. LAYOUT    - the header, KPI tiles and one function per tab (Streamlit)
@@ -45,7 +47,12 @@ DATA_FILES = {
     "events": "gas_events.csv",           # key war events for the price chart
 }
 
-# ---------- live daily prices (Yahoo Finance via yfinance) ----------
+# ---------- data mode (same rule as the rest of the dashboard) ----------
+# False = read the saved copies in data/ (fast, offline, same numbers every time).
+# True  = download fresh daily prices first; fall back to the saved copy if that fails.
+LIVE = False
+
+# ---------- daily prices (Yahoo Finance via yfinance) ----------
 DAILY_TICKERS = {
     "ttf_eur_mwh": "TTF=F",     # Dutch TTF gas futures, euros per MWh
     "hh_usd_mmbtu": "NG=F",     # US Henry Hub gas futures, dollars per MMBtu
@@ -84,7 +91,7 @@ ROW_NOTES = {
 
 
 # ===========================================================================
-# 2. DATA - read the CSV files; download live prices (saved copy if that fails)
+# 2. DATA - read the saved copies in data/; download fresh prices when LIVE = True
 # ===========================================================================
 
 @st.cache_data
@@ -150,10 +157,16 @@ def with_backup(download, backup: Path) -> tuple:
         return None, f"missing ({type(error).__name__})"
 
 
-@st.cache_data(ttl=6 * 60 * 60, show_spinner="Downloading live gas prices...")
+@st.cache_data(ttl=6 * 60 * 60, show_spinner="Loading daily gas prices...")
 def load_daily_prices() -> tuple:
-    """Live daily prices, cached for 6 hours so the page stays fast."""
-    return with_backup(download_daily_prices, DAILY_BACKUP)
+    """Daily prices: the saved copy by default, or a fresh download if LIVE is True.
+
+    If there is no saved copy yet, it downloads one even when LIVE is False.
+    Cached for 6 hours so the page stays fast.
+    """
+    if LIVE or not DAILY_BACKUP.exists():
+        return with_backup(download_daily_prices, DAILY_BACKUP)
+    return pd.read_csv(DAILY_BACKUP, parse_dates=["date"]), "saved copy"
 
 
 # ===========================================================================
@@ -299,9 +312,9 @@ def price_path_chart(prices, events, show_events, daily=None):
         customdata=["—" if pd.isna(c) else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
     y_max, x_end = 35, prices["date"].max() + pd.Timedelta(days=20)
-    if daily is not None:       # thin line of live daily prices behind the monthly averages
+    if daily is not None:       # thin line of daily prices behind the monthly averages
         daily_usd = ttf_in_usd(daily)
-        fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF (live)",
+        fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF",
                                  line=dict(color="rgba(124,92,214,.65)", width=1.2),
                                  hovertemplate="%{x|%d %b %Y}: $%{y:.2f}/MMBtu (daily)<extra></extra>"))
         y_max = max(y_max, float(daily_usd.max()) * 1.1)
@@ -511,11 +524,11 @@ def sunburst_chart():
 # ===========================================================================
 
 def section_prices(data: dict, daily, daily_status: str) -> None:
-    """Tab 1: monthly price path, live daily prices and the 2026 vs 2022 comparison."""
+    """Tab 1: monthly price path, daily prices and the 2026 vs 2022 comparison."""
     st.subheader("European gas prices through the war")
     c1, c2 = st.columns(2)
     show_ev = c1.toggle("Show key events", value=True, key="gas_ev")
-    show_daily = c2.toggle("Show daily prices (live)", value=True, key="gas_daily", disabled=daily is None)
+    show_daily = c2.toggle("Show daily prices", value=True, key="gas_daily", disabled=daily is None)
     st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev, daily if show_daily else None),
                     width="stretch", theme=None, config=CFG)
     if daily is not None:
@@ -571,7 +584,7 @@ def section_europe_us(data: dict, daily, daily_status: str) -> None:
     """Tab 2: daily Europe vs US prices with a date-range slider."""
     st.subheader("Two gas markets: Europe vs the US")
     if daily is None:
-        st.info("Live daily prices are unavailable right now, so this chart can't be drawn. "
+        st.info("Daily prices are unavailable right now, so this chart can't be drawn. "
                 "It needs data/gas_prices_daily.csv or an internet connection.")
     else:
         gap_all = europe_us_gap(daily)
@@ -672,8 +685,9 @@ def render() -> None:
         st.error(f"Missing data file(s) in data/: {', '.join(missing)}. Check the files are in the repo.")
         return
     daily, daily_status = load_daily_prices()
-    live_note = {"live": "📡 live daily prices from Yahoo Finance",
-                 "saved copy": "💾 daily prices from saved copy (download failed)"}.get(daily_status, "⚠️ daily prices unavailable")
+    live_note = {"live": "📡 daily prices downloaded just now from Yahoo Finance",
+                 "saved copy": ("💾 daily prices from saved copy (download failed)" if LIVE
+                                else "💾 daily prices from saved copy (Yahoo Finance)")}.get(daily_status, "⚠️ daily prices unavailable")
     st.markdown(f"`{data_as_of(data)}` · 💾 {len(DATA_FILES)} data files loaded from `data/` · {live_note}")
 
     # ---- KPI tiles: calculated from the data (see ANALYSIS) ----
