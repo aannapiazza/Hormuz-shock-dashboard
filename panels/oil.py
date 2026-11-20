@@ -51,10 +51,12 @@ MONTHLY_PRICES = [
     ("2026-10", 123.93, 102.07),
 ]
 
-# 2) LATEST PRICE — the most recent daily Brent price (shown on the first KPI card
-#    and as a dotted line at the end of the chart)
-LATEST_DATE = "2026-11-19"
-LATEST_PRICE = 91.98
+# 2) CUT-OFF AND LATEST PRICE
+DATA_TO = "2026-10-31"               # cut-off date shown in the header badge
+#    The latest daily Brent price (first KPI card, and the dotted line at the end of the chart).
+#    30 Oct 2026 was the last trading day of October (31 Oct was a Saturday).
+LATEST_DATE = "2026-10-30"
+LATEST_PRICE = 117.64                # front-month (December contract) settlement on its expiry day
 LATEST_LABEL = "Settlement"          # e.g. "Settlement" or "Spot"
 
 # 3) PRE-WAR REFERENCE — the price everything is compared against
@@ -79,9 +81,9 @@ EVENTS = {
     "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
                   "Brent drops about 16% on the 8 Apr ceasefire and falls again after the "
                   "17 Jun US–Iran MOU, but tanker traffic barely recovers."),
-    "Conflict resumes": ("2026-07-07", "2026-11-19", "#8e44ad",
+    "Conflict resumes": ("2026-07-07", "2026-10-31", "#8e44ad",
                          "Strikes resume on 7 Jul. With inventories falling, Brent rises for "
-                         "three months to a $124 average in October, then eases in November."),
+                         "three months to a $124 average in October, the highest since mid-2022."),
 }
 
 # 6) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
@@ -103,7 +105,7 @@ TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
 SOURCES = ("Data: U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU) and "
            "Cushing WTI (MCOILWTICO) spot prices, monthly averages (copies in data/). The latest price "
-           "is the Brent futures settlement on 19 Nov 2026 (Reuters).")
+           "is the Brent futures settlement on 30 Oct 2026, the last trading day of October.")
 
 # 8) COLOURS
 COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
@@ -316,7 +318,7 @@ def header_html():
     <div style="color:#b8c4d3;font-size:13px;margin-top:3px">{SUBTITLE}</div>
   </div>
   <span style="background:{COLORS['orange']};color:#fff;font-weight:700;font-size:12px;padding:6px 10px;
-               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(LATEST_DATE).upper()}</span>
+               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(DATA_TO).upper()}</span>
 </div>"""
 
 
