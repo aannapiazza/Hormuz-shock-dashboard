@@ -464,10 +464,10 @@ def chart_inflation(inflation, countries, measure, start, traffic=None) -> go.Fi
     if traffic is not None:
         t = traffic[traffic.index >= start]
         fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Hormuz tanker capacity (right axis)", yaxis="y2",
-                                 mode="lines", line=dict(color="#d48806", width=2, dash="dot"),
+                                 mode="lines", line=dict(color="#1b2a41", width=2, dash="dot"),
                                  hovertemplate="Hormuz tankers: %{y:.0f}% of normal<extra></extra>"))
         extra["yaxis2"] = dict(title=f"Tanker capacity, % of {NORMAL_YEAR} average", overlaying="y", side="right",
-                               range=[0, 140], ticksuffix="%", showgrid=False)
+                               range=[0, 140], ticksuffix="%", showgrid=False, tickmode="linear", tick0=0, dtick=20)
     return style(fig, 460, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"), **extra)
 
 
