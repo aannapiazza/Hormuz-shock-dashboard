@@ -268,6 +268,22 @@ def kpi_html(title, value, description, color):
   <div style="font-size:12px;color:{COLORS['muted']}">{description}</div>
 </div>"""
 
+
+# ----------------------------- Streamlit helpers -----------------------------
+
+def choice(label, options, default, key, style="segmented"):
+    """Pills / segmented control on Streamlit 1.40+, radio buttons on older versions."""
+    widget = getattr(st, "pills" if style == "pills" else "segmented_control", None)
+    if widget is not None:
+        value = widget(label, options, default=default, key=key)
+        if value is None and style != "pills":   # a segmented control can be clicked off
+            return default
+        return value
+    radio_options = options if style != "pills" else ["None"] + options
+    index = radio_options.index(default) if default in radio_options else 0
+    value = st.radio(label, radio_options, index=index, horizontal=True, key=key)
+    return None if value == "None" else value
+
 # ----------------------------------- page ------------------------------------
 
 def render():
@@ -293,12 +309,24 @@ def render():
         col.markdown(kpi_html(title, value, desc, colour), unsafe_allow_html=True)
     st.write("")
 
+    # controls
+    with st.container(border=True):
+        c1, c2, c3 = st.columns([3, 1.4, 1.4])
+        with c1:
+            phase = choice("Highlight a phase of the crisis", list(PHASES), None,
+                           key="ho_phase", style="pills")
+        with c2:
+            view = choice("Price view", VIEW_OPTIONS, VIEW_OPTIONS[0], key="ho_view")
+        with c3:
+            st.write("")
+            show_wti = st.checkbox("Compare with WTI (US benchmark)", key="ho_wti")
+
     # main chart
     with st.container(border=True):
         st.markdown(f"**Brent crude, monthly average**  \n"
                     f"<span style='font-size:12.5px;color:{COLORS['muted']}'>Use the buttons on the chart to zoom to the last 3 or 6 months.</span>",
                     unsafe_allow_html=True)
-        st.plotly_chart(build_main_figure(None, VIEW_OPTIONS[0], False, sel), use_container_width=True,
+        st.plotly_chart(build_main_figure(phase, view, show_wti, sel), use_container_width=True,
                         config={"displayModeBar": False})
 
 
