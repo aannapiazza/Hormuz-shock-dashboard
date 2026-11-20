@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Hormuz: Economic Impact")
+
 
 st.header("Shipping: traffic collapses, risk gets priced in")
 
