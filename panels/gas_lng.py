@@ -68,6 +68,17 @@ TRANSITS = [  # month, count, source, note
 ]
 PREWAR_MONTHLY = 85
 
+# --- 4. Who depends on Qatari LNG (2024, Bcf/d) ---
+EXPOSURE = [  # country, region, total LNG imports, from Qatar, Qatar share %
+    ("Pakistan", "Asia", 1.1, 0.9, 89.3), ("Italy", "Europe", 1.4, 0.6, 45.6),
+    ("Belgium", "Europe", 0.7, 0.3, 40.6), ("India", "Asia", 3.7, 1.5, 40.3),
+    ("Singapore", "Asia", 0.8, 0.2, 27.6), ("Taiwan", "Asia", 2.8, 0.7, 25.3),
+    ("China", "Asia", 10.2, 2.4, 24.0), ("Thailand", "Asia", 1.5, 0.3, 19.9),
+    ("South Korea", "Asia", 6.1, 1.2, 19.2), ("United Kingdom", "Europe", 0.9, 0.1, 8.4),
+    ("Spain", "Europe", 1.8, 0.1, 5.5), ("Japan", "Asia", 8.6, 0.4, 4.4),
+    ("France", "Europe", 2.5, 0.0, 1.6),
+]
+
 
 
 # ======================================================================
@@ -142,7 +153,7 @@ def dumbbell_chart(unit, highlight):
                   fillcolor="rgba(255,255,255,.03)", line_width=0)
     return _layout(fig, height=380, margin=dict(l=10, r=20, t=10, b=60), clickmode="event+select",
                    xaxis=dict(title=unit, gridcolor=GRID, rangemode="tozero", ticksuffix="%" if unit == "% vs pre-war" else ""),
-                   yaxis=dict(autorange="reversed", fixedrange=True), legend=dict(orientation="h", y=-0.22, x=0))
+                   yaxis=dict(autorange="reversed", fixedrange=True, automargin=True), legend=dict(orientation="h", y=-0.22, x=0))
 
 
 def transits_chart(as_pct):
@@ -163,6 +174,42 @@ def transits_chart(as_pct):
                    yaxis=dict(title="% of pre-war" if as_pct else "LNG tankers per month", gridcolor=GRID,
                               range=[0, 115 if as_pct else 98], ticksuffix="%" if as_pct else ""),
                    xaxis=dict(fixedrange=True))
+
+
+def exposure_chart(view, regions, metric):
+    rows = [r for r in EXPOSURE if r[1] in regions]
+    colour = {"Asia": VIOLET, "Europe": BLUE}
+    if view == "Ranking":
+        key = 4 if metric == "Share of LNG imports from Qatar" else 3
+        rows = sorted(rows, key=lambda r: r[key])
+        fig = go.Figure(go.Bar(
+            y=[r[0] for r in rows], x=[r[key] for r in rows], orientation="h",
+            marker_color=[colour[r[1]] for r in rows],
+            text=[f"{r[key]:.0f}%" if key == 4 else f"{r[key]:.1f}" for r in rows], textposition="outside",
+            customdata=[[r[1], r[2], r[3], r[4]] for r in rows],
+            hovertemplate="<b>%{y}</b> (%{customdata[0]})<br>Qatar share: %{customdata[3]:.1f}%<br>"
+                          "From Qatar: %{customdata[2]:.1f} Bcf/d of %{customdata[1]:.1f} Bcf/d total<extra></extra>"))
+        return _layout(fig, height=440, margin=dict(l=10, r=40, t=10, b=40),
+                       xaxis=dict(title="% of LNG imports from Qatar" if key == 4 else "Bcf/d from Qatar",
+                                  gridcolor=GRID, ticksuffix="%" if key == 4 else ""),
+                       yaxis=dict(fixedrange=True, automargin=True, ticksuffix="  "))
+    # Bubble view: x = how big an LNG buyer, y = how dependent on Qatar, size = volume at risk
+    fig = go.Figure()
+    for reg in regions:
+        rr = [r for r in rows if r[1] == reg]
+        fig.add_trace(go.Scatter(
+            x=[r[2] for r in rr], y=[r[4] for r in rr], mode="markers+text", name=reg,
+            text=[r[0] for r in rr], textposition="top center", textfont=dict(size=11, color="#c7d2e3"),
+            marker=dict(size=[max(10, r[3] * 38) for r in rr], color=colour[reg], opacity=0.75,
+                        line=dict(color=DARK, width=1.5)),
+            customdata=[[r[3]] for r in rr],
+            hovertemplate="<b>%{text}</b><br>Total LNG imports: %{x:.1f} Bcf/d<br>Qatar share: %{y:.1f}%<br>"
+                          "At risk: %{customdata[0]:.1f} Bcf/d<extra></extra>"))
+    fig.add_hline(y=19.6, line=dict(color=MUTED, dash="dot"), annotation_text="World average 19.6%",
+                  annotation_font_color=MUTED, annotation_position="bottom right")
+    return _layout(fig, height=440, margin=dict(l=10, r=20, t=10, b=40), legend=dict(orientation="h", y=1.06, x=0),
+                   xaxis=dict(title="Total LNG imports (Bcf/d) – how big a buyer", type="log", gridcolor=GRID),
+                   yaxis=dict(title="% from Qatar – how exposed", gridcolor=GRID, range=[-5, 100], ticksuffix="%"))
 
 
 def sunburst_chart():
@@ -197,7 +244,7 @@ def render() -> None:
     k4.metric("EU gas storage, 15 Nov", "70.4%", delta="−18 pts vs 5-yr avg", delta_color="normal",
               help="Lowest for the date since records began in 2011. Source: GIE data, via TASS.")
 
-    tab1, tab2 = st.tabs(["📈 Prices", "🚢 Supply & shipping"])
+    tab1, tab2, tab3 = st.tabs(["📈 Prices", "🚢 Supply & shipping", "🌍 Who's exposed"])
 
     # ================= TAB 1: PRICES =================
     with tab1:
@@ -236,6 +283,22 @@ def render() -> None:
             st.caption("Click a segment to zoom in, and click the centre to zoom back out. EIA estimates for 2024.")
             st.plotly_chart(sunburst_chart(), width="stretch", theme=None, config=CFG)
 
+
+    # ================= TAB 3: WHO'S EXPOSED =================
+    with tab3:
+        st.subheader("Which countries depend most on Qatari LNG?")
+        c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
+        view = c1.radio("View", ["Ranking", "Bubble map"], horizontal=True, key="gas_view")
+        regions = c2.multiselect("Regions", ["Asia", "Europe"], default=["Asia", "Europe"], key="gas_reg")
+        metric = c3.radio("Rank by", ["Share of LNG imports from Qatar", "Volume from Qatar (Bcf/d)"],
+                          horizontal=True, key="gas_metric", disabled=(view != "Ranking"))
+        if regions:
+            st.plotly_chart(exposure_chart(view, regions, metric), width="stretch", theme=None, config=CFG)
+        else:
+            st.warning("Pick at least one region.")
+        st.caption("2024 annual averages (Energy Institute, via EPRINC). In the bubble map, further right means a bigger "
+                   "LNG buyer, higher up means more dependent on Qatar, and a bigger bubble means more gas at risk. "
+                   "Pakistan is the most exposed. China has the most gas at risk. Japan buys a lot of LNG but little of it from Qatar.")
 
     # ---- Takeaway + sources ----
     st.success("**Takeaway:** gas prices are at their highest since 2022: TTF and JKM both averaged about $28.5/MMBtu "
