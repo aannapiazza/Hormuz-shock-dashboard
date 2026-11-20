@@ -17,6 +17,7 @@ Interactive charts use Plotly.
 """
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -56,6 +57,9 @@ TTF_2025_AVG = 11.96          # World Bank, 2025 average TTF, $/MMBtu
 USD_PER_EUR_MWH = 0.346       # 1 €/MWh ≈ 0.346 $/MMBtu (approximate FX)
 WORLD_AVG_QATAR_SHARE = 19.6  # Qatar's share of world LNG imports, 2024 (EPRINC)
 DATA_AS_OF = "Data as of 15 November 2026 · monthly prices to October 2026"
+WAR_START = pd.Timestamp("2026-02-28")   # US–Israel strikes on Iran
+VOL_WINDOW = 30                          # trading days used for rolling volatility
+TRADING_DAYS = 252                       # trading days in a year, to annualise volatility
 
 # Explanations shown when a row of the 2026 vs 2022 chart is clicked
 ROW_NOTES = {
@@ -145,6 +149,90 @@ def ttf_in_usd(daily: pd.DataFrame) -> pd.Series:
     Using each day's own exchange rate keeps it comparable with US prices.
     """
     return daily["ttf_eur_mwh"] * daily["eurusd"] * MWH_PER_MMBTU
+
+
+# ======================================================================
+# ANALYSIS
+# ======================================================================
+def change_since_war(dates: pd.Series, values: pd.Series) -> dict:
+    """Compare the last value before the war with the latest value.
+
+    Returns {"before", "latest", "pct", "latest_date"}. "before" is the last
+    observation on or before 27 February 2026.
+    """
+    before = values[dates < WAR_START].iloc[-1]
+    latest = values.iloc[-1]
+    return {"before": before, "latest": latest, "pct": (latest / before - 1) * 100,
+            "latest_date": dates.iloc[-1]}
+
+
+def europe_us_gap(daily: pd.DataFrame) -> pd.DataFrame:
+    """Daily gap between European (TTF) and US (Henry Hub) gas, both in $/MMBtu.
+
+    Adds three columns: ttf_usd, gap_usd (TTF minus Henry Hub) and ratio
+    (how many times more Europe pays).
+    """
+    out = daily[["date"]].copy()
+    out["ttf_usd"] = ttf_in_usd(daily)
+    out["hh_usd"] = daily["hh_usd_mmbtu"]
+    out["gap_usd"] = out["ttf_usd"] - out["hh_usd"]
+    out["ratio"] = out["ttf_usd"] / out["hh_usd"]
+    return out
+
+
+def rolling_volatility(daily: pd.DataFrame, window: int = VOL_WINDOW) -> pd.Series:
+    """Annualised volatility of TTF, in %, over a rolling window of trading days.
+
+    Uses daily log returns, ln(price today / price yesterday). Their standard
+    deviation over the window, times sqrt(252), is the usual way to express
+    how jumpy a price is over a year.
+    """
+    log_returns = np.log(daily["ttf_eur_mwh"] / daily["ttf_eur_mwh"].shift(1))
+    return log_returns.rolling(window).std() * np.sqrt(TRADING_DAYS) * 100
+
+
+def monthly_from_daily(daily: pd.DataFrame) -> pd.DataFrame:
+    """Average the daily TTF price ($/MMBtu) into calendar months.
+
+    Used to cross-check the World Bank monthly series against Yahoo Finance.
+    """
+    s = pd.Series(ttf_in_usd(daily).values, index=daily["date"])
+    return s.resample("MS").mean().rename("ttf_usd").reset_index()
+
+
+def tanker_recovery(tankers: pd.DataFrame) -> dict:
+    """Latest month's LNG tanker count as a share of the pre-war month (Feb 2026)."""
+    prewar = tankers.loc[tankers["month"] == "2026-02", "tankers"].iloc[0]
+    last = tankers.iloc[-1]
+    return {"month": last["label"], "count": int(last["tankers"]), "prewar": int(prewar),
+            "pct": last["tankers"] / prewar * 100}
+
+
+def gas_at_risk(exposure: pd.DataFrame) -> dict:
+    """Qatari LNG volumes by region, and the country with the most at risk."""
+    by_region = exposure.groupby("region")["from_qatar_bcfd"].sum()
+    top = exposure.sort_values("from_qatar_bcfd", ascending=False).iloc[0]
+    most_dependent = exposure.sort_values("qatar_share_pct", ascending=False).iloc[0]
+    return {"asia_share": by_region.get("Asia", 0) / by_region.sum() * 100,
+            "top_volume": top["country"], "top_volume_bcfd": top["from_qatar_bcfd"],
+            "most_dependent": most_dependent["country"], "most_dependent_pct": most_dependent["qatar_share_pct"]}
+
+
+def storage_position(storage: pd.DataFrame) -> dict:
+    """Where EU storage stands: latest level, gap to the 5-year average, and drawdown.
+
+    The drawdown rate is how many percentage points a week storage has fallen
+    since its 2026 peak.
+    """
+    s26 = storage[storage["series"] == "2026"].sort_values("date")
+    avg = storage[storage["series"] == "5-year average"].set_index("date")["pct_full"]
+    latest = s26.iloc[-1]
+    peak = s26.loc[s26["pct_full"].idxmax()]
+    weeks = max((latest["date"] - peak["date"]).days / 7, 1e-9)
+    gap = latest["pct_full"] - avg.get(latest["date"], np.nan)
+    return {"latest": latest["pct_full"], "latest_date": latest["date"], "gap_to_avg": gap,
+            "peak": peak["pct_full"], "peak_date": peak["date"],
+            "drawdown_per_week": (peak["pct_full"] - latest["pct_full"]) / weeks}
 
 
 # ======================================================================
@@ -392,6 +480,28 @@ def render() -> None:
             st.caption(f"Latest daily close ({last['date']:%d %b %Y}): TTF €{last['ttf_eur_mwh']:.2f}/MWh "
                        f"≈ ${ttf_in_usd(daily).iloc[-1]:.2f}/MMBtu · US Henry Hub ${last['hh_usd_mmbtu']:.2f}/MMBtu "
                        f"({daily_status}).")
+
+            # ---- What the daily data says (calculated in the ANALYSIS section) ----
+            war = change_since_war(daily["date"], ttf_in_usd(daily))
+            gap = europe_us_gap(daily).iloc[-1]
+            vol = rolling_volatility(daily)
+            prewar_vol = vol[(daily["date"] >= "2026-01-01") & (daily["date"] < WAR_START)].mean()
+            a1, a2, a3 = st.columns(3)
+            a1.metric("European gas since the war began", f"{war['pct']:+.0f}%",
+                      help=f"Daily TTF: ${war['before']:.2f}/MMBtu on the last day before 28 Feb, "
+                           f"${war['latest']:.2f} on {war['latest_date']:%d %b}.")
+            a2.metric("Europe pays vs the US", f"{gap['ratio']:.1f}×",
+                      help=f"Latest gap: ${gap['gap_usd']:.2f}/MMBtu (TTF ${gap['ttf_usd']:.2f} minus Henry Hub ${gap['hh_usd']:.2f}).")
+            a3.metric(f"Price volatility ({VOL_WINDOW}-day)", f"{vol.iloc[-1]:.0f}%",
+                      delta=f"{vol.iloc[-1] - prewar_vol:+.0f} pts vs Jan–Feb", delta_color="inverse",
+                      help="Annualised standard deviation of daily TTF returns. Higher = a jumpier, riskier market.")
+            check = monthly_from_daily(daily).merge(
+                data["prices"].assign(month_start=pd.to_datetime(data["prices"]["month"])),
+                left_on="date", right_on="month_start")
+            if len(check):
+                diff = (check["ttf_usd"] - check["ttf_usd_per_mmbtu"]).abs().mean()
+                st.caption(f"Cross-check: averaging the Yahoo Finance daily prices by month gives values within "
+                           f"${diff:.2f}/MMBtu of the World Bank's monthly figures, on average, over {len(check)} months.")
         st.caption("Monthly average of the European benchmark (Dutch TTF), from the World Bank (data/gas_prices_monthly.csv). "
                    "Hover a month for the price and the change from the month before; drag the slider under the chart to zoom in. "
                    "The thin violet line is daily TTF from Yahoo Finance (TTF=F), converted to $/MMBtu with each day's EUR/USD rate.")
@@ -420,6 +530,8 @@ def render() -> None:
             st.subheader("LNG tankers through Hormuz each month")
             as_pct = st.toggle("Show as % of pre-war traffic", key="gas_pct")
             st.plotly_chart(transits_chart(data["tankers"], as_pct), width="stretch", theme=None, config=CFG)
+            rec = tanker_recovery(data["tankers"])
+            st.markdown(f"**{rec['month']}: {rec['count']} tankers, {rec['pct']:.0f}% of the pre-war {rec['prewar']}.**")
             st.caption("Hover a bar for what happened that month (data/gas_tankers.csv). Two trackers are used: Kpler counts "
                        "every LNG-carrier transit and S&P Global counts laden tankers leaving, so the bars aren't strictly "
                        "like-for-like. Some ships cross with transponders off, so true numbers may be a little higher.")
@@ -440,6 +552,10 @@ def render() -> None:
             st.plotly_chart(exposure_chart(data["exposure"], view, regions, metric), width="stretch", theme=None, config=CFG)
         else:
             st.warning("Pick at least one region.")
+        risk = gas_at_risk(data["exposure"])
+        st.markdown(f"**Asia takes {risk['asia_share']:.0f}% of the Qatari LNG in this table. "
+                    f"{risk['top_volume']} has the most at risk ({risk['top_volume_bcfd']:.1f} Bcf/d); "
+                    f"{risk['most_dependent']} is the most dependent ({risk['most_dependent_pct']:.0f}% of its LNG).**")
         st.caption("2024 annual averages (Energy Institute, via EPRINC; data/gas_exposure.csv). In the bubble map, further right "
                    "means a bigger LNG buyer, higher up means more dependent on Qatar, and a bigger bubble means more gas at risk. "
                    "Pakistan is the most exposed. China has the most gas at risk. Japan buys a lot of LNG but little of it from Qatar.")
@@ -452,6 +568,12 @@ def render() -> None:
         s5 = c2.checkbox("Show 5-year average", value=True, key="gas_s5")
         tg = c3.checkbox("Show EU targets", value=True, key="gas_tg")
         st.plotly_chart(storage_chart(data["storage"], s25, s5, tg), width="stretch", theme=None, config=CFG)
+        pos = storage_position(data["storage"])
+        m1, m2, m3 = st.columns(3)
+        m1.metric(f"Storage on {pos['latest_date']:%d %b}", f"{pos['latest']:.1f}%")
+        m2.metric("Gap to 5-year average", f"{pos['gap_to_avg']:+.1f} pts")
+        m3.metric(f"Drawdown since {pos['peak_date']:%d %b} peak", f"{pos['drawdown_per_week']:.1f} pts/week",
+                  help=f"From {pos['peak']:.1f}% to {pos['latest']:.1f}%.")
         st.caption("Hover anywhere to compare years on the same date. GIE AGSI data as reported by Argus, S&P Global, GMK Center "
                    "and TASS (data/gas_storage.csv; the 'how' column marks which values are derived). Europe started summer at "
                    "only 28%, never reached the 80% flexible target, and by mid-November was drawing down faster than usual.")
