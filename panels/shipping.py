@@ -4,7 +4,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
-from plotly.subplots import make_subplots
 
 
 st.set_page_config(
@@ -19,12 +18,14 @@ st.set_page_config(
 BLUE = "#60a5fa"
 AMBER = "#f59e0b"
 GREEN = "#34d399"
-PURPLE = "#a78bfa"
 TEAL = "#5eead4"
 TEXT = "#cbd5e1"
 MUTED = "#94a3b8"
 GRID = "rgba(148, 163, 184, 0.13)"
-PANEL = "#111a2e"
+
+# Hide the Plotly toolbar (zoom buttons); dragging on a chart still zooms,
+# and double-clicking resets it.
+PLOT_CONFIG = {"displayModeBar": False}
 
 st.markdown(
     """
@@ -36,7 +37,6 @@ st.markdown(
         padding: 16px 18px;
     }
     [data-testid="stMetricLabel"] { color: #94a3b8; }
-    .stTabs [data-baseweb="tab"] { font-size: 1.02rem; padding: 10px 18px; }
     h1, h2, h3 { letter-spacing: -0.01em; }
     </style>
     """,
@@ -49,7 +49,7 @@ st.markdown(
 EVENTS = []
 
 
-def style_figure(fig, height=420, rangeslider=True, buttons=True):
+def style_figure(fig, height=380):
     """Apply the shared dark look to a Plotly figure."""
     fig.update_layout(
         height=height,
@@ -57,7 +57,7 @@ def style_figure(fig, height=420, rangeslider=True, buttons=True):
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=TEXT, size=13),
-        margin=dict(l=10, r=10, t=30, b=10),
+        margin=dict(l=10, r=10, t=40, b=10),
         hovermode="x unified",
         hoverlabel=dict(
             bgcolor="#0b1220",
@@ -67,7 +67,7 @@ def style_figure(fig, height=420, rangeslider=True, buttons=True):
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.02,
+            y=1.0,
             xanchor="left",
             x=0,
             bgcolor="rgba(0,0,0,0)"
@@ -79,6 +79,11 @@ def style_figure(fig, height=420, rangeslider=True, buttons=True):
         gridcolor=GRID,
         zeroline=False,
         showline=False,
+        # Few, short labels so the dates never overlap in a narrow column.
+        nticks=5,
+        tickformat="%d %b",
+        tickangle=0,
+        automargin=True,
         showspikes=True,
         spikecolor=MUTED,
         spikethickness=1,
@@ -91,38 +96,8 @@ def style_figure(fig, height=420, rangeslider=True, buttons=True):
         gridcolor=GRID,
         zeroline=False,
         showline=False,
+        automargin=True,
     )
-
-    if buttons:
-        fig.update_xaxes(
-            rangeselector=dict(
-                buttons=[
-                    dict(count=7, label="1W", step="day", stepmode="backward"),
-                    dict(count=1, label="1M", step="month", stepmode="backward"),
-                    dict(count=3, label="3M", step="month", stepmode="backward"),
-                    dict(count=6, label="6M", step="month", stepmode="backward"),
-                    dict(step="all", label="All"),
-                ],
-                bgcolor=PANEL,
-                activecolor="#1d4ed8",
-                bordercolor="#1f2a44",
-                borderwidth=1,
-                font=dict(color=TEXT),
-                x=0,
-                y=1.16,
-            )
-        )
-
-    if rangeslider:
-        fig.update_xaxes(
-            rangeslider=dict(
-                visible=True,
-                thickness=0.07,
-                bgcolor="#0d1424",
-                bordercolor="#1f2a44",
-                borderwidth=1,
-            )
-        )
 
     return fig
 
@@ -148,6 +123,16 @@ def add_events(fig, events):
             yanchor="top",
             font=dict(size=11, color=MUTED),
         )
+
+
+# HEADER
+
+st.title("🚢 Hormuz | Shipping & Markets")
+
+st.caption(
+    "Shipping: daily IMF PortWatch data from a local CSV. "
+    "Market prices: latest available from Yahoo Finance; may be delayed."
+)
 
 
 # SHIPPING DATA
@@ -263,14 +248,14 @@ market_data = {
 
 # CHART BUILDERS
 
-def shipping_figure(df, height=420, rangeslider=True, default_days=90):
+def shipping_figure(df, height=380):
     fig = go.Figure()
 
     fig.add_trace(
         go.Scatter(
             x=df["date"],
             y=df["n_total"],
-            name="All ships (daily)",
+            name="All ships",
             mode="lines",
             line=dict(color=BLUE, width=1),
             opacity=0.5,
@@ -283,7 +268,7 @@ def shipping_figure(df, height=420, rangeslider=True, default_days=90):
         go.Scatter(
             x=df["date"],
             y=df["n_tanker"],
-            name="Tankers (daily)",
+            name="Tankers",
             mode="lines",
             line=dict(color=AMBER, width=1),
             opacity=0.5,
@@ -311,23 +296,8 @@ def shipping_figure(df, height=420, rangeslider=True, default_days=90):
         )
     )
 
-    last = df.iloc[-1]
-    fig.add_trace(
-        go.Scatter(
-            x=[last["date"]],
-            y=[last["ships_7d"]],
-            mode="markers",
-            marker=dict(color=BLUE, size=10, line=dict(color="#0b1220", width=2)),
-            showlegend=False,
-            hoverinfo="skip",
-        )
-    )
-
-    style_figure(fig, height=height, rangeslider=rangeslider)
+    style_figure(fig, height=height)
     fig.update_yaxes(title_text="Vessels per day", rangemode="tozero")
-
-    start = last["date"] - pd.Timedelta(days=default_days - 1)
-    fig.update_xaxes(range=[start, last["date"]])
 
     if EVENTS:
         add_events(fig, EVENTS)
@@ -335,7 +305,7 @@ def shipping_figure(df, height=420, rangeslider=True, default_days=90):
     return fig
 
 
-def brent_figure(prices, height=420, rangeslider=True, show_wti=False):
+def brent_figure(prices, height=380):
     fig = go.Figure()
 
     fig.add_trace(
@@ -351,24 +321,11 @@ def brent_figure(prices, height=420, rangeslider=True, show_wti=False):
         )
     )
 
-    if show_wti and not market_data["WTI"].empty:
-        wti = market_data["WTI"]
-        fig.add_trace(
-            go.Scatter(
-                x=wti.index,
-                y=wti.values,
-                name="WTI",
-                mode="lines",
-                line=dict(color=PURPLE, width=2, shape="spline", smoothing=0.6),
-                hovertemplate="$%{y:.2f}",
-            )
-        )
-
     average = float(prices.mean())
     fig.add_hline(
         y=average,
         line=dict(color=TEAL, width=1.5, dash="dash"),
-        annotation_text=f"6-month average ${average:.2f}",
+        annotation_text=f"Average ${average:.2f}",
         annotation_position="bottom right",
         annotation_font=dict(color=TEAL, size=12),
     )
@@ -397,7 +354,7 @@ def brent_figure(prices, height=420, rangeslider=True, show_wti=False):
             )
         )
 
-    style_figure(fig, height=height, rangeslider=rangeslider)
+    style_figure(fig, height=height)
     fig.update_yaxes(
         title_text="$ per barrel",
         range=[float(prices.min()) * 0.9, float(prices.max()) * 1.08],
@@ -409,64 +366,11 @@ def brent_figure(prices, height=420, rangeslider=True, show_wti=False):
     return fig
 
 
-def combined_figure(df, prices, height=420):
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["tankers_7d"],
-            name="Tanker transits · 7-day avg",
-            mode="lines",
-            line=dict(color=AMBER, width=3, shape="spline", smoothing=0.9),
-            fill="tozeroy",
-            fillcolor="rgba(245, 158, 11, 0.08)",
-            hovertemplate="%{y:.1f}",
-        ),
-        secondary_y=False,
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=prices.index,
-            y=prices.values,
-            name="Brent ($/bbl)",
-            mode="lines",
-            line=dict(color=GREEN, width=3, shape="spline", smoothing=0.6),
-            hovertemplate="$%{y:.2f}",
-        ),
-        secondary_y=True,
-    )
-
-    style_figure(fig, height=height, rangeslider=True)
-    fig.update_yaxes(title_text="Tankers per day", rangemode="tozero", secondary_y=False)
-    fig.update_yaxes(title_text="$ per barrel", showgrid=False, secondary_y=True)
-
-    # Show only the period where both series overlap.
-    start = max(df["date"].min(), prices.index.min())
-    end = min(df["date"].max(), prices.index.max())
-    fig.update_xaxes(range=[start, end])
-
-    if EVENTS:
-        add_events(fig, EVENTS)
-
-    return fig
-
-
-# HEADER
-
-st.title("🚢 Hormuz | Shipping & Markets")
-
-st.caption(
-    "Shipping: daily IMF PortWatch data from a local CSV. "
-    "Market prices: latest available from Yahoo Finance; may be delayed."
-)
-
-
 # MAIN METRICS
 
-traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
+st.divider()
 
-latest_date = None
+traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
 
 if shipping_df is not None:
     latest = shipping_df.iloc[-1]
@@ -515,7 +419,10 @@ for column, label in [
                 current - float(prices.iloc[-2])
                 if len(prices) > 1 else 0.0
             )
-            pct = change / float(prices.iloc[-2]) * 100 if len(prices) > 1 else 0.0
+            pct = (
+                change / float(prices.iloc[-2]) * 100
+                if len(prices) > 1 else 0.0
+            )
 
             st.metric(
                 f"🛢️ {label} futures",
@@ -527,163 +434,96 @@ for column, label in [
                 f"USD/barrel · {prices.index[-1]:%d %b %Y}"
             )
 
-st.write("")
+
+st.divider()
 
 
-# TABS
+# CHARTS
 
-tab_overview, tab_shipping, tab_markets, tab_data = st.tabs([
-    "📊 Overview",
-    "🚢 Shipping",
-    "🛢️ Markets",
-    "🗂️ Data",
-])
+left, right = st.columns(2, gap="large")
 
 
-# OVERVIEW
-
-with tab_overview:
-    left, right = st.columns(2, gap="large")
-
-    with left:
-        st.subheader("Traffic through Hormuz")
-        st.caption("Daily vessel counts · IMF PortWatch")
-
-        if shipping_df is not None:
-            st.plotly_chart(
-                shipping_figure(
-                    shipping_df,
-                    height=400,
-                    rangeslider=False,
-                    default_days=30
-                ),
-                use_container_width=True,
-                theme=None,
-                key="overview_shipping"
-            )
-        else:
-            st.info("Shipping data is unavailable.")
-
-    with right:
-        st.subheader("Brent futures")
-        st.caption("USD per barrel · Yahoo Finance")
-
-        brent_prices = market_data["BRENT"]
-
-        if brent_prices.empty:
-            st.info("Brent prices are temporarily unavailable.")
-        else:
-            st.plotly_chart(
-                brent_figure(brent_prices, height=400, rangeslider=False),
-                use_container_width=True,
-                theme=None,
-                key="overview_brent"
-            )
-
-    st.divider()
-
-    st.subheader("Tanker traffic vs Brent")
-    st.caption(
-        "7-day average of tanker transits (left axis) next to Brent (right axis)."
-    )
-
-    if shipping_df is not None and not market_data["BRENT"].empty:
-        st.plotly_chart(
-            combined_figure(shipping_df, market_data["BRENT"]),
-            use_container_width=True,
-            theme=None,
-            key="overview_combined"
-        )
-    else:
-        st.info("Both shipping and Brent data are needed for this chart.")
-
-    st.caption(
-        "These charts show traffic and prices side by side; "
-        "they do not establish a causal relationship."
-    )
-
-
-# SHIPPING
-
-with tab_shipping:
+with left:
     st.subheader("Traffic through Hormuz")
-    st.caption(
-        "Daily vessel counts · IMF PortWatch. "
-        "Thin lines are daily values, thick lines are 7-day averages."
-    )
+    st.caption("Daily vessel counts · IMF PortWatch")
 
     if shipping_df is not None:
-        last_30 = shipping_df.loc[
-            shipping_df["date"] > latest_date - pd.Timedelta(days=30)
-        ]
-        prev_30 = shipping_df.loc[
-            (shipping_df["date"] <= latest_date - pd.Timedelta(days=30))
-            & (shipping_df["date"] > latest_date - pd.Timedelta(days=60))
-        ]
-
-        stat1, stat2, stat3 = st.columns(3)
-
-        avg_total = float(last_30["n_total"].mean())
-        avg_tanker = float(last_30["n_tanker"].mean())
-        tanker_share = (
-            float(last_30["n_tanker"].sum()) / float(last_30["n_total"].sum()) * 100
-            if float(last_30["n_total"].sum()) > 0 else 0.0
+        period = st.selectbox(
+            "Shipping history",
+            [30, 90, 180, 365],
+            format_func=lambda days: f"Last {days} days",
+            key="shipping_history_period"
         )
 
-        with stat1:
-            delta = None
-            if not prev_30.empty:
-                delta = f"{avg_total - float(prev_30['n_total'].mean()):+.1f} vs prior 30 days"
-            st.metric("30-day avg · all ships", f"{avg_total:.1f}", delta=delta)
+        start_date = latest_date - pd.Timedelta(
+            days=period - 1
+        )
 
-        with stat2:
-            delta = None
-            if not prev_30.empty:
-                delta = f"{avg_tanker - float(prev_30['n_tanker'].mean()):+.1f} vs prior 30 days"
-            st.metric("30-day avg · tankers", f"{avg_tanker:.1f}", delta=delta)
-
-        with stat3:
-            st.metric("Tanker share of transits", f"{tanker_share:.0f}%")
-            st.caption("Last 30 days")
+        recent = shipping_df.loc[
+            shipping_df["date"] >= start_date
+        ].copy()
 
         st.plotly_chart(
-            shipping_figure(shipping_df, height=460),
+            shipping_figure(recent),
             use_container_width=True,
             theme=None,
-            key="shipping_tab"
+            config=PLOT_CONFIG,
+            key="shipping_chart"
         )
 
         st.caption(
             f"Latest observation: {latest_date:%d %b %Y}. "
-            "Tankers are included in all ships."
+            "Tankers are included in all ships. "
+            "Thin lines are daily values, thick lines are 7-day averages."
         )
+
     else:
         st.info("Shipping data is unavailable.")
 
 
-# MARKETS
+with right:
+    st.subheader("Brent futures")
+    st.caption("USD per barrel · Yahoo Finance")
 
-with tab_markets:
-    st.subheader("Oil prices")
-    st.caption("USD per barrel · Yahoo Finance · quotes may be delayed")
+    months = st.selectbox(
+        "Price history",
+        [1, 3, 6],
+        format_func=lambda value: f"Last {value} months",
+        index=2,
+        key="shipping_brent_period"
+    )
 
     brent_prices = market_data["BRENT"]
 
     if brent_prices.empty:
         st.info("Brent prices are temporarily unavailable.")
     else:
-        show_wti = st.toggle("Compare with WTI", value=False, key="toggle_wti")
-
-        st.plotly_chart(
-            brent_figure(brent_prices, height=460, show_wti=show_wti),
-            use_container_width=True,
-            theme=None,
-            key="markets_brent"
+        cutoff = (
+            brent_prices.index.max()
+            - pd.DateOffset(months=months)
         )
 
-    st.divider()
-    st.subheader("More market indicators")
+        selected_prices = brent_prices.loc[
+            brent_prices.index >= cutoff
+        ]
 
+        st.plotly_chart(
+            brent_figure(selected_prices),
+            use_container_width=True,
+            theme=None,
+            config=PLOT_CONFIG,
+            key="brent_chart"
+        )
+
+        st.caption(
+            "Latest available daily prices; "
+            "quotes may be delayed."
+        )
+
+
+# ADDITIONAL MARKET INDICATORS
+
+with st.expander("More market indicators"):
     vix_col, dollar_col = st.columns(2)
 
     for column, label in [
@@ -696,63 +536,38 @@ with tab_markets:
             if prices.empty:
                 st.metric(label, "Unavailable")
             else:
-                current = float(prices.iloc[-1])
-                change = (
-                    current - float(prices.iloc[-2])
-                    if len(prices) > 1 else 0.0
-                )
                 st.metric(
                     label,
-                    f"{current:.2f}",
-                    delta=f"{change:+.2f}",
-                    delta_color="off"
+                    f"{float(prices.iloc[-1]):.2f}"
                 )
                 st.caption(
-                    f"Observation: {prices.index[-1]:%d %b %Y}"
-                )
-
-                spark = go.Figure(
-                    go.Scatter(
-                        x=prices.index,
-                        y=prices.values,
-                        mode="lines",
-                        line=dict(color=BLUE, width=2, shape="spline", smoothing=0.6),
-                        fill="tozeroy",
-                        fillcolor="rgba(96, 165, 250, 0.08)",
-                        hovertemplate="%{y:.2f}",
-                    )
-                )
-                style_figure(spark, height=160, rangeslider=False, buttons=False)
-                spark.update_layout(margin=dict(l=0, r=0, t=0, b=0))
-                spark.update_yaxes(
-                    showticklabels=False,
-                    range=[float(prices.min()) * 0.95, float(prices.max()) * 1.03],
-                )
-                st.plotly_chart(
-                    spark,
-                    use_container_width=True,
-                    theme=None,
-                    key=f"spark_{label}"
+                    f"Observation: "
+                    f"{prices.index[-1]:%d %b %Y}"
                 )
 
 
-# DATA
+# DATA AND SOURCES
 
-with tab_data:
-    st.subheader("Shipping data")
+st.divider()
 
+with st.expander("Shipping data and download"):
     if shipping_df is not None:
         export_df = shipping_df[["date", "n_total", "n_tanker"]].copy()
 
         st.dataframe(
-            export_df.sort_values("date", ascending=False),
+            export_df.sort_values(
+                "date",
+                ascending=False
+            ),
             use_container_width=True,
             hide_index=True
         )
 
         st.download_button(
-            label="⬇️ Download Hormuz data",
-            data=export_df.to_csv(index=False).encode("utf-8"),
+            label="Download Hormuz data",
+            data=export_df.to_csv(
+                index=False
+            ).encode("utf-8"),
             file_name="hormuz_shipping.csv",
             mime="text/csv",
             key="download_hormuz_shipping"
@@ -761,13 +576,14 @@ with tab_data:
         st.info("No shipping data available.")
 
 
-# SOURCES
-
-st.divider()
-
 st.caption(
     "Sources: IMF PortWatch — Hormuz daily transits; "
     "Yahoo Finance — market prices. "
     "Shipping data updates when the CSV is replaced. "
     "Shipping and market observations may have different dates."
+)
+
+st.caption(
+    "These charts show traffic and prices separately; "
+    "they do not establish a causal relationship."
 )
