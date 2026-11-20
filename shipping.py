@@ -1,7 +1,5 @@
-from pathlib import Path
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import yfinance as yf
 
 st.set_page_config(
@@ -9,11 +7,10 @@ st.set_page_config(
     layout="wide"
 )
 
-
-
 st.header("Shipping: traffic collapses, risk gets priced in")
 
 # KPI
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -40,15 +37,12 @@ with col4:
         "MARITIME INCIDENTS",
         "130"
     )
-    brent = yf.Ticker("BZ=F")
 
+# LIVE MARKET DATA
+
+brent = yf.Ticker("BZ=F")
 brent_price = brent.history(period="1d")["Close"].iloc[-1]
 
-st.metric(
-    "BRENT OIL LIVE",
-    f"${brent_price:.2f}"
-)
-...
 st.metric(
     "BRENT OIL LIVE",
     f"${brent_price:.2f}"
@@ -75,81 +69,81 @@ with col_c:
     st.metric("DOLLAR INDEX", f"{dxy_price:.2f}")
 
 st.divider()
-st.divider()
-
 
 left, right = st.columns(2)
 
-# COLONNA SINISTRA
+# LEFT COLUMN
+
 with left:
 
-  st.subheader("85 squares = one normal day of traffic")
+    st.subheader("85 squares = one normal day of traffic")
 
-active = st.slider(
-    "Current crossings",
-    min_value=0,
-    max_value=85,
-    value=1
-)
+    active = st.slider(
+        "Current crossings",
+        min_value=0,
+        max_value=85,
+        value=1
+    )
 
-squares = ""
+    squares = ""
 
-for i in range(85):
+    for i in range(85):
 
-    color = "#1e293b"
+        color = "#1e293b"
 
-    if i < active:
-        color = "#f59e0b"
+        if i < active:
+            color = "#f59e0b"
 
-    squares += f"""
-    <div style="
-        width:18px;
-        height:18px;
-        background:{color};
-        display:inline-block;
-        margin:3px;
-        border-radius:3px;
-    "></div>
-    """
+        squares += f"""
+        <div style="
+            width:18px;
+            height:18px;
+            background:{color};
+            display:inline-block;
+            margin:3px;
+            border-radius:3px;
+        "></div>
+        """
 
-st.markdown(squares, unsafe_allow_html=True)
-st.markdown("### Recent daily crossings (all ships)")
+    st.markdown(squares, unsafe_allow_html=True)
 
-period = st.selectbox(
-    "Period",
-    ["Last 8 days", "Last 30 days"]
-)
+    st.markdown("### Recent daily crossings (all ships)")
 
-shipping_df = pd.DataFrame({
-    "Day": ["1","2","3","4","5","6","7","8"],
-    "Crossings": [12,10,5,7,7,9,13,5]
-})
+    period = st.selectbox(
+        "Period",
+        ["Last 8 days", "Last 30 days"]
+    )
 
-st.bar_chart(
-    shipping_df.set_index("Day")
-)
+    shipping_df = pd.DataFrame({
+        "Day": ["1", "2", "3", "4", "5", "6", "7", "8"],
+        "Crossings": [12, 10, 5, 7, 7, 9, 13, 5]
+    })
 
+    st.bar_chart(
+        shipping_df.set_index("Day")
+    )
 
-# COLONNA DESTRA
+# RIGHT COLUMN
+
 with right:
 
-    st.markdown("### War-risk premium")
+    st.markdown("### Brent Oil - Last 6 Months")
 
-    show_peak = st.toggle(
-        "Show peak value",
+    show_price = st.toggle(
+        "Show latest Brent price",
         value=True
     )
 
-   st.markdown("### Brent Oil - Last 6 Months")
+    brent_hist = brent.history(period="6mo")
 
-brent_hist = brent.history(period="6mo")
+    st.line_chart(
+        brent_hist["Close"]
+    )
 
-st.line_chart(
-    brent_hist["Close"]
-)
-
-    if show_peak:
-        st.success("Peak premium reached: 6%")
+    if show_price:
+        st.success(
+            f"Latest Brent Price: ${brent_price:.2f}"
+        )
 
     st.markdown("### Key observations")
 
@@ -164,6 +158,3 @@ st.line_chart(
 
     • The route is considered high risk.
     """)
-    
-
-       
