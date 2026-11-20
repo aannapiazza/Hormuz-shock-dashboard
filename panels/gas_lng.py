@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
 
 # ======================================================================
 # SETTINGS
@@ -303,6 +304,41 @@ def price_path_chart(prices, events, show_events, daily=None):
                    yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, y_max], fixedrange=True, automargin=True))
 
 
+def europe_us_chart(gap: pd.DataFrame, vol: pd.Series, show: str, show_vol: bool):
+    """Daily European vs US gas prices, with the gap shaded; optional volatility panel below."""
+    rows = 2 if show_vol else 1
+    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True, vertical_spacing=0.08,
+                        row_heights=[0.7, 0.3] if show_vol else [1.0])
+    if show == "Prices and gap ($/MMBtu)":
+        fig.add_trace(go.Scatter(x=gap["date"], y=gap["hh_usd"], name="US (Henry Hub)", mode="lines",
+                                 line=dict(color=TEAL, width=2),
+                                 hovertemplate="US: $%{y:.2f}<extra></extra>"), row=1, col=1)
+        fig.add_trace(go.Scatter(x=gap["date"], y=gap["ttf_usd"], name="Europe (TTF)", mode="lines",
+                                 line=dict(color=BLUE, width=2), fill="tonexty", fillcolor="rgba(255,90,78,.15)",
+                                 customdata=gap[["gap_usd"]].values,
+                                 hovertemplate="Europe: $%{y:.2f}<br>Gap: $%{customdata[0]:.2f}<extra></extra>"), row=1, col=1)
+        fig.update_yaxes(title_text="$ per MMBtu", rangemode="tozero", row=1, col=1)
+    else:
+        fig.add_trace(go.Scatter(x=gap["date"], y=gap["ratio"], name="Europe ÷ US", mode="lines",
+                                 line=dict(color=RED, width=2.5),
+                                 hovertemplate="Europe pays %{y:.1f}× the US price<extra></extra>"), row=1, col=1)
+        fig.add_hline(y=1, line=dict(color=MUTED, dash="dot"), row=1, col=1)
+        fig.update_yaxes(title_text="Times the US price", rangemode="tozero", ticksuffix="×", row=1, col=1)
+    if WAR_START >= gap["date"].min():
+        fig.add_vline(x=WAR_START.strftime("%Y-%m-%d"), line=dict(color=MUTED, dash="dot"))
+        fig.add_annotation(x=WAR_START.strftime("%Y-%m-%d"), y=1, yref="paper", text="War begins", showarrow=False,
+                           xanchor="left", yanchor="top", xshift=4, font=dict(size=11, color=MUTED))
+    if show_vol:
+        fig.add_trace(go.Scatter(x=gap["date"], y=vol, name=f"Volatility ({VOL_WINDOW}-day)", mode="lines",
+                                 line=dict(color=AMBER, width=1.8), fill="tozeroy", fillcolor="rgba(255,176,32,.10)",
+                                 hovertemplate="Volatility: %{y:.0f}%<extra></extra>"), row=2, col=1)
+        fig.update_yaxes(title_text="Volatility", ticksuffix="%", rangemode="tozero", row=2, col=1)
+    fig.update_xaxes(gridcolor=GRID, tickformat="%b %Y")
+    fig.update_yaxes(gridcolor=GRID, automargin=True)
+    return _layout(fig, height=520 if show_vol else 420, margin=dict(l=10, r=20, t=30, b=30),
+                   hovermode="x unified", legend=dict(orientation="h", y=1.08, x=0))
+
+
 def _convert(values, unit):
     values = list(values)
     if unit == "€/MWh":
@@ -489,7 +525,8 @@ def render() -> None:
               delta=f"{pos['gap_to_avg']:+.0f} pts vs 5-yr avg", delta_color="normal",
               help="From data/gas_storage.csv (GIE AGSI data). Lowest for the date since records began in 2011.")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Prices", "🚢 Supply & shipping", "🌍 Who's exposed", "🏭 Europe's winter"])
+    tab1, tab5, tab2, tab3, tab4 = st.tabs(["📈 Prices", "⚖️ Europe vs US", "🚢 Supply & shipping",
+                                            "🌍 Who's exposed", "🏭 Europe's winter"])
 
     # ================= TAB 1: PRICES =================
     with tab1:
@@ -546,6 +583,40 @@ def render() -> None:
             who = "Asia paid more" if gap > 0.05 else "Europe paid more" if gap < -0.05 else "About level"
             st.info(f"**{r['period']}**: TTF ${ttf}/MMBtu · JKM ${jkm}/MMBtu · **{who}**"
                     f"{f' (${abs(gap):.2f})' if abs(gap) > 0.05 else ''}\n\n{ROW_NOTES.get(r['period'], r['note'])}")
+
+    # ================= TAB 5: EUROPE VS US =================
+    with tab5:
+        st.subheader("Two gas markets: Europe vs the US")
+        if daily is None:
+            st.info("Live daily prices are unavailable right now, so this chart can't be drawn. "
+                    "It needs data/gas_prices_daily.csv or an internet connection.")
+        else:
+            gap_all = europe_us_gap(daily)
+            vol_all = rolling_volatility(daily)
+            first, last_day = gap_all["date"].min().date(), gap_all["date"].max().date()
+            start_default = max(first, pd.Timestamp("2026-01-01").date())
+            c1, c2 = st.columns([2, 1])
+            start, end = c1.slider("Period", min_value=first, max_value=last_day,
+                                   value=(start_default, last_day), format="DD MMM YYYY", key="gas_range")
+            show = c2.radio("Show", ["Prices and gap ($/MMBtu)", "Ratio (Europe ÷ US)"], key="gas_show")
+            show_vol = st.toggle("Add volatility panel", value=False, key="gas_vol")
+
+            in_range = (gap_all["date"].dt.date >= start) & (gap_all["date"].dt.date <= end)
+            gap, vol = gap_all[in_range], vol_all[in_range]
+            if len(gap) < 2:
+                st.warning("Pick a longer period.")
+            else:
+                st.plotly_chart(europe_us_chart(gap, vol, show, show_vol), width="stretch", theme=None, config=CFG)
+                widest = gap.loc[gap["gap_usd"].idxmax()]
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Average gap in this period", f"${gap['gap_usd'].mean():.2f}/MMBtu")
+                m2.metric("Europe paid on average", f"{gap['ratio'].mean():.1f}× the US price")
+                m3.metric("Widest gap", f"${widest['gap_usd']:.2f}", help=f"On {widest['date']:%d %b %Y}.")
+                st.caption("Daily closing prices from Yahoo Finance (TTF=F, NG=F, EURUSD=X), with TTF converted to $/MMBtu "
+                           "using each day's exchange rate. The shaded area is the gap Europe pays above the US. "
+                           f"Volatility is the annualised {VOL_WINDOW}-day standard deviation of daily TTF returns. "
+                           "Drag the ends of the Period slider to focus on any part of the war; the figures below the chart "
+                           "update for the period you pick.")
 
     # ================= TAB 2: SUPPLY & SHIPPING =================
     with tab2:
