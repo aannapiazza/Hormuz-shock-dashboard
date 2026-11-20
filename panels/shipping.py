@@ -1,653 +1,481 @@
-import re
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
 
-st.set_page_config(
-    page_title="Hormuz Dashboard",
-    page_icon="🚢",
-    layout="wide"
-)
+# DATA LOADING
 
+def load_shipping_data():
+    script_folder = Path(__file__).resolve().parent
 
-# DATA SETTINGS
+    possible_paths = [
+        script_folder / "Daily_Chokepoints_Data.csv",
+        script_folder.parent / "Daily_Chokepoints_Data.csv",
+        script_folder.parent / "data" / "Daily_Chokepoints_Data.csv",
+    ]
 
-# Nothing after this date is ever shown or saved.
-END = pd.Timestamp("2026-10-31")
+    csv_path = next(
+        (path for path in possible_paths if path.is_file()),
+        None,
+    )
 
-# LIVE = False: market prices come from saved copies (downloaded once if missing).
-# LIVE = True:  market prices are downloaded fresh from Yahoo Finance.
-# Either way, everything is cut at END.
-LIVE = False
+    if csv_path is None:
+        raise FileNotFoundError(
+            "Cannot find Daily_Chokepoints_Data.csv. "
+            "Place it in the panel folder, the project root "
+            "or the project's data folder."
+        )
 
+    df = pd.read_csv(csv_path)
+    df.columns = df.columns.str.strip()
 
-def up_to_end(data):
-    """Drop everything after END (DataFrame with a 'date' column, or a Series
-    indexed by date)."""
-    if isinstance(data, pd.DataFrame):
-        return data.loc[data["date"] <= END].copy()
-    return data.loc[data.index <= END]
-
-
-# STYLE
-
-BLUE = "#60a5fa"
-AMBER = "#f59e0b"
-GREEN = "#34d399"
-TEAL = "#5eead4"
-TEXT = "#cbd5e1"
-MUTED = "#94a3b8"
-GRID = "rgba(148, 163, 184, 0.13)"
-
-# Hide the Plotly toolbar (zoom buttons); dragging on a chart still zooms,
-# and double-clicking resets it.
-PLOT_CONFIG = {"displayModeBar": False}
-
-st.markdown(
-    """
-    <style>
-    [data-testid="stMetric"] {
-        background: linear-gradient(145deg, #111a2e 0%, #0d1424 100%);
-        border: 1px solid #1f2a44;
-        border-radius: 14px;
-        padding: 16px 18px;
+    required_columns = {
+        "portname",
+        "date",
+        "n_total",
+        "n_tanker",
     }
-    [data-testid="stMetricLabel"] { color: #94a3b8; }
-    h1, h2, h3 { letter-spacing: -0.01em; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
-# Key events drawn as vertical lines on the charts (optional).
-# Add your own as ("YYYY-MM-DD", "Label"), for example:
-# EVENTS = [("2026-03-01", "War begins"), ("2026-04-08", "Ceasefire")]
-EVENTS = []
+    missing_columns = required_columns - set(df.columns)
 
-
-def style_figure(fig, height=380):
-    """Apply the shared dark look to a Plotly figure."""
-    fig.update_layout(
-        height=height,
-        template="plotly_dark",
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=TEXT, size=13),
-        margin=dict(l=10, r=10, t=40, b=10),
-        hovermode="x unified",
-        hoverlabel=dict(
-            bgcolor="#0b1220",
-            bordercolor="#1f2a44",
-            font=dict(color="#e2e8f0")
-        ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.0,
-            xanchor="left",
-            x=0,
-            bgcolor="rgba(0,0,0,0)"
-        ),
-    )
-
-    fig.update_xaxes(
-        showgrid=True,
-        gridcolor=GRID,
-        zeroline=False,
-        showline=False,
-        # Few, short labels so the dates never overlap in a narrow column.
-        nticks=5,
-        tickformat="%d %b",
-        tickangle=0,
-        automargin=True,
-        showspikes=True,
-        spikecolor=MUTED,
-        spikethickness=1,
-        spikedash="dot",
-        spikemode="across",
-    )
-
-    fig.update_yaxes(
-        showgrid=True,
-        gridcolor=GRID,
-        zeroline=False,
-        showline=False,
-        automargin=True,
-    )
-
-    return fig
-
-
-def add_events(fig, events):
-    """Draw dotted vertical lines with rotated labels for key events."""
-    for date, label in events:
-        fig.add_shape(
-            type="line",
-            x0=date, x1=date,
-            y0=0, y1=1,
-            xref="x", yref="paper",
-            line=dict(color=MUTED, width=1, dash="dot"),
-            opacity=0.6,
-        )
-        fig.add_annotation(
-            x=date, y=1,
-            xref="x", yref="paper",
-            text=label,
-            textangle=-90,
-            showarrow=False,
-            xanchor="right",
-            yanchor="top",
-            font=dict(size=11, color=MUTED),
+    if missing_columns:
+        raise ValueError(
+            "Missing CSV columns: "
+            + ", ".join(sorted(missing_columns))
         )
 
+    df = df.loc[
+        df["portname"]
+        .astype("string")
+        .str.contains("Hormuz", case=False, na=False)
+    ].copy()
 
-# HEADER
-
-st.title("🚢 Hormuz | Shipping & Markets")
-
-st.caption(
-    "Shipping: daily IMF PortWatch data from a local CSV. "
-    "Market prices: Yahoo Finance. "
-    f"Data shown up to {END:%d %b %Y}."
-)
-
-
-# SHIPPING DATA
-
-script_folder = Path(__file__).resolve().parent
-
-possible_paths = [
-    script_folder / "Daily_Chokepoints_Data.csv",
-    script_folder.parent / "Daily_Chokepoints_Data.csv",
-]
-
-csv_path = next(
-    (path for path in possible_paths if path.is_file()),
-    None
-)
-
-shipping_df = None
-
-if csv_path is None:
-    st.error(
-        "Cannot find Daily_Chokepoints_Data.csv. "
-        "Place it in the script folder or its parent folder."
-    )
-else:
-    try:
-        shipping_df = pd.read_csv(csv_path)
-        shipping_df.columns = shipping_df.columns.str.strip()
-
-        shipping_df = shipping_df.loc[
-            shipping_df["portname"]
-            .astype(str)
-            .str.contains("Hormuz", case=False, na=False)
-        ].copy()
-
-        required_columns = {"date", "n_total", "n_tanker"}
-        missing_columns = required_columns - set(shipping_df.columns)
-
-        if missing_columns:
-            st.error(
-                "Missing CSV columns: "
-                + ", ".join(sorted(missing_columns))
-            )
-            shipping_df = None
-        else:
-            shipping_df["date"] = pd.to_datetime(
-                shipping_df["date"],
-                errors="coerce"
-            )
-
-            for column in ["n_total", "n_tanker"]:
-                shipping_df[column] = pd.to_numeric(
-                    shipping_df[column],
-                    errors="coerce"
-                )
-
-            shipping_df = (
-                shipping_df
-                .dropna(subset=["date", "n_total", "n_tanker"])
-                .sort_values("date")
-                .reset_index(drop=True)
-            )
-
-            # Cut everything after END (the CSV may run further).
-            shipping_df = up_to_end(shipping_df).reset_index(drop=True)
-
-            if shipping_df.empty:
-                st.error("The CSV contains no valid shipping records.")
-                shipping_df = None
-            else:
-                shipping_df["ships_7d"] = (
-                    shipping_df["n_total"]
-                    .rolling(7, min_periods=1)
-                    .mean()
-                )
-                shipping_df["tankers_7d"] = (
-                    shipping_df["n_tanker"]
-                    .rolling(7, min_periods=1)
-                    .mean()
-                )
-
-    except Exception as error:
-        st.error(f"Cannot read the shipping CSV: {error}")
-        shipping_df = None
-
-
-# LOAD MARKET DATA
-
-SAVED_FOLDER = script_folder / "saved_market_data"
-
-
-def saved_path(symbol):
-    safe_name = re.sub(r"[^A-Za-z0-9]+", "_", symbol).strip("_")
-    return SAVED_FOLDER / f"{safe_name}.csv"
-
-
-@st.cache_data(ttl=300)
-def load_market_data(symbol, live):
-    path = saved_path(symbol)
-
-    # Saved copy first (cut again at END, just in case).
-    if not live and path.is_file():
-        try:
-            saved = pd.read_csv(path, index_col=0, parse_dates=True)["Close"]
-            return up_to_end(saved.dropna())
-        except Exception:
-            pass
-
-    # Otherwise download, cut at END, and save the copy.
-    try:
-        history = yf.Ticker(symbol).history(
-            start=END - pd.DateOffset(months=6),
-            end=END + pd.Timedelta(days=1)  # Yahoo's end date is exclusive
+    if df.empty:
+        raise ValueError(
+            "No Hormuz records were found in the CSV."
         )
 
-        if history.empty or "Close" not in history.columns:
-            return pd.Series(dtype=float)
+    df["date"] = pd.to_datetime(
+        df["date"],
+        errors="coerce",
+        utc=True,
+    ).dt.tz_convert(None).dt.normalize()
 
-        closes = history["Close"].dropna()
-        closes.index = pd.to_datetime(closes.index).tz_localize(None)
-        closes.index.name = "Date"
-        closes = up_to_end(closes)
+    for column in ["n_total", "n_tanker"]:
+        df[column] = pd.to_numeric(
+            df[column],
+            errors="coerce",
+        )
 
-        try:
-            SAVED_FOLDER.mkdir(exist_ok=True)
-            closes.rename("Close").to_csv(path)
-        except Exception:
-            pass  # saving is best effort
+    df = (
+        df.dropna(subset=["date", "n_total", "n_tanker"])
+        .sort_values("date")
+        .reset_index(drop=True)
+    )
 
-        return closes
+    if df.empty:
+        raise ValueError(
+            "The CSV contains no valid Hormuz shipping records."
+        )
 
-    except Exception:
+    if df["date"].duplicated().any():
+        raise ValueError(
+            "Multiple Hormuz records were found for the same date. "
+            "Check the CSV before calculating daily totals."
+        )
+
+    invalid_counts = (
+        (df["n_total"] < 0)
+        | (df["n_tanker"] < 0)
+        | (df["n_tanker"] > df["n_total"])
+        | (df["n_total"] % 1 != 0)
+        | (df["n_tanker"] % 1 != 0)
+    )
+
+    if invalid_counts.any():
+        raise ValueError(
+            "Invalid vessel counts in the CSV. Counts must be "
+            "non-negative whole numbers, and tankers cannot "
+            "exceed total vessels."
+        )
+
+    return df
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_market_data(symbol):
+    history = yf.Ticker(symbol).history(period="6mo")
+
+    if history.empty or "Close" not in history.columns:
         return pd.Series(dtype=float)
 
+    prices = pd.to_numeric(
+        history["Close"],
+        errors="coerce",
+    ).dropna()
 
-market_symbols = {
-    "BRENT": "BZ=F",
-    "WTI": "CL=F",
-    "VIX": "^VIX",
-    "DOLLAR INDEX": "DX-Y.NYB",
-}
+    prices = prices.loc[np.isfinite(prices.to_numpy())]
 
-market_data = {
-    label: load_market_data(symbol, LIVE)
-    for label, symbol in market_symbols.items()
-}
+    return prices.sort_index()
 
 
-# CHART BUILDERS
+# NUMPY CALCULATIONS
 
-def shipping_figure(df, height=380):
-    fig = go.Figure()
+def percentage_change(prices):
+    """Percentage change between the last two observations."""
+    if len(prices) < 2:
+        return None
 
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["n_total"],
-            name="All ships",
-            mode="lines",
-            line=dict(color=BLUE, width=1),
-            opacity=0.5,
-            fill="tozeroy",
-            fillcolor="rgba(96, 165, 250, 0.07)",
-            hovertemplate="%{y:.0f}",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["n_tanker"],
-            name="Tankers",
-            mode="lines",
-            line=dict(color=AMBER, width=1),
-            opacity=0.5,
-            hovertemplate="%{y:.0f}",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["ships_7d"],
-            name="All ships · 7-day avg",
-            mode="lines",
-            line=dict(color=BLUE, width=3, shape="spline", smoothing=0.9),
-            hovertemplate="%{y:.1f}",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=df["date"],
-            y=df["tankers_7d"],
-            name="Tankers · 7-day avg",
-            mode="lines",
-            line=dict(color=AMBER, width=3, shape="spline", smoothing=0.9),
-            hovertemplate="%{y:.1f}",
-        )
+    values = prices.iloc[-2:].to_numpy(dtype=float)
+
+    if not np.all(np.isfinite(values)) or values[0] <= 0:
+        return None
+
+    return float(np.diff(values)[0] / values[0] * 100)
+
+
+# PANEL
+
+def render():
+    st.header("🚢 Hormuz | Shipping & Markets")
+
+    st.caption(
+        "Shipping: daily IMF PortWatch data from a local CSV. "
+        "Markets: latest available daily observations retrieved "
+        "from Yahoo Finance; quotes may be delayed."
     )
 
-    style_figure(fig, height=height)
-    fig.update_yaxes(title_text="Vessels per day", rangemode="tozero")
+    shipping_df = None
 
-    if EVENTS:
-        add_events(fig, EVENTS)
+    try:
+        shipping_df = load_shipping_data()
+    except Exception as error:
+        st.error(f"Shipping data unavailable: {error}")
 
-    return fig
+    market_symbols = {
+        "BRENT": "BZ=F",
+        "WTI": "CL=F",
+        "VIX": "^VIX",
+        "DOLLAR INDEX": "DX-Y.NYB",
+    }
 
+    market_data = {}
+    market_errors = []
 
-def brent_figure(prices, height=380):
-    fig = go.Figure()
+    with st.spinner("Loading market data..."):
+        for label, symbol in market_symbols.items():
+            try:
+                market_data[label] = load_market_data(symbol)
+            except Exception:
+                market_data[label] = pd.Series(dtype=float)
 
-    fig.add_trace(
-        go.Scatter(
-            x=prices.index,
-            y=prices.values,
-            name="Brent",
-            mode="lines",
-            line=dict(color=GREEN, width=3, shape="spline", smoothing=0.6),
-            fill="tozeroy",
-            fillcolor="rgba(52, 211, 153, 0.08)",
-            hovertemplate="$%{y:.2f}",
-        )
-    )
+            if market_data[label].empty:
+                market_errors.append(label)
 
-    average = float(prices.mean())
-    fig.add_hline(
-        y=average,
-        line=dict(color=TEAL, width=1.5, dash="dash"),
-        annotation_text=f"Average ${average:.2f}",
-        annotation_position="bottom right",
-        annotation_font=dict(color=TEAL, size=12),
-    )
-
-    high_date = prices.idxmax()
-    low_date = prices.idxmin()
-    last_date = prices.index[-1]
-
-    for date, color, position in [
-        (high_date, "#f87171", "top center"),
-        (low_date, TEAL, "bottom center"),
-        (last_date, GREEN, "top left"),
-    ]:
-        value = float(prices.loc[date])
-        fig.add_trace(
-            go.Scatter(
-                x=[date],
-                y=[value],
-                mode="markers+text",
-                text=[f"${value:.1f}"],
-                textposition=position,
-                textfont=dict(color=TEXT, size=12),
-                marker=dict(color=color, size=10, line=dict(color="#0b1220", width=2)),
-                showlegend=False,
-                hoverinfo="skip",
-            )
+    if market_errors:
+        st.warning(
+            "Market data could not be retrieved for: "
+            + ", ".join(market_errors)
+            + "."
         )
 
-    style_figure(fig, height=height)
-    fig.update_yaxes(
-        title_text="$ per barrel",
-        range=[float(prices.min()) * 0.9, float(prices.max()) * 1.08],
-    )
+    # MAIN METRICS
 
-    if EVENTS:
-        add_events(fig, EVENTS)
+    st.divider()
 
-    return fig
-
-
-# MAIN METRICS
-
-st.divider()
-
-traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
-
-if shipping_df is not None:
-    latest = shipping_df.iloc[-1]
-    latest_date = latest["date"]
-    previous = shipping_df.iloc[-2] if len(shipping_df) > 1 else latest
-
-    latest_total = int(latest["n_total"])
-    latest_tanker = int(latest["n_tanker"])
-
-    with traffic_col:
-        st.metric(
-            "🚢 Daily ship transits",
-            f"{latest_total:,}",
-            delta=f"{latest_total - int(previous['n_total']):+d} vs previous day"
-        )
-        st.caption(f"{latest_date:%d %b %Y}")
-
-    with tanker_col:
-        st.metric(
-            "🛢️ Daily tanker transits",
-            f"{latest_tanker:,}",
-            delta=f"{latest_tanker - int(previous['n_tanker']):+d} vs previous day"
-        )
-        st.caption("Included in total ship transits")
-
-else:
-    with traffic_col:
-        st.metric("🚢 Daily ship transits", "Unavailable")
-
-    with tanker_col:
-        st.metric("🛢️ Daily tanker transits", "Unavailable")
-
-
-for column, label in [
-    (brent_col, "BRENT"),
-    (wti_col, "WTI")
-]:
-    prices = market_data[label]
-
-    with column:
-        if prices.empty:
-            st.metric(f"{label} futures", "Unavailable")
-        else:
-            current = float(prices.iloc[-1])
-            change = (
-                current - float(prices.iloc[-2])
-                if len(prices) > 1 else 0.0
-            )
-            pct = (
-                change / float(prices.iloc[-2]) * 100
-                if len(prices) > 1 else 0.0
-            )
-
-            st.metric(
-                f"🛢️ {label} futures",
-                f"${current:.2f}",
-                delta=f"{change:+.2f} ({pct:+.1f}%)",
-                delta_color="off"
-            )
-            st.caption(
-                f"USD/barrel · {prices.index[-1]:%d %b %Y}"
-            )
-
-
-st.divider()
-
-
-# CHARTS
-
-left, right = st.columns(2, gap="large")
-
-
-with left:
-    st.subheader("Traffic through Hormuz")
-    st.caption("Daily vessel counts · IMF PortWatch")
+    traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
 
     if shipping_df is not None:
-        period = st.selectbox(
-            "Shipping history",
-            [30, 90, 180, 365],
-            format_func=lambda days: f"Last {days} days",
-            key="shipping_history_period"
+        latest = shipping_df.iloc[-1]
+        latest_date = latest["date"]
+
+        previous = (
+            shipping_df.iloc[-2]
+            if len(shipping_df) >= 2
+            else None
         )
 
-        start_date = latest_date - pd.Timedelta(
-            days=period - 1
+        # Only describe changes as daily when dates are consecutive.
+        consecutive_days = (
+            previous is not None
+            and latest_date - previous["date"] == pd.Timedelta(days=1)
         )
 
-        recent = shipping_df.loc[
-            shipping_df["date"] >= start_date
-        ].copy()
+        total_delta = None
+        tanker_delta = None
 
-        st.plotly_chart(
-            shipping_figure(recent),
-            use_container_width=True,
-            theme=None,
-            config=PLOT_CONFIG,
-            key="shipping_chart"
-        )
+        if consecutive_days:
+            total_delta = (
+                f"{int(latest['n_total'] - previous['n_total']):+d}"
+                " vs previous day"
+            )
+            tanker_delta = (
+                f"{int(latest['n_tanker'] - previous['n_tanker']):+d}"
+                " vs previous day"
+            )
 
-        st.caption(
-            f"Latest observation: {latest_date:%d %b %Y}. "
-            "Tankers are included in all ships. "
-            "Thin lines are daily values, thick lines are 7-day averages."
-        )
+        with traffic_col:
+            st.metric(
+                "Ship transits",
+                f"{int(latest['n_total']):,}",
+                delta=total_delta,
+                delta_color="off",
+            )
+            st.caption(f"{latest_date:%d %b %Y}")
+
+        with tanker_col:
+            st.metric(
+                "Tanker transits",
+                f"{int(latest['n_tanker']):,}",
+                delta=tanker_delta,
+                delta_color="off",
+            )
+            st.caption(
+                f"{latest_date:%d %b %Y} · Included in total"
+            )
 
     else:
-        st.info("Shipping data is unavailable.")
+        with traffic_col:
+            st.metric("Ship transits", "Unavailable")
 
-
-with right:
-    st.subheader("Brent futures")
-    st.caption("USD per barrel · Yahoo Finance")
-
-    months = st.selectbox(
-        "Price history",
-        [1, 3, 6],
-        format_func=lambda value: f"Last {value} months",
-        index=2,
-        key="shipping_brent_period"
-    )
-
-    brent_prices = market_data["BRENT"]
-
-    if brent_prices.empty:
-        st.info("Brent prices are temporarily unavailable.")
-    else:
-        cutoff = (
-            brent_prices.index.max()
-            - pd.DateOffset(months=months)
-        )
-
-        selected_prices = brent_prices.loc[
-            brent_prices.index >= cutoff
-        ]
-
-        st.plotly_chart(
-            brent_figure(selected_prices),
-            use_container_width=True,
-            theme=None,
-            config=PLOT_CONFIG,
-            key="brent_chart"
-        )
-
-        st.caption(
-            "Latest available daily prices; "
-            "quotes may be delayed."
-        )
-
-
-# ADDITIONAL MARKET INDICATORS
-
-with st.expander("More market indicators"):
-    vix_col, dollar_col = st.columns(2)
+        with tanker_col:
+            st.metric("Tanker transits", "Unavailable")
 
     for column, label in [
-        (vix_col, "VIX"),
-        (dollar_col, "DOLLAR INDEX")
+        (brent_col, "BRENT"),
+        (wti_col, "WTI"),
     ]:
         prices = market_data[label]
 
         with column:
             if prices.empty:
-                st.metric(label, "Unavailable")
-           else:
-                values = prices.to_numpy()
-                delta = None
+                st.metric(f"{label} futures", "Unavailable")
+            else:
+                change = percentage_change(prices)
 
-            if len(values) >= 2 and values[-2] != 0:
-                daily_returns = np.diff(values) / values[:-1] * 100
-                delta = f"{daily_returns[-1]:+.2f}%"
-
-     st.metric(
-        f"{label} futures",
-        f"${float(values[-1]):.2f}",
-        delta=delta
-    )
-                st.caption(
-                    f"Observation: "
-                    f"{prices.index[-1]:%d %b %Y}"
+                st.metric(
+                    f"{label} futures",
+                    f"${float(prices.iloc[-1]):.2f}",
+                    delta=(
+                        f"{change:+.2f}%"
+                        if change is not None
+                        else None
+                    ),
+                    delta_color="off",
                 )
 
+                st.caption(
+                    f"USD/barrel · {prices.index[-1]:%d %b %Y}"
+                )
 
-# DATA AND SOURCES
+    st.caption(
+        "Market percentage changes compare the last two "
+        "available observations."
+    )
 
-st.divider()
+    # CHARTS
 
-with st.expander("Shipping data and download"):
-    if shipping_df is not None:
-        export_df = shipping_df[["date", "n_total", "n_tanker"]].copy()
+    st.divider()
 
-        st.dataframe(
-            export_df.sort_values(
-                "date",
-                ascending=False
-            ),
-            use_container_width=True,
-            hide_index=True
+    left, right = st.columns(2, gap="large")
+
+    with left:
+        st.subheader("Traffic through Hormuz")
+        st.caption("Daily vessel counts · IMF PortWatch")
+
+        if shipping_df is None:
+            st.info("Shipping data is unavailable.")
+        else:
+            period = st.selectbox(
+                "Shipping history",
+                [30, 90, 180, 365],
+                index=3,
+                format_func=lambda days: f"Last {days} days",
+                key="shipping_history_period",
+            )
+
+            latest_date = shipping_df["date"].max()
+            start_date = latest_date - pd.Timedelta(
+                days=period - 1
+            )
+
+            daily = (
+                shipping_df
+                .set_index("date")[["n_total", "n_tanker"]]
+                .rename(
+                    columns={
+                        "n_total": "All ships",
+                        "n_tanker": "Tankers",
+                    }
+                )
+                .asfreq("D")
+            )
+
+            # Compute averages before filtering the visible period.
+            # Missing observations remain missing, rather than zero.
+            averages = (
+                daily.rolling(window=7, min_periods=7)
+                .mean()
+                .rename(
+                    columns={
+                        "All ships": "All ships · 7-day average",
+                        "Tankers": "Tankers · 7-day average",
+                    }
+                )
+            )
+
+            chart_data = daily.join(averages)
+            chart_data = chart_data.loc[
+                chart_data.index >= start_date
+            ]
+
+            st.line_chart(
+                chart_data,
+                color=[
+                    "#2563eb",
+                    "#d97706",
+                    "#0891b2",
+                    "#9333ea",
+                ],
+                height=350,
+                use_container_width=True,
+            )
+
+            st.caption(
+                f"Latest observation: {latest_date:%d %b %Y}. "
+                "Tankers are included in all ships. "
+                "Each average requires seven consecutive "
+                "daily observations."
+            )
+
+    with right:
+        st.subheader("Brent futures")
+        st.caption("USD per barrel · Yahoo Finance")
+
+        months = st.selectbox(
+            "Price history",
+            [1, 3, 6],
+            index=2,
+            format_func=lambda value: f"Last {value} months",
+            key="shipping_brent_period",
         )
 
-        st.download_button(
-            label="Download Hormuz data",
-            data=export_df.to_csv(
-                index=False
-            ).encode("utf-8"),
-            file_name="hormuz_shipping.csv",
-            mime="text/csv",
-            key="download_hormuz_shipping"
+        brent_prices = market_data["BRENT"]
+
+        if brent_prices.empty:
+            st.info("Brent prices are temporarily unavailable.")
+        else:
+            cutoff = (
+                brent_prices.index.max()
+                - pd.DateOffset(months=months)
+            )
+
+            selected_prices = brent_prices.loc[
+                brent_prices.index >= cutoff
+            ]
+
+            st.line_chart(
+                selected_prices.rename("Brent"),
+                color="#059669",
+                height=350,
+                use_container_width=True,
+            )
+
+            st.caption(
+                f"Last returned observation: "
+                f"{brent_prices.index[-1]:%d %b %Y}. "
+                "Daily observations; quotes may be delayed."
+            )
+
+    # ADDITIONAL MARKET INDICATORS
+
+    with st.expander("More market indicators"):
+        vix_col, dollar_col = st.columns(2)
+
+        for column, label in [
+            (vix_col, "VIX"),
+            (dollar_col, "DOLLAR INDEX"),
+        ]:
+            prices = market_data[label]
+
+            with column:
+                if prices.empty:
+                    st.metric(label, "Unavailable")
+                else:
+                    change = percentage_change(prices)
+
+                    st.metric(
+                        label,
+                        f"{float(prices.iloc[-1]):.2f}",
+                        delta=(
+                            f"{change:+.2f}%"
+                            if change is not None
+                            else None
+                        ),
+                        delta_color="off",
+                    )
+
+                    st.caption(
+                        f"Observation: "
+                        f"{prices.index[-1]:%d %b %Y}"
+                    )
+
+        st.caption(
+            "VIX measures expected US equity market volatility. "
+            "The Dollar Index tracks the US dollar against "
+            "a basket of currencies."
         )
-    else:
-        st.info("No shipping data available.")
+
+    # DATA AND SOURCES
+
+    st.divider()
+
+    with st.expander("Shipping data and download"):
+        if shipping_df is None:
+            st.info("No shipping data available.")
+        else:
+            st.dataframe(
+                shipping_df.sort_values(
+                    "date",
+                    ascending=False,
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.download_button(
+                label="Download Hormuz data",
+                data=shipping_df.to_csv(
+                    index=False
+                ).encode("utf-8"),
+                file_name="hormuz_shipping.csv",
+                mime="text/csv",
+                key="download_hormuz_shipping",
+            )
+
+    st.caption(
+        "Sources: IMF PortWatch — Hormuz daily transits; "
+        "Yahoo Finance — market prices. "
+        "Shipping data updates when the CSV is replaced. "
+        "Market requests are cached for five minutes and "
+        "run when the app executes. "
+        "Shipping and market observations may have different dates."
+    )
+
+    st.caption(
+        "These charts show traffic and prices separately; "
+        "they do not establish a causal relationship."
+    )
 
 
-st.caption(
-    "Sources: IMF PortWatch — Hormuz daily transits; "
-    "Yahoo Finance — market prices. "
-    "Shipping data updates when the CSV is replaced. "
-    "Shipping and market observations may have different dates."
-)
-
-st.caption(
-    "These charts show traffic and prices separately; "
-    "they do not establish a causal relationship."
-)
-
+# Allows this file to run independently.
+# When imported by app.py, the main dashboard calls render().
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="Hormuz | Shipping & Markets",
+        layout="wide",
+    )
+    render()
