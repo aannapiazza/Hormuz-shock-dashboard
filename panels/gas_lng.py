@@ -53,8 +53,21 @@ ROW_NOTES = [
     "For comparison: after Russia invaded Ukraine, TTF hit about $90 and Europe paid far more than Asia.",
 ]
 
+# --- 3. Hormuz LNG tanker traffic by month ---
+# Two trackers count differently: Kpler counts all LNG-carrier transits, S&P counts laden tankers exiting.
+TRANSITS = [  # month, count, source, note
+    ("Feb", 85, "S&P Global", "Pre-war month: roughly 85 LNG ships exited"),
+    ("Mar", 0, "Kpler", "No LNG carriers crossed"),
+    ("Apr", 4, "Kpler", "UAE-linked ships, transponders off"),
+    ("May", 8, "Kpler", "First Qatari cargo since the war (to Pakistan, 9 May)"),
+    ("Jun", 40, "Kpler", "Reopening after the 17 June MOU"),
+    ("Jul", 18, "S&P Global", "None after 11 July, when strikes resumed"),
+    ("Aug", 3, "S&P Global", "No transits after 17 August"),
+    ("Sep", 23, "S&P Global", "Qatari tankers resume, some with transponders off"),
+    ("Oct", 31, "S&P Global", "Highest since the war began, still about a third of normal"),
+]
+PREWAR_MONTHLY = 85
 
-HORMUZ_BCM, HORMUZ_SHARE = 110, 0.20  # LNG via Hormuz per year (2025), share of world LNG trade
 
 
 # ======================================================================
@@ -132,6 +145,26 @@ def dumbbell_chart(unit, highlight):
                    yaxis=dict(autorange="reversed", fixedrange=True), legend=dict(orientation="h", y=-0.22, x=0))
 
 
+def transits_chart(as_pct):
+    vals = [t[1] / PREWAR_MONTHLY * 100 if as_pct else t[1] for t in TRANSITS]
+    colours = [MUTED if t[0] == "Feb" else (AMBER if t[2] == "Kpler" else RED) for t in TRANSITS]
+    fig = go.Figure(go.Bar(
+        x=[t[0] for t in TRANSITS], y=vals, marker_color=colours, showlegend=False,
+        text=[f"{v:.0f}%" if as_pct else str(t[1]) for v, t in zip(vals, TRANSITS)], textposition="outside",
+        customdata=[[t[2], t[3]] for t in TRANSITS],
+        hovertemplate="<b>%{x}: %{text}</b><br>%{customdata[1]}<br><i>Source: %{customdata[0]}</i><extra></extra>"))
+    ref = 100 if as_pct else PREWAR_MONTHLY
+    fig.add_hline(y=ref, line=dict(color=TEAL, dash="dash", width=1.5),
+                  annotation_text="Pre-war level", annotation_font_color=TEAL, annotation_position="top right")
+    for name, c in [("Kpler (all LNG-carrier transits)", AMBER), ("S&P Global (laden tankers exiting)", RED)]:
+        fig.add_trace(go.Bar(x=[None], y=[None], name=name, marker_color=c, showlegend=True))
+    return _layout(fig, height=400, margin=dict(l=10, r=20, t=30, b=40), showlegend=True, barmode="overlay",
+                   legend=dict(orientation="h", y=-0.15, x=0),
+                   yaxis=dict(title="% of pre-war" if as_pct else "LNG tankers per month", gridcolor=GRID,
+                              range=[0, 115 if as_pct else 98], ticksuffix="%" if as_pct else ""),
+                   xaxis=dict(fixedrange=True))
+
+
 def sunburst_chart():
     fig = go.Figure(go.Sunburst(
         ids=["all", "hz", "nh", "asia", "oth"],
@@ -190,24 +223,19 @@ def render() -> None:
 
     # ================= TAB 2: SUPPLY & SHIPPING =================
     with tab2:
-        st.subheader("Where the world's LNG comes from, and where Hormuz LNG goes")
-        st.caption("Click a segment to zoom in, and click the centre to zoom back out. EIA estimates for 2024.")
-        st.plotly_chart(sunburst_chart(), width="stretch", theme=None, config=CFG)
+        left, right = st.columns([3, 2])
+        with left:
+            st.subheader("LNG tankers through Hormuz each month")
+            as_pct = st.toggle("Show as % of pre-war traffic", key="gas_pct")
+            st.plotly_chart(transits_chart(as_pct), width="stretch", theme=None, config=CFG)
+            st.caption("Hover a bar for what happened that month. Two trackers are used: Kpler counts every LNG-carrier "
+                       "transit and S&P Global counts laden tankers leaving, so the bars aren't strictly like-for-like. "
+                       "Some ships cross with transponders off, so true numbers may be a little higher.")
+        with right:
+            st.subheader("Where the world's LNG comes from, and where Hormuz LNG goes")
+            st.caption("Click a segment to zoom in, and click the centre to zoom back out. EIA estimates for 2024.")
+            st.plotly_chart(sunburst_chart(), width="stretch", theme=None, config=CFG)
 
-        st.subheader("LNG supply-gap calculator")
-        c1, c2 = st.columns([1, 1.3])
-        with c1:
-            blocked = st.slider("Share of Hormuz LNG blocked (%)", 0, 100, 70, key="gas_blk") / 100
-            months = st.slider("Months of disruption", 1, 24, 8, key="gas_mo")
-            st.caption(f"Uses {HORMUZ_BCM} bcm a year through Hormuz, about 20% of world LNG trade "
-                       f"(so world trade ≈ {HORMUZ_BCM / HORMUZ_SHARE:.0f} bcm).")
-        with c2:
-            lost = HORMUZ_BCM * blocked * months / 12
-            st.metric("LNG lost", f"{lost:.0f} bcm",
-                      help="For comparison, the IEA estimated more than 50 bcm of Gulf LNG lost from March to August.")
-            st.write(f"That's **{blocked * 20:.0f}%** of world LNG trade cut off while it lasts, "
-                     f"or about **{HORMUZ_BCM * blocked / 12:.1f} bcm a month**.")
-            st.progress(min(1.0, lost / HORMUZ_BCM), text="Scale: one full year of Hormuz LNG (110 bcm)")
 
     # ---- Takeaway + sources ----
     st.success("**Takeaway:** gas prices are at their highest since 2022: TTF and JKM both averaged about $28.5/MMBtu "
