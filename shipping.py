@@ -1,173 +1,242 @@
-import streamlit as st
+from pathlib import Path
+
 import pandas as pd
+import streamlit as st
 import yfinance as yf
+
 
 st.set_page_config(
     page_title="Hormuz Dashboard",
     layout="wide"
 )
 
-st.header("Shipping: traffic collapses, risk gets priced in")
+st.header("Shipping: Strait of Hormuz traffic and market prices")
 
-# KPI
-
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    st.metric(
-        "SHIP TRANSITS PER DAY",
-        "1.0",
-        "-84 vs normal"
-    )
-
-with col2:
-    st.metric(
-        "TANKER TONNAGE",
-        "0.1%"
-    )
-
-with col3:
-    st.metric(
-        "WAR-RISK PREMIUM",
-        "6%"
-    )
-
-with col4:
-    st.metric(
-        "MARITIME INCIDENTS",
-        "130"
-    )
-
-# LIVE MARKET DATA
-
-brent = yf.Ticker("BZ=F")
-brent_price = brent.history(period="1d")["Close"].iloc[-1]
-
-st.metric(
-    "BRENT OIL LIVE",
-    f"${brent_price:.2f}"
+st.caption(
+    "Shipping: daily IMF PortWatch data from a local CSV. "
+    "Market prices: latest available from Yahoo Finance; may be delayed."
 )
 
-col_a, col_b, col_c = st.columns(3)
 
-wti = yf.Ticker("CL=F")
-wti_price = wti.history(period="1d")["Close"].iloc[-1]
+# SHIPPING DATA
 
-vix = yf.Ticker("^VIX")
-vix_price = vix.history(period="1d")["Close"].iloc[-1]
+script_folder = Path(__file__).resolve().parent
 
-dxy = yf.Ticker("DX-Y.NYB")
-dxy_price = dxy.history(period="1d")["Close"].iloc[-1]
+possible_paths = [
+    script_folder / "portwatch_hormuz.csv",
+    script_folder.parent / "portwatch_hormuz.csv",
+]
 
-with col_a:
-    st.metric("WTI OIL", f"${wti_price:.2f}")
+csv_path = next(
+    (path for path in possible_paths if path.is_file()),
+    None
+)
 
-with col_b:
-    st.metric("VIX", f"{vix_price:.2f}")
+shipping_df = None
 
-with col_c:
-    st.metric("DOLLAR INDEX", f"{dxy_price:.2f}")
+if csv_path is None:
+    st.error(
+        "Cannot find portwatch_hormuz.csv. "
+        "Place it in the script folder or its parent folder."
+    )
+else:
+    try:
+        shipping_df = pd.read_csv(csv_path)
+        shipping_df.columns = shipping_df.columns.str.strip()
+
+        required_columns = {"date", "n_total", "n_tanker"}
+        missing_columns = required_columns - set(shipping_df.columns)
+
+        if missing_columns:
+            st.error(
+                "Missing CSV columns: "
+                + ", ".join(sorted(missing_columns))
+            )
+            shipping_df = None
+        else:
+            shipping_df["date"] = pd.to_datetime(
+                shipping_df["date"],
+                errors="coerce"
+            )
+
+            for column in ["n_total", "n_tanker"]:
+                shipping_df[column] = pd.to_numeric(
+                    shipping_df[column],
+                    errors="coerce"
+                )
+
+            shipping_df = (
+                shipping_df
+                .dropna(subset=["date", "n_total", "n_tanker"])
+                .sort_values("date")
+                .reset_index(drop=True)
+            )
+
+            if shipping_df.empty:
+                st.error("The CSV contains no valid shipping records.")
+                shipping_df = None
+
+    except Exception as error:
+        st.error(f"Cannot read the shipping CSV: {error}")
+        shipping_df = None
+
+
+# MARKET DATA
+# Cache downloads for 5 minutes to avoid repeated requests.
+
+@st.cache_data(ttl=300)
+def load_market_data(symbol):
+    try:
+        history = yf.Ticker(symbol).history(period="6mo")
+
+        if history.empty or "Close" not in history.columns:
+            return pd.Series(dtype=float)
+
+        return history["Close"].dropna()
+
+    except Exception:
+        return pd.Series(dtype=float)
+
+
+market_symbols = {
+    "BRENT": "BZ=F",
+    "WTI": "CL=F",
+    "VIX": "^VIX",
+    "DOLLAR INDEX": "DX-Y.NYB",
+}
+
+market_data = {
+    label: load_market_data(symbol)
+    for label, symbol in market_symbols.items()
+}
+
+st.subheader("Latest available market prices")
+
+market_columns = st.columns(4)
+
+for column, (label, prices) in zip(
+    market_columns,
+    market_data.items()
+):
+    with column:
+        if prices.empty:
+            st.metric(label, "Unavailable")
+        else:
+            latest_price = float(prices.iloc[-1])
+
+            if label in ["BRENT", "WTI"]:
+                value = f"${latest_price:.2f}"
+            else:
+                value = f"{latest_price:.2f}"
+
+            st.metric(label, value)
+
+            st.caption(
+                f"Observation: {prices.index[-1]:%d/%m/%Y}"
+            )
+
+st.caption(
+    "Brent and WTI refer to futures prices. "
+    "Prices refresh on the next app rerun after the cache expires."
+)
 
 st.divider()
 
 left, right = st.columns(2)
 
-# LEFT COLUMN
+
+# LEFT COLUMN: SHIPPING
 
 with left:
+    st.subheader("Hormuz daily ship transits")
 
-    shipping_df = pd.read_csv("portwatch_hormuz.csv")
+    if shipping_df is not None:
+        latest = shipping_df.iloc[-1]
 
-    shipping_df["date"] = pd.to_datetime(
-        shipping_df["date"]
-    )
+        latest_date = latest["date"]
+        latest_total = int(latest["n_total"])
+        latest_tanker = int(latest["n_tanker"])
 
-    shipping_df = shipping_df.sort_values("date")
-
-    latest_total = int(
-        shipping_df["n_total"].iloc[-1]
-    )
-
-    latest_tanker = int(
-        shipping_df["n_tanker"].iloc[-1]
-    )
-
-    st.metric(
-        "Current Daily Traffic",
-        latest_total
-    )
-
-    st.metric(
-        "Tankers",
-        latest_tanker
-    )
-
-    st.subheader("85 squares = one normal day of traffic")
-
-    active = min(85, latest_total)
-
-    squares = ""
-
-    for i in range(85):
-
-        color = "#1e293b"
-
-        if i < active:
-            color = "#f59e0b"
-
-        squares += f"""
-        <div style="
-            width:18px;
-            height:18px;
-            background:{color};
-            display:inline-block;
-            margin:3px;
-            border-radius:3px;
-        "></div>
-        """
-
-    st.markdown(squares, unsafe_allow_html=True)
-
-    st.markdown("### Recent daily crossings (all ships)")
-
-    recent = shipping_df.tail(30)
-
-    st.line_chart(
-        recent.set_index("date")["n_total"]
-    )
-
-# RIGHT COLUMN
-
-with right:
-
-    st.markdown("### Brent Oil - Last 6 Months")
-
-    show_price = st.toggle(
-        "Show latest Brent price",
-        value=True
-    )
-
-    brent_hist = brent.history(period="6mo")
-
-    st.line_chart(
-        brent_hist["Close"]
-    )
-
-    if show_price:
-        st.success(
-            f"Latest Brent Price: ${brent_price:.2f}"
+        st.caption(
+            f"Latest shipping observation: {latest_date:%d/%m/%Y}. "
+            "This CSV does not update automatically."
         )
 
-    st.markdown("### Key observations")
+        total_column, tanker_column = st.columns(2)
 
-    st.write("""
-    • Ship traffic is well below normal levels.
+        with total_column:
+            st.metric("Daily ship transits", latest_total)
 
-    • Tanker tonnage remains extremely low.
+        with tanker_column:
+            st.metric("Daily tanker transits", latest_tanker)
 
-    • Insurance costs have increased sharply.
+        st.markdown("### Recent daily crossings")
 
-    • Maritime incidents have risen.
+        start_date = latest_date - pd.Timedelta(days=29)
 
-    • The route is considered high risk.
-    """)
+        recent = shipping_df.loc[
+            shipping_df["date"] >= start_date
+        ]
+
+        st.line_chart(
+            recent.set_index("date")[["n_total", "n_tanker"]]
+            .rename(
+                columns={
+                    "n_total": "All ships",
+                    "n_tanker": "Tankers",
+                }
+            )
+        )
+
+        st.caption(
+            "Source: IMF PortWatch. "
+            "Tanker transits measure vessel counts, not tonnage."
+        )
+
+        with st.expander("View shipping data"):
+            st.dataframe(
+                recent,
+                use_container_width=True,
+                hide_index=True
+            )
+    else:
+        st.info(
+            "Shipping charts will appear once a valid CSV is available."
+        )
+
+
+# RIGHT COLUMN: BRENT
+
+with right:
+    st.subheader("Brent futures — last 6 months")
+
+    brent_prices = market_data["BRENT"]
+
+    if brent_prices.empty:
+        st.warning(
+            "Brent prices are temporarily unavailable from Yahoo Finance."
+        )
+    else:
+        st.line_chart(
+            brent_prices.rename("Brent futures (USD/barrel)")
+        )
+
+        show_price = st.toggle(
+            "Show latest Brent price",
+            value=True
+        )
+
+        if show_price:
+            st.success(
+                f"Latest available Brent price: "
+                f"${float(brent_prices.iloc[-1]):.2f}"
+            )
+
+    st.markdown("### Reading this dashboard")
+
+    st.write(
+        "Shipping figures describe the latest date in the CSV. "
+        "Market prices may refer to a different date. "
+        "These charts alone do not establish that changes in "
+        "Hormuz traffic caused changes in oil prices."
+    )
