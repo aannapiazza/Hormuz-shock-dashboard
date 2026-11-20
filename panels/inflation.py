@@ -4,7 +4,7 @@ Author: Eleena Golchin
 
 Story: the Hormuz oil shock is reaching consumer prices. Section 1 shows how
 far inflation has moved since the war began, in Europe, the UK, the USA and
-Asia's three biggest economies. Section 2 lets you pick a future oil price
+three of Asia's biggest oil importers. Section 2 lets you pick a future oil price
 and see what it would mean for inflation and for your own energy bill.
 
 How this file is organised:
@@ -54,7 +54,8 @@ EUROSTAT_CODES = {"Headline": "TOTAL", "Energy": "NRG", "Food": "FOOD", "Service
 EUROSTAT_API = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/"
 
 # UK and Asia: OECD consumer prices
-OECD_COUNTRIES = {"United Kingdom": "GBR", "Japan": "JPN", "China": "CHN", "India": "IND"}
+OECD_COUNTRIES = {"United Kingdom": "GBR", "South Korea": "KOR", "China": "CHN", "India": "IND"}
+# (Japan was dropped: the OECD stopped publishing its CPI in this series after June 2021.)
 OECD_CODES = {"Headline": "_T", "Energy": "CP045_0722", "Food": "CP01", "Services": "SERV"}
 OECD_URL = ("https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_PRICES@DF_PRICES_ALL,1.0/"
             "{countries}.M.N.CPI.PA.{codes}.N.GY?startPeriod={start}&format=csvfilewithlabels")
@@ -67,12 +68,12 @@ BLS_CODES = {"Headline": "CUUR0000SA0", "Energy": "CUUR0000SA0E",
 # Oil and exchange rates: Yahoo Finance via yfinance (Sessions 6 and 11)
 OIL_TICKER = "BZ=F"                                        # Brent crude, US$ per barrel
 FX_TICKERS = {"EUR": ("EURUSD=X", "usd_per"), "GBP": ("GBPUSD=X", "usd_per"),   # US$ per 1 unit
-              "JPY": ("JPY=X", "per_usd"), "CNY": ("CNY=X", "per_usd"),       # units per US$
+              "KRW": ("KRW=X", "per_usd"), "CNY": ("CNY=X", "per_usd"),       # units per US$
               "INR": ("INR=X", "per_usd")}
-CURRENCY = {"United Kingdom": "GBP", "United States": "USD", "Japan": "JPY",
+CURRENCY = {"United Kingdom": "GBP", "United States": "USD", "South Korea": "KRW",
             "China": "CNY", "India": "INR"}               # everyone else pays in euros
-SYMBOL = {"EUR": "€", "GBP": "£", "USD": "$", "JPY": "¥", "CNY": "¥", "INR": "₹"}
-TYPICAL_BILL = {"EUR": 200, "GBP": 170, "USD": 220, "JPY": 30000, "CNY": 600, "INR": 3000}
+SYMBOL = {"EUR": "€", "GBP": "£", "USD": "$", "KRW": "₩", "CNY": "¥", "INR": "₹"}
+TYPICAL_BILL = {"EUR": 200, "GBP": 170, "USD": 220, "KRW": 150000, "CNY": 600, "INR": 3000}
 
 DEFAULT_ENERGY_WEIGHT = 7.0    # % of the basket, when no official weight is available
 MAX_LAG_MONTHS = 6             # longest oil -> bills delay tested
@@ -176,7 +177,7 @@ def download_weights() -> pd.DataFrame:
 
 
 def download_oecd() -> pd.DataFrame:
-    """CPI annual inflation for the UK, Japan, China and India from the OECD."""
+    """CPI annual inflation for the UK, South Korea, China and India from the OECD."""
     url = OECD_URL.format(countries="+".join(OECD_COUNTRIES.values()),
                           codes="+".join(OECD_CODES.values()), start=START.strftime("%Y-%m"))
     response = requests.get(url, headers=HEADERS, timeout=TIMEOUT_SECONDS)
@@ -367,13 +368,22 @@ def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
     return fig
 
 
-def add_war_and_events(fig: go.Figure) -> go.Figure:
-    """Shade the war period and draw a dotted line at each key event."""
+def add_war_and_events(fig: go.Figure, start: pd.Timestamp) -> go.Figure:
+    """Shade the war period and draw a dotted line at each key event.
+
+    Labels are only written when the chart starts in 2025 or later; over a
+    longer period the events sit too close together to read, so only
+    "War begins" is labelled. Labels alternate between two heights so
+    neighbouring events don't overlap.
+    """
     fig.add_vrect(x0=WAR_START, x1=END, fillcolor="#d23f3f", opacity=0.07, line_width=0, layer="below")
-    for date, label in EVENTS:
+    zoomed_in = start >= pd.Timestamp("2025-01-01")
+    for i, (date, label) in enumerate(EVENTS):
         fig.add_vline(x=pd.Timestamp(date), line=dict(color="#98a2b3", width=1, dash="dot"))
-        fig.add_annotation(x=pd.Timestamp(date), y=1, yref="paper", text=label, showarrow=False,
-                           textangle=-90, xanchor="right", yanchor="top", font=dict(size=10, color="#6b7785"))
+        if zoomed_in or i == 0:
+            fig.add_annotation(x=pd.Timestamp(date), y=1 if i % 2 == 0 else 0.9, yref="paper", text=label,
+                               showarrow=False, xanchor="left", yanchor="top", xshift=3,
+                               font=dict(size=10, color="#6b7785"), bgcolor="rgba(255,255,255,0.8)")
     return fig
 
 
@@ -392,7 +402,7 @@ def chart_inflation(inflation, countries, measure, start) -> go.Figure:
             changes[country] = result[1]
     fig.add_hline(y=TARGET, line=dict(color="#6b7785", dash="dash", width=1),
                   annotation_text="2% target", annotation_position="bottom right")
-    add_war_and_events(fig)
+    add_war_and_events(fig, start)
     if changes:   # a title that states the finding (Session 9)
         top = max(changes, key=lambda c: abs(changes[c]))
         title = (f"{measure} inflation in {top} is {'up' if changes[top] >= 0 else 'down'} "
@@ -435,7 +445,7 @@ def section_1_inflation(inflation: pd.DataFrame) -> None:
     st.subheader("1 · Inflation since the war")
     c1, c2, c3 = st.columns([3, 1.5, 1.5])
     countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
-                               default=["Euro area", "Ireland", "United Kingdom", "United States", "Japan"])
+                               default=["Euro area", "Ireland", "United Kingdom", "United States", "China"])
     measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
     start_year = c3.slider("Start year", START.year + 1, END.year, 2021, key="infl_start")
     if not countries:
@@ -454,8 +464,8 @@ def section_1_inflation(inflation: pd.DataFrame) -> None:
                     width="stretch", theme=None, key="infl_chart")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
-    st.caption(f"Annual inflation to {END:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, Japan, "
-               "China, India); US Bureau of Labor Statistics CPI. Non-euro figures are national measures, close to "
+    st.caption(f"Annual inflation to {END:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, South "
+               "Korea, China, India); US Bureau of Labor Statistics CPI. Non-euro figures are national measures, close to "
                "but not exactly comparable with the euro-area HICP. Shaded: since 28 Feb 2026.")
 
 
