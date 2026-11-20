@@ -124,13 +124,13 @@ def price_path_chart(show_events):
         customdata=["—" if c is None else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
     fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
-                  annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom left")
+                  annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom right")
     if show_events:
         _add_events(fig, 34)
     return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
                    xaxis=dict(type="date", range=["2026-01-01", "2026-11-01"], gridcolor=GRID, tickformat="%b", dtick="M1",
                               rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
-                   yaxis=dict(title="$ per MMBtu", gridcolor=GRID, range=[0, 35], fixedrange=True))
+                   yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, 35], fixedrange=True, automargin=True))
 
 
 def _convert(values, unit):
@@ -185,7 +185,7 @@ def transits_chart(as_pct):
         fig.add_trace(go.Bar(x=[None], y=[None], name=name, marker_color=c, showlegend=True))
     return _layout(fig, height=400, margin=dict(l=10, r=20, t=30, b=40), showlegend=True, barmode="overlay",
                    legend=dict(orientation="h", y=-0.15, x=0),
-                   yaxis=dict(title="% of pre-war" if as_pct else "LNG tankers per month", gridcolor=GRID,
+                   yaxis=dict(title=dict(text="% of pre-war" if as_pct else "LNG tankers per month", standoff=12), gridcolor=GRID, automargin=True,
                               range=[0, 115 if as_pct else 98], ticksuffix="%" if as_pct else ""),
                    xaxis=dict(fixedrange=True))
 
@@ -222,8 +222,8 @@ def exposure_chart(view, regions, metric):
     fig.add_hline(y=19.6, line=dict(color=MUTED, dash="dot"), annotation_text="World average 19.6%",
                   annotation_font_color=MUTED, annotation_position="bottom right")
     return _layout(fig, height=440, margin=dict(l=10, r=20, t=10, b=40), legend=dict(orientation="h", y=1.06, x=0),
-                   xaxis=dict(title="Total LNG imports (Bcf/d) – how big a buyer", type="log", gridcolor=GRID),
-                   yaxis=dict(title="% from Qatar – how exposed", gridcolor=GRID, range=[-5, 100], ticksuffix="%"))
+                   xaxis=dict(title=dict(text="Total LNG imports (Bcf/d) – how big a buyer", standoff=10), type="log", gridcolor=GRID, automargin=True),
+                   yaxis=dict(title=dict(text="% from Qatar – how exposed", standoff=12), gridcolor=GRID, range=[-5, 100], ticksuffix="%", automargin=True))
 
 
 def storage_chart(show_2025, show_5yr, show_targets):
@@ -251,7 +251,7 @@ def storage_chart(show_2025, show_5yr, show_targets):
                        ax=50, ay=-40, font=dict(size=11, color=INK))
     return _layout(fig, height=420, margin=dict(l=10, r=20, t=10, b=40), hovermode="x unified",
                    xaxis=dict(type="date", range=["2026-03-20", "2026-11-25"], tickformat="%b", gridcolor=GRID),
-                   yaxis=dict(title="% full", range=[0, 100], ticksuffix="%", gridcolor=GRID),
+                   yaxis=dict(title=dict(text="% full", standoff=12), range=[0, 100], ticksuffix="%", gridcolor=GRID, automargin=True),
                    legend=dict(orientation="h", y=1.08, x=0))
 
 
