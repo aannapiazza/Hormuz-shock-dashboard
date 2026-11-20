@@ -14,6 +14,13 @@ Each file has a source and url column, so every number can be traced.
 Daily gas prices are downloaded live from Yahoo Finance (yfinance); if that
 fails, the panel uses the saved copy in data/gas_prices_daily.csv.
 Interactive charts use Plotly.
+
+How this file is organised (same order as the group's panel template):
+    1. SETTINGS  - data files, tickers, colours and fixed numbers you might change
+    2. DATA      - read the CSV files and download live prices (saved copy as backup)
+    3. ANALYSIS  - the calculations, as small functions with docstrings
+    4. CHARTS    - one function per Plotly figure
+    5. LAYOUT    - the header, KPI tiles and one function per tab (Streamlit)
 """
 from pathlib import Path
 
@@ -23,9 +30,9 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-# ======================================================================
-# SETTINGS
-# ======================================================================
+# ===========================================================================
+# 1. SETTINGS - change data sources and fixed numbers here, nowhere else
+# ===========================================================================
 
 # ---------- where the data lives ----------
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -71,9 +78,10 @@ ROW_NOTES = {
 }
 
 
-# ======================================================================
-# DATA
-# ======================================================================
+# ===========================================================================
+# 2. DATA - read the CSV files; download live prices (saved copy if that fails)
+# ===========================================================================
+
 @st.cache_data
 def load_data() -> dict:
     """Read every gas CSV from data/ into a pandas DataFrame.
@@ -143,6 +151,10 @@ def load_daily_prices() -> tuple:
     return with_backup(download_daily_prices, DAILY_BACKUP)
 
 
+# ===========================================================================
+# 3. ANALYSIS - the calculations behind the numbers on screen
+# ===========================================================================
+
 def ttf_in_usd(daily: pd.DataFrame) -> pd.Series:
     """Convert TTF from euros per MWh to dollars per MMBtu, day by day.
 
@@ -152,9 +164,6 @@ def ttf_in_usd(daily: pd.DataFrame) -> pd.Series:
     return daily["ttf_eur_mwh"] * daily["eurusd"] * MWH_PER_MMBTU
 
 
-# ======================================================================
-# ANALYSIS
-# ======================================================================
 def change_since_war(dates: pd.Series, values: pd.Series) -> dict:
     """Compare the last value before the war with the latest value.
 
@@ -255,9 +264,10 @@ def storage_position(storage: pd.DataFrame) -> dict:
             "drawdown_per_week": (peak["pct_full"] - latest["pct_full"]) / weeks}
 
 
-# ======================================================================
-# CHART HELPERS
-# ======================================================================
+# ===========================================================================
+# 4. CHARTS - one function per Plotly figure (dark theme)
+# ===========================================================================
+
 def _layout(fig, **kw):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -373,12 +383,15 @@ def dumbbell_chart(bench, unit, highlight):
                              marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=DARK, width=2))))
     fig.add_shape(type="rect", xref="paper", yref="y", x0=0, x1=1, y0=len(rows) - 1.5, y1=len(rows) - 0.5,
                   fillcolor="rgba(255,255,255,.03)", line_width=0)
-    if unit != "% vs pre-war" and abs(ttf[0] - jkm[0]) < 1:   # dots overlap when prices are almost equal
-        fig.add_annotation(x=max(ttf[0], jkm[0]), y=rows[0], text=f"TTF & JKM both ≈{ttf[0]:.0f}", showarrow=False,
-                           xanchor="left", xshift=16, font=dict(size=11, color=MUTED))
+    for i, row in enumerate(rows):          # dots overlap when the two prices are almost equal: say so
+        close = abs(ttf[i] - jkm[i]) <= 0.05 * max(abs(ttf[i]), abs(jkm[i]), 1)   # within 5% of each other
+        if close and not (unit == "% vs pre-war" and i == 0):
+            both = f"{ttf[i]:+.0f}%" if unit == "% vs pre-war" else f"≈{ttf[i]:.0f}"
+            fig.add_annotation(x=max(ttf[i], jkm[i]), y=row, text=f"TTF & JKM both {both}", showarrow=False,
+                               xanchor="left", xshift=16, yshift=12, font=dict(size=11, color=MUTED))
     return _layout(fig, height=380, margin=dict(l=10, r=20, t=10, b=60), clickmode="event+select",
                    xaxis=dict(title=unit, gridcolor=GRID, rangemode="tozero", ticksuffix="%" if unit == "% vs pre-war" else ""),
-                   yaxis=dict(autorange="reversed", fixedrange=True, automargin=True), legend=dict(orientation="h", y=-0.22, x=0))
+                   yaxis=dict(autorange="reversed", fixedrange=True, automargin=True, gridcolor=GRID), legend=dict(orientation="h", y=-0.22, x=0))
 
 
 def transits_chart(tankers, as_pct):
@@ -470,7 +483,7 @@ def storage_chart(storage, show_2025, show_5yr, show_targets):
     fig.add_annotation(x=peak["date"], y=peak["pct_full"], text=f"Peak {peak['pct_full']:.0f}% ({peak['date']:%d %b})",
                        showarrow=True, arrowcolor=MUTED, ax=-60, ay=-35, font=dict(size=11, color=INK))
     fig.add_annotation(x=first["date"], y=first["pct_full"], text=f"Summer starts at {first['pct_full']:.0f}%",
-                       showarrow=True, arrowcolor=MUTED, ax=50, ay=-40, font=dict(size=11, color=INK))
+                       showarrow=True, arrowcolor=MUTED, ax=70, ay=45, font=dict(size=11, color=INK))
     return _layout(fig, height=420, margin=dict(l=10, r=20, t=10, b=40), hovermode="x unified",
                    xaxis=dict(type="date", range=["2026-03-20", "2026-11-25"], tickformat="%b", gridcolor=GRID),
                    yaxis=dict(title=dict(text="% full", standoff=12), range=[0, 100], ticksuffix="%", gridcolor=GRID, automargin=True),
@@ -488,9 +501,160 @@ def sunburst_chart():
     return _layout(fig, height=380, margin=dict(l=4, r=4, t=4, b=4), uniformtext=dict(minsize=10, mode="show"))
 
 
-# ======================================================================
-# PAGE
-# ======================================================================
+# ===========================================================================
+# 5. LAYOUT - header, KPI tiles and one function per tab
+# ===========================================================================
+
+def section_prices(data: dict, daily, daily_status: str) -> None:
+    """Tab 1: monthly price path, live daily prices and the 2026 vs 2022 comparison."""
+    st.subheader("European gas prices through the war")
+    c1, c2 = st.columns(2)
+    show_ev = c1.toggle("Show key events", value=True, key="gas_ev")
+    show_daily = c2.toggle("Show daily prices (live)", value=True, key="gas_daily", disabled=daily is None)
+    st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev, daily if show_daily else None),
+                    width="stretch", theme=None, config=CFG)
+    if daily is not None:
+        last = daily.iloc[-1]
+        st.caption(f"Latest daily close ({last['date']:%d %b %Y}): TTF €{last['ttf_eur_mwh']:.2f}/MWh "
+                   f"≈ ${ttf_in_usd(daily).iloc[-1]:.2f}/MMBtu · US Henry Hub ${last['hh_usd_mmbtu']:.2f}/MMBtu "
+                   f"({daily_status}).")
+
+        # ---- What the daily data says (calculated in the ANALYSIS section) ----
+        war = change_since_war(daily["date"], ttf_in_usd(daily))
+        gap = europe_us_gap(daily).iloc[-1]
+        vol = rolling_volatility(daily)
+        prewar_vol = vol[(daily["date"] >= "2026-01-01") & (daily["date"] < WAR_START)].mean()
+        a1, a2, a3 = st.columns(3)
+        a1.metric("European gas since the war began", f"{war['pct']:+.0f}%",
+                  help=f"Daily TTF: ${war['before']:.2f}/MMBtu on the last day before 28 Feb, "
+                       f"${war['latest']:.2f} on {war['latest_date']:%d %b}.")
+        a2.metric("Europe pays vs the US", f"{gap['ratio']:.1f}×",
+                  help=f"Latest gap: ${gap['gap_usd']:.2f}/MMBtu (TTF ${gap['ttf_usd']:.2f} minus Henry Hub ${gap['hh_usd']:.2f}).")
+        a3.metric(f"Price volatility ({VOL_WINDOW}-day)", f"{vol.iloc[-1]:.0f}%",
+                  delta=f"{vol.iloc[-1] - prewar_vol:+.0f} pts vs Jan–Feb", delta_color="inverse",
+                  help="Annualised standard deviation of daily TTF returns. Higher = a jumpier, riskier market.")
+        check = monthly_from_daily(daily).merge(
+            data["prices"].assign(month_start=pd.to_datetime(data["prices"]["month"])),
+            left_on="date", right_on="month_start")
+        if len(check):
+            diff = (check["ttf_usd"] - check["ttf_usd_per_mmbtu"]).abs().mean()
+            st.caption(f"Cross-check: averaging the Yahoo Finance daily prices by month gives values within "
+                       f"${diff:.2f}/MMBtu of the World Bank's monthly figures, on average, over {len(check)} months.")
+    st.caption("Monthly average of the European benchmark (Dutch TTF), from the World Bank (data/gas_prices_monthly.csv). "
+               "Hover a month for the price and the change from the month before; drag the slider under the chart to zoom in. "
+               "The thin violet line is daily TTF from Yahoo Finance (TTF=F), converted to $/MMBtu with each day's EUR/USD rate.")
+
+    st.subheader("How big is this gas shock? 2026 vs 2022")
+    bench = data["benchmarks"]
+    rows = list(bench["period"])
+    unit = st.radio("Units", ["$/MMBtu", "€/MWh", "% vs pre-war"], horizontal=True, key="gas_unit")
+    row = _selected_row(rows)
+    st.plotly_chart(dumbbell_chart(bench, unit, row), width="stretch", theme=None,
+                    on_select="rerun", selection_mode="points", key="gas_dumb", config=CFG)
+    if row is None:
+        st.caption("👆 Click a dot to compare Europe and Asia at that moment.")
+    else:
+        r = bench.iloc[row]
+        ttf, jkm = r["ttf_usd_per_mmbtu"], r["jkm_usd_per_mmbtu"]
+        gap = jkm - ttf
+        who = "Asia paid more" if gap > 0.05 else "Europe paid more" if gap < -0.05 else "About level"
+        st.info(f"**{r['period']}**: TTF ${ttf}/MMBtu · JKM ${jkm}/MMBtu · **{who}**"
+                f"{f' (${abs(gap):.2f})' if abs(gap) > 0.05 else ''}\n\n{ROW_NOTES.get(r['period'], r['note'])}")
+
+
+def section_europe_us(data: dict, daily, daily_status: str) -> None:
+    """Tab 2: daily Europe vs US prices with a date-range slider."""
+    st.subheader("Two gas markets: Europe vs the US")
+    if daily is None:
+        st.info("Live daily prices are unavailable right now, so this chart can't be drawn. "
+                "It needs data/gas_prices_daily.csv or an internet connection.")
+    else:
+        gap_all = europe_us_gap(daily)
+        vol_all = rolling_volatility(daily)
+        first, last_day = gap_all["date"].min().date(), gap_all["date"].max().date()
+        start_default = max(first, pd.Timestamp("2026-01-01").date())
+        c1, c2 = st.columns([2, 1])
+        start, end = c1.slider("Period", min_value=first, max_value=last_day,
+                               value=(start_default, last_day), format="DD MMM YYYY", key="gas_range")
+        show = c2.radio("Show", ["Prices and gap ($/MMBtu)", "Ratio (Europe ÷ US)"], key="gas_show")
+        show_vol = st.toggle("Add volatility panel", value=False, key="gas_vol")
+
+        in_range = (gap_all["date"].dt.date >= start) & (gap_all["date"].dt.date <= end)
+        gap, vol = gap_all[in_range], vol_all[in_range]
+        if len(gap) < 2:
+            st.warning("Pick a longer period.")
+        else:
+            st.plotly_chart(europe_us_chart(gap, vol, show, show_vol), width="stretch", theme=None, config=CFG)
+            widest = gap.loc[gap["gap_usd"].idxmax()]
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Average gap in this period", f"${gap['gap_usd'].mean():.2f}/MMBtu")
+            m2.metric("Europe paid on average", f"{gap['ratio'].mean():.1f}× the US price")
+            m3.metric("Widest gap", f"${widest['gap_usd']:.2f}", help=f"On {widest['date']:%d %b %Y}.")
+            st.caption("Daily closing prices from Yahoo Finance (TTF=F, NG=F, EURUSD=X), with TTF converted to $/MMBtu "
+                       "using each day's exchange rate. The shaded area is the gap Europe pays above the US. "
+                       f"Volatility is the annualised {VOL_WINDOW}-day standard deviation of daily TTF returns. "
+                       "Drag the ends of the Period slider to focus on any part of the war; the figures below the chart "
+                       "update for the period you pick.")
+
+
+def section_supply(data: dict, daily, daily_status: str) -> None:
+    """Tab 3: LNG tankers through Hormuz and where Hormuz LNG goes."""
+    left, right = st.columns([3, 2])
+    with left:
+        st.subheader("LNG tankers through Hormuz each month")
+        as_pct = st.toggle("Show as % of pre-war traffic", key="gas_pct")
+        st.plotly_chart(transits_chart(data["tankers"], as_pct), width="stretch", theme=None, config=CFG)
+        rec = tanker_recovery(data["tankers"])
+        st.markdown(f"**{rec['month']}: {rec['count']} tankers, {rec['pct']:.0f}% of the pre-war {rec['prewar']}.**")
+        st.caption("Hover a bar for what happened that month (data/gas_tankers.csv). Two trackers are used: Kpler counts "
+                   "every LNG-carrier transit and S&P Global counts laden tankers leaving, so the bars aren't strictly "
+                   "like-for-like. Some ships cross with transponders off, so true numbers may be a little higher.")
+    with right:
+        st.subheader("Where the world's LNG comes from, and where Hormuz LNG goes")
+        st.caption("Click a segment to zoom in, and click the centre to zoom back out. EIA estimates for 2024.")
+        st.plotly_chart(sunburst_chart(), width="stretch", theme=None, config=CFG)
+
+
+def section_exposure(data: dict, daily, daily_status: str) -> None:
+    """Tab 4: which countries depend most on Qatari LNG."""
+    st.subheader("Which countries depend most on Qatari LNG?")
+    c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
+    view = c1.radio("View", ["Ranking", "Bubble map"], horizontal=True, key="gas_view")
+    regions = c2.multiselect("Regions", ["Asia", "Europe"], default=["Asia", "Europe"], key="gas_reg")
+    metric = c3.radio("Rank by", ["Share of LNG imports from Qatar", "Volume from Qatar (Bcf/d)"],
+                      horizontal=True, key="gas_metric", disabled=(view != "Ranking"))
+    if regions:
+        st.plotly_chart(exposure_chart(data["exposure"], view, regions, metric), width="stretch", theme=None, config=CFG)
+    else:
+        st.warning("Pick at least one region.")
+    risk = gas_at_risk(data["exposure"])
+    st.markdown(f"**Asia takes {risk['asia_share']:.0f}% of the Qatari LNG in this table. "
+                f"{risk['top_volume']} has the most at risk ({risk['top_volume_bcfd']:.1f} Bcf/d); "
+                f"{risk['most_dependent']} is the most dependent ({risk['most_dependent_pct']:.0f}% of its LNG).**")
+    st.caption("2024 annual averages (Energy Institute, via EPRINC; data/gas_exposure.csv). In the bubble map, further right "
+               "means a bigger LNG buyer, higher up means more dependent on Qatar, and a bigger bubble means more gas at risk. "
+               "Pakistan is the most exposed. China has the most gas at risk. Japan buys a lot of LNG but little of it from Qatar.")
+
+
+def section_storage(data: dict, daily, daily_status: str) -> None:
+    """Tab 5: EU gas storage against 2025, the 5-year average and EU targets."""
+    st.subheader("EU gas storage: refilling fell short")
+    c1, c2, c3 = st.columns(3)
+    s25 = c1.checkbox("Compare with 2025", value=True, key="gas_s25")
+    s5 = c2.checkbox("Show 5-year average", value=True, key="gas_s5")
+    tg = c3.checkbox("Show EU targets", value=True, key="gas_tg")
+    st.plotly_chart(storage_chart(data["storage"], s25, s5, tg), width="stretch", theme=None, config=CFG)
+    pos = storage_position(data["storage"])
+    m1, m2, m3 = st.columns(3)
+    m1.metric(f"Storage on {pos['latest_date']:%d %b}", f"{pos['latest']:.1f}%")
+    m2.metric("Gap to 5-year average", f"{pos['gap_to_avg']:+.1f} pts")
+    m3.metric(f"Drawdown since {pos['peak_date']:%d %b} peak", f"{pos['drawdown_per_week']:.1f} pts/week",
+              help=f"From {pos['peak']:.1f}% to {pos['latest']:.1f}%.")
+    st.caption("Hover anywhere to compare years on the same date. GIE AGSI data as reported by Argus, S&P Global, GMK Center "
+               "and TASS (data/gas_storage.csv; the 'how' column marks which values are derived). Europe started summer at "
+               "only 28%, never reached the 80% flexible target, and by mid-November was drawing down faster than usual.")
+
+
 def render() -> None:
     """Draw the whole panel. app.py calls this inside the panel's tab."""
     st.header("🔥 Gas & LNG: Qatar's exports cut off")
@@ -525,153 +689,11 @@ def render() -> None:
               delta=f"{pos['gap_to_avg']:+.0f} pts vs 5-yr avg", delta_color="normal",
               help="From data/gas_storage.csv (GIE AGSI data). Lowest for the date since records began in 2011.")
 
-    tab1, tab5, tab2, tab3, tab4 = st.tabs(["📈 Prices", "⚖️ Europe vs US", "🚢 Supply & shipping",
-                                            "🌍 Who's exposed", "🏭 Europe's winter"])
-
-    # ================= TAB 1: PRICES =================
-    with tab1:
-        st.subheader("European gas prices through the war")
-        c1, c2 = st.columns(2)
-        show_ev = c1.toggle("Show key events", value=True, key="gas_ev")
-        show_daily = c2.toggle("Show daily prices (live)", value=True, key="gas_daily", disabled=daily is None)
-        st.plotly_chart(price_path_chart(data["prices"], data["events"], show_ev, daily if show_daily else None),
-                        width="stretch", theme=None, config=CFG)
-        if daily is not None:
-            last = daily.iloc[-1]
-            st.caption(f"Latest daily close ({last['date']:%d %b %Y}): TTF €{last['ttf_eur_mwh']:.2f}/MWh "
-                       f"≈ ${ttf_in_usd(daily).iloc[-1]:.2f}/MMBtu · US Henry Hub ${last['hh_usd_mmbtu']:.2f}/MMBtu "
-                       f"({daily_status}).")
-
-            # ---- What the daily data says (calculated in the ANALYSIS section) ----
-            war = change_since_war(daily["date"], ttf_in_usd(daily))
-            gap = europe_us_gap(daily).iloc[-1]
-            vol = rolling_volatility(daily)
-            prewar_vol = vol[(daily["date"] >= "2026-01-01") & (daily["date"] < WAR_START)].mean()
-            a1, a2, a3 = st.columns(3)
-            a1.metric("European gas since the war began", f"{war['pct']:+.0f}%",
-                      help=f"Daily TTF: ${war['before']:.2f}/MMBtu on the last day before 28 Feb, "
-                           f"${war['latest']:.2f} on {war['latest_date']:%d %b}.")
-            a2.metric("Europe pays vs the US", f"{gap['ratio']:.1f}×",
-                      help=f"Latest gap: ${gap['gap_usd']:.2f}/MMBtu (TTF ${gap['ttf_usd']:.2f} minus Henry Hub ${gap['hh_usd']:.2f}).")
-            a3.metric(f"Price volatility ({VOL_WINDOW}-day)", f"{vol.iloc[-1]:.0f}%",
-                      delta=f"{vol.iloc[-1] - prewar_vol:+.0f} pts vs Jan–Feb", delta_color="inverse",
-                      help="Annualised standard deviation of daily TTF returns. Higher = a jumpier, riskier market.")
-            check = monthly_from_daily(daily).merge(
-                data["prices"].assign(month_start=pd.to_datetime(data["prices"]["month"])),
-                left_on="date", right_on="month_start")
-            if len(check):
-                diff = (check["ttf_usd"] - check["ttf_usd_per_mmbtu"]).abs().mean()
-                st.caption(f"Cross-check: averaging the Yahoo Finance daily prices by month gives values within "
-                           f"${diff:.2f}/MMBtu of the World Bank's monthly figures, on average, over {len(check)} months.")
-        st.caption("Monthly average of the European benchmark (Dutch TTF), from the World Bank (data/gas_prices_monthly.csv). "
-                   "Hover a month for the price and the change from the month before; drag the slider under the chart to zoom in. "
-                   "The thin violet line is daily TTF from Yahoo Finance (TTF=F), converted to $/MMBtu with each day's EUR/USD rate.")
-
-        st.subheader("How big is this gas shock? 2026 vs 2022")
-        bench = data["benchmarks"]
-        rows = list(bench["period"])
-        unit = st.radio("Units", ["$/MMBtu", "€/MWh", "% vs pre-war"], horizontal=True, key="gas_unit")
-        row = _selected_row(rows)
-        st.plotly_chart(dumbbell_chart(bench, unit, row), width="stretch", theme=None,
-                        on_select="rerun", selection_mode="points", key="gas_dumb", config=CFG)
-        if row is None:
-            st.caption("👆 Click a dot to compare Europe and Asia at that moment.")
-        else:
-            r = bench.iloc[row]
-            ttf, jkm = r["ttf_usd_per_mmbtu"], r["jkm_usd_per_mmbtu"]
-            gap = jkm - ttf
-            who = "Asia paid more" if gap > 0.05 else "Europe paid more" if gap < -0.05 else "About level"
-            st.info(f"**{r['period']}**: TTF ${ttf}/MMBtu · JKM ${jkm}/MMBtu · **{who}**"
-                    f"{f' (${abs(gap):.2f})' if abs(gap) > 0.05 else ''}\n\n{ROW_NOTES.get(r['period'], r['note'])}")
-
-    # ================= TAB 5: EUROPE VS US =================
-    with tab5:
-        st.subheader("Two gas markets: Europe vs the US")
-        if daily is None:
-            st.info("Live daily prices are unavailable right now, so this chart can't be drawn. "
-                    "It needs data/gas_prices_daily.csv or an internet connection.")
-        else:
-            gap_all = europe_us_gap(daily)
-            vol_all = rolling_volatility(daily)
-            first, last_day = gap_all["date"].min().date(), gap_all["date"].max().date()
-            start_default = max(first, pd.Timestamp("2026-01-01").date())
-            c1, c2 = st.columns([2, 1])
-            start, end = c1.slider("Period", min_value=first, max_value=last_day,
-                                   value=(start_default, last_day), format="DD MMM YYYY", key="gas_range")
-            show = c2.radio("Show", ["Prices and gap ($/MMBtu)", "Ratio (Europe ÷ US)"], key="gas_show")
-            show_vol = st.toggle("Add volatility panel", value=False, key="gas_vol")
-
-            in_range = (gap_all["date"].dt.date >= start) & (gap_all["date"].dt.date <= end)
-            gap, vol = gap_all[in_range], vol_all[in_range]
-            if len(gap) < 2:
-                st.warning("Pick a longer period.")
-            else:
-                st.plotly_chart(europe_us_chart(gap, vol, show, show_vol), width="stretch", theme=None, config=CFG)
-                widest = gap.loc[gap["gap_usd"].idxmax()]
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Average gap in this period", f"${gap['gap_usd'].mean():.2f}/MMBtu")
-                m2.metric("Europe paid on average", f"{gap['ratio'].mean():.1f}× the US price")
-                m3.metric("Widest gap", f"${widest['gap_usd']:.2f}", help=f"On {widest['date']:%d %b %Y}.")
-                st.caption("Daily closing prices from Yahoo Finance (TTF=F, NG=F, EURUSD=X), with TTF converted to $/MMBtu "
-                           "using each day's exchange rate. The shaded area is the gap Europe pays above the US. "
-                           f"Volatility is the annualised {VOL_WINDOW}-day standard deviation of daily TTF returns. "
-                           "Drag the ends of the Period slider to focus on any part of the war; the figures below the chart "
-                           "update for the period you pick.")
-
-    # ================= TAB 2: SUPPLY & SHIPPING =================
-    with tab2:
-        left, right = st.columns([3, 2])
-        with left:
-            st.subheader("LNG tankers through Hormuz each month")
-            as_pct = st.toggle("Show as % of pre-war traffic", key="gas_pct")
-            st.plotly_chart(transits_chart(data["tankers"], as_pct), width="stretch", theme=None, config=CFG)
-            rec = tanker_recovery(data["tankers"])
-            st.markdown(f"**{rec['month']}: {rec['count']} tankers, {rec['pct']:.0f}% of the pre-war {rec['prewar']}.**")
-            st.caption("Hover a bar for what happened that month (data/gas_tankers.csv). Two trackers are used: Kpler counts "
-                       "every LNG-carrier transit and S&P Global counts laden tankers leaving, so the bars aren't strictly "
-                       "like-for-like. Some ships cross with transponders off, so true numbers may be a little higher.")
-        with right:
-            st.subheader("Where the world's LNG comes from, and where Hormuz LNG goes")
-            st.caption("Click a segment to zoom in, and click the centre to zoom back out. EIA estimates for 2024.")
-            st.plotly_chart(sunburst_chart(), width="stretch", theme=None, config=CFG)
-
-    # ================= TAB 3: WHO'S EXPOSED =================
-    with tab3:
-        st.subheader("Which countries depend most on Qatari LNG?")
-        c1, c2, c3 = st.columns([1.2, 1.2, 1.6])
-        view = c1.radio("View", ["Ranking", "Bubble map"], horizontal=True, key="gas_view")
-        regions = c2.multiselect("Regions", ["Asia", "Europe"], default=["Asia", "Europe"], key="gas_reg")
-        metric = c3.radio("Rank by", ["Share of LNG imports from Qatar", "Volume from Qatar (Bcf/d)"],
-                          horizontal=True, key="gas_metric", disabled=(view != "Ranking"))
-        if regions:
-            st.plotly_chart(exposure_chart(data["exposure"], view, regions, metric), width="stretch", theme=None, config=CFG)
-        else:
-            st.warning("Pick at least one region.")
-        risk = gas_at_risk(data["exposure"])
-        st.markdown(f"**Asia takes {risk['asia_share']:.0f}% of the Qatari LNG in this table. "
-                    f"{risk['top_volume']} has the most at risk ({risk['top_volume_bcfd']:.1f} Bcf/d); "
-                    f"{risk['most_dependent']} is the most dependent ({risk['most_dependent_pct']:.0f}% of its LNG).**")
-        st.caption("2024 annual averages (Energy Institute, via EPRINC; data/gas_exposure.csv). In the bubble map, further right "
-                   "means a bigger LNG buyer, higher up means more dependent on Qatar, and a bigger bubble means more gas at risk. "
-                   "Pakistan is the most exposed. China has the most gas at risk. Japan buys a lot of LNG but little of it from Qatar.")
-
-    # ================= TAB 4: EUROPE'S WINTER =================
-    with tab4:
-        st.subheader("EU gas storage: refilling fell short")
-        c1, c2, c3 = st.columns(3)
-        s25 = c1.checkbox("Compare with 2025", value=True, key="gas_s25")
-        s5 = c2.checkbox("Show 5-year average", value=True, key="gas_s5")
-        tg = c3.checkbox("Show EU targets", value=True, key="gas_tg")
-        st.plotly_chart(storage_chart(data["storage"], s25, s5, tg), width="stretch", theme=None, config=CFG)
-        pos = storage_position(data["storage"])
-        m1, m2, m3 = st.columns(3)
-        m1.metric(f"Storage on {pos['latest_date']:%d %b}", f"{pos['latest']:.1f}%")
-        m2.metric("Gap to 5-year average", f"{pos['gap_to_avg']:+.1f} pts")
-        m3.metric(f"Drawdown since {pos['peak_date']:%d %b} peak", f"{pos['drawdown_per_week']:.1f} pts/week",
-                  help=f"From {pos['peak']:.1f}% to {pos['latest']:.1f}%.")
-        st.caption("Hover anywhere to compare years on the same date. GIE AGSI data as reported by Argus, S&P Global, GMK Center "
-                   "and TASS (data/gas_storage.csv; the 'how' column marks which values are derived). Europe started summer at "
-                   "only 28%, never reached the 80% flexible target, and by mid-November was drawing down faster than usual.")
+    tabs = st.tabs(["📈 Prices", "⚖️ Europe vs US", "🚢 Supply & shipping", "🌍 Who's exposed", "🏭 Europe's winter"])
+    sections = [section_prices, section_europe_us, section_supply, section_exposure, section_storage]
+    for tab, section in zip(tabs, sections):
+        with tab:
+            section(data, daily, daily_status)
 
     # ---- Takeaway + sources ----
     st.success("**Takeaway:** gas prices are at their highest since 2022, and LNG traffic through Hormuz is only a third "
