@@ -298,6 +298,56 @@ def change_since_war(s: pd.Series) -> tuple[float, float] | None:
     return s.iloc[-1], s.iloc[-1] - before.iloc[-1]
 
 
+def currency_of(country: str) -> str:
+    """The currency a country's households pay in."""
+    return CURRENCY.get(country, "EUR")
+
+
+def oil_change_yoy(oil: pd.DataFrame, currency: str) -> pd.Series:
+    """Percentage change in the local-currency price of Brent vs 12 months earlier."""
+    return (oil[currency].pct_change(12) * 100).dropna()
+
+
+def fit_passthrough(energy: pd.Series, oil_change: pd.Series) -> dict:
+    """How strongly, and how fast, oil prices feed into energy inflation.
+
+    Step 1: for each delay of 0 to MAX_LAG_MONTHS months, correlate energy
+            inflation with the oil-price change that many months earlier.
+    Step 2: keep the delay with the highest correlation.
+    Step 3: fit a straight line (least squares, np.polyfit):
+                energy inflation = intercept + slope x oil change
+            slope = extra points of energy inflation per 1% rise in oil.
+    """
+    correlations = {}
+    for lag in range(MAX_LAG_MONTHS + 1):
+        pair = pd.concat([energy, oil_change.shift(lag)], axis=1, sort=True).dropna()
+        correlations[lag] = pair.iloc[:, 0].corr(pair.iloc[:, 1])
+    best_lag = max(correlations, key=correlations.get)
+    pair = pd.concat([energy.rename("energy"), oil_change.shift(best_lag).rename("oil")],
+                     axis=1, sort=True).dropna()
+    slope, intercept = np.polyfit(pair["oil"], pair["energy"], 1)
+    return {"lag": best_lag, "slope": slope, "intercept": intercept,
+            "r2": correlations[best_lag] ** 2, "points": pair}
+
+
+def household_scenario(model: dict, brent_now: float, brent_future: float, energy_now: float,
+                       headline_now: float, energy_weight: float, monthly_bill: float) -> dict:
+    """Project energy inflation, headline inflation and a household's energy bill.
+
+    Assumes exchange rates stay the same and that food and services
+    inflation stay at today's rates (no second-round effects).
+    """
+    oil_change = (brent_future / brent_now - 1) * 100
+    energy_future = model["intercept"] + model["slope"] * oil_change
+    headline_future = headline_now + energy_weight / 100 * (energy_future - energy_now)
+    extra_per_month = monthly_bill * energy_future / 100
+    return {"oil_change": oil_change, "energy": energy_future,
+            "headline": headline_future, "extra_per_month": extra_per_month}
+
+
+def months_word(n: int) -> str:
+    """'1 month' or '2 months'."""
+    return f"{n} month{'s' if n != 1 else ''}"
 # =============================================================================
 # 4. CHARTS - Plotly
 # =============================================================================
