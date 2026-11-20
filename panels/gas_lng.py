@@ -55,9 +55,14 @@ DAILY_START = "2025-10-01"                        # a few months before the war,
 DAILY_BACKUP = DATA_DIR / "gas_prices_daily.csv"  # saved copy, used if the download fails
 MWH_PER_MMBTU = 0.293071                          # energy conversion: 1 MMBtu = 0.293071 MWh
 
-# ---------- colours (same as the design) ----------
-RED, AMBER, TEAL, BLUE, VIOLET, MUTED = "#ff5a4e", "#ffb020", "#2dd4bf", "#5aa9ff", "#a78bfa", "#8fa0bb"
-GRID, INK, DARK = "#22314a", "#e8edf5", "#0b1320"
+# ---------- colours: the group's light theme (same palette as panels/inflation.py) ----------
+RED, AMBER, TEAL, BLUE, VIOLET = "#d23f3f", "#d48806", "#0f9b8e", "#2e6fd8", "#7c5cd6"
+MUTED = "#667085"          # secondary text, reference lines
+INK = "#17202e"            # main text
+GRID = "#e5e7eb"           # gridlines
+LINE = "#c4cad4"           # connectors and event lines
+BG = "#ffffff"             # marker outlines and hover boxes
+PANEL = "#f4f6f9"          # light grey fills (slider strip, shaded rows)
 CFG = {"displayModeBar": False}
 
 # ---------- fixed numbers used in the story ----------
@@ -272,14 +277,14 @@ def _layout(fig, **kw):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="IBM Plex Sans, sans-serif", color=INK, size=13),
-        hoverlabel=dict(bgcolor=DARK, bordercolor="#26354f"), **kw)
+        hoverlabel=dict(bgcolor=BG, font=dict(color=INK), bordercolor=GRID), **kw)
     return fig
 
 
 def _add_events(fig, events, y_top):
     for _, ev in events.iterrows():
         d = ev["date"].strftime("%Y-%m-%d")
-        fig.add_vline(x=d, line=dict(color="#33445f", width=1, dash="dot"))
+        fig.add_vline(x=d, line=dict(color=LINE, width=1, dash="dot"))
         fig.add_annotation(x=d, y=y_top, text=ev["event"], showarrow=False, textangle=-90,
                            xanchor="right", yanchor="top", font=dict(size=10, color=MUTED))
 
@@ -289,28 +294,28 @@ def price_path_chart(prices, events, show_events, daily=None):
     chg = y.pct_change() * 100          # % change from the month before
     fig = go.Figure(go.Scatter(
         x=prices["date"], y=y, mode="lines+markers", line=dict(color=BLUE, width=3, shape="spline", smoothing=0.6),
-        marker=dict(size=10, color=[TEAL if c < 0 else BLUE for c in chg.fillna(0)], line=dict(color=DARK, width=1.5)),
-        fill="tozeroy", fillcolor="rgba(90,169,255,.10)",
+        marker=dict(size=10, color=[TEAL if c < 0 else BLUE for c in chg.fillna(0)], line=dict(color=BG, width=1.5)),
+        fill="tozeroy", fillcolor="rgba(46,111,216,.10)",
         customdata=["—" if pd.isna(c) else (f"▲ +{c:.1f}%" if c >= 0 else f"▼ {c:.1f}%") + " vs previous month" for c in chg],
         hovertemplate="<b>%{x|%B %Y}: $%{y:.2f}/MMBtu</b><br>%{customdata}<extra></extra>"))
     y_max, x_end = 35, prices["date"].max() + pd.Timedelta(days=20)
     if daily is not None:       # thin line of live daily prices behind the monthly averages
         daily_usd = ttf_in_usd(daily)
         fig.add_trace(go.Scatter(x=daily["date"], y=daily_usd, mode="lines", name="Daily TTF (live)",
-                                 line=dict(color="rgba(167,139,250,.75)", width=1.2),
+                                 line=dict(color="rgba(124,92,214,.65)", width=1.2),
                                  hovertemplate="%{x|%d %b %Y}: $%{y:.2f}/MMBtu (daily)<extra></extra>"))
         y_max = max(y_max, float(daily_usd.max()) * 1.1)
         x_end = max(x_end, daily["date"].max() + pd.Timedelta(days=5))
     # Price labels as annotations (not trace text), so they don't clutter the slider strip
     for d, v in zip(prices["date"], y):
-        fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#c7d2e3"))
+        fig.add_annotation(x=d, y=v, text=f"${v:.1f}", showarrow=False, yshift=14, font=dict(size=11, color="#475467"))
     fig.add_hline(y=TTF_2025_AVG, line=dict(color=TEAL, dash="dash", width=1.5),
                   annotation_text=f"2025 average ${TTF_2025_AVG}", annotation_font_color=TEAL, annotation_position="bottom right")
     if show_events and events is not None:
         _add_events(fig, events, y_max - 1)
     return _layout(fig, height=430, margin=dict(l=10, r=20, t=20, b=30), hovermode="x", showlegend=False,
                    xaxis=dict(type="date", range=["2025-12-20", x_end], gridcolor=GRID, tickformat="%b", dtick="M1",
-                              rangeslider=dict(visible=True, thickness=0.06, bgcolor="#121c2d")),
+                              rangeslider=dict(visible=True, thickness=0.06, bgcolor=PANEL)),
                    yaxis=dict(title=dict(text="$ per MMBtu", standoff=12), gridcolor=GRID, range=[0, y_max], fixedrange=True, automargin=True))
 
 
@@ -324,7 +329,7 @@ def europe_us_chart(gap: pd.DataFrame, vol: pd.Series, show: str, show_vol: bool
                                  line=dict(color=TEAL, width=2),
                                  hovertemplate="US: $%{y:.2f}<extra></extra>"), row=1, col=1)
         fig.add_trace(go.Scatter(x=gap["date"], y=gap["ttf_usd"], name="Europe (TTF)", mode="lines",
-                                 line=dict(color=BLUE, width=2), fill="tonexty", fillcolor="rgba(255,90,78,.15)",
+                                 line=dict(color=BLUE, width=2), fill="tonexty", fillcolor="rgba(210,63,63,.12)",
                                  customdata=gap[["gap_usd"]].values,
                                  hovertemplate="Europe: $%{y:.2f}<br>Gap: $%{customdata[0]:.2f}<extra></extra>"), row=1, col=1)
         fig.update_yaxes(title_text="$ per MMBtu", rangemode="tozero", row=1, col=1)
@@ -340,7 +345,7 @@ def europe_us_chart(gap: pd.DataFrame, vol: pd.Series, show: str, show_vol: bool
                            xanchor="left", yanchor="top", xshift=4, font=dict(size=11, color=MUTED))
     if show_vol:
         fig.add_trace(go.Scatter(x=gap["date"], y=vol, name=f"Volatility ({VOL_WINDOW}-day)", mode="lines",
-                                 line=dict(color=AMBER, width=1.8), fill="tozeroy", fillcolor="rgba(255,176,32,.10)",
+                                 line=dict(color=AMBER, width=1.8), fill="tozeroy", fillcolor="rgba(212,136,6,.12)",
                                  hovertemplate="Volatility: %{y:.0f}%<extra></extra>"), row=2, col=1)
         fig.update_yaxes(title_text="Volatility", ticksuffix="%", rangemode="tozero", row=2, col=1)
     fig.update_xaxes(gridcolor=GRID, tickformat="%b %Y")
@@ -374,15 +379,15 @@ def dumbbell_chart(bench, unit, highlight):
     fig = go.Figure()
     for i, row in enumerate(rows):
         fig.add_trace(go.Scatter(x=[ttf[i], jkm[i]], y=[row, row], mode="lines", hoverinfo="skip", showlegend=False,
-                                 line=dict(color=MUTED if i == highlight else "#33445f", width=9 if i == highlight else 6)))
+                                 line=dict(color=MUTED if i == highlight else LINE, width=9 if i == highlight else 6)))
     opac = [1 if highlight is None or i == highlight else 0.35 for i in range(len(rows))]
     fmt = "%{x:+.0f}%" if unit == "% vs pre-war" else "%{x:.1f} " + unit
     fig.add_trace(go.Scatter(x=ttf, y=rows, mode="markers", name="Europe (TTF)", hovertemplate="TTF: " + fmt + "<extra></extra>",
-                             marker=dict(size=16, color=BLUE, opacity=opac, line=dict(color=DARK, width=2))))
+                             marker=dict(size=16, color=BLUE, opacity=opac, line=dict(color=BG, width=2))))
     fig.add_trace(go.Scatter(x=jkm, y=rows, mode="markers", name="Asia (JKM)", hovertemplate="JKM: " + fmt + "<extra></extra>",
-                             marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=DARK, width=2))))
+                             marker=dict(size=16, color=VIOLET, symbol="diamond", opacity=opac, line=dict(color=BG, width=2))))
     fig.add_shape(type="rect", xref="paper", yref="y", x0=0, x1=1, y0=len(rows) - 1.5, y1=len(rows) - 0.5,
-                  fillcolor="rgba(255,255,255,.03)", line_width=0)
+                  fillcolor="rgba(23,32,46,.04)", line_width=0)
     for i, row in enumerate(rows):          # dots overlap when the two prices are almost equal: say so
         close = abs(ttf[i] - jkm[i]) <= 0.05 * max(abs(ttf[i]), abs(jkm[i]), 1)   # within 5% of each other
         if close and not (unit == "% vs pre-war" and i == 0):
@@ -440,9 +445,9 @@ def exposure_chart(exposure, view, regions, metric):
         rr = rows[rows["region"] == reg]
         fig.add_trace(go.Scatter(
             x=rr["total_lng_imports_bcfd"], y=rr["qatar_share_pct"], mode="markers+text", name=reg,
-            text=rr["country"], textposition="top center", textfont=dict(size=11, color="#c7d2e3"),
+            text=rr["country"], textposition="top center", textfont=dict(size=11, color="#475467"),
             marker=dict(size=[max(10, v * 38) for v in rr["from_qatar_bcfd"]], color=colour[reg], opacity=0.75,
-                        line=dict(color=DARK, width=1.5)),
+                        line=dict(color=BG, width=1.5)),
             customdata=rr[["from_qatar_bcfd"]].values,
             hovertemplate="<b>%{text}</b><br>Total LNG imports: %{x:.1f} Bcf/d<br>Qatar share: %{y:.1f}%<br>"
                           "At risk: %{customdata[0]:.1f} Bcf/d<extra></extra>"))
@@ -471,7 +476,7 @@ def storage_chart(storage, show_2025, show_5yr, show_targets):
     s26 = series("2026")
     fig.add_trace(go.Scatter(x=s26["date"], y=s26["pct_full"], name="2026",
                              mode="lines+markers", line=dict(color=RED, width=3.5), marker=dict(size=9),
-                             fill="tozeroy", fillcolor="rgba(255,90,78,.08)",
+                             fill="tozeroy", fillcolor="rgba(210,63,63,.08)",
                              hovertemplate="<b>2026: %{y:.1f}%</b><extra></extra>"))
     if show_targets:
         fig.add_hline(y=90, line=dict(color=TEAL, dash="dot"), annotation_text="EU target 90%",
@@ -495,8 +500,8 @@ def sunburst_chart():
         ids=["all", "hz", "nh", "asia", "oth"],
         labels=["World LNG trade", "Via Hormuz<br>~20%", "Not via Hormuz<br>~80%", "To Asia<br>83%", "Europe &<br>other 17%"],
         parents=["", "all", "all", "hz", "hz"], values=[100, 20, 80, 16.6, 3.4], branchvalues="total",
-        marker=dict(colors=["#121c2d", "#ff6b5e", "#2c3d5c", "#6fb4ff", "#9aabc6"], line=dict(color="#121c2d", width=1)),
-        rotation=90, sort=False, textfont=dict(size=13, color=INK), insidetextorientation="horizontal",
+        marker=dict(colors=[PANEL, RED, "#98a2b3", BLUE, "#b8c4d6"], line=dict(color=BG, width=2)),
+        rotation=90, sort=False, textfont=dict(size=13, color=[INK, "#ffffff", INK, "#ffffff", INK]), insidetextorientation="horizontal",
         hovertemplate="<b>%{label}</b><br>%{value:.1f}% of world LNG trade<extra></extra>"))
     return _layout(fig, height=380, margin=dict(l=4, r=4, t=4, b=4), uniformtext=dict(minsize=10, mode="show"))
 
