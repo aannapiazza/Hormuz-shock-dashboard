@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.header("Shipping: Strait of Hormuz traffic and market prices")
+st.header("Hormuz | Shipping & Markets")
 
 st.caption(
     "Shipping: daily IMF PortWatch data from a local CSV. "
@@ -111,10 +111,218 @@ market_symbols = {
     "DOLLAR INDEX": "DX-Y.NYB",
 }
 
-market_data = {
-    label: load_market_data(symbol)
-    for label, symbol in market_symbols.items()
-}
+# MAIN METRICS
+
+st.divider()
+
+traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
+
+if shipping_df is not None:
+    latest = shipping_df.iloc[-1]
+    latest_date = latest["date"]
+
+    latest_total = int(latest["n_total"])
+    latest_tanker = int(latest["n_tanker"])
+
+    with traffic_col:
+        st.metric(
+            "🚢 Daily ship transits",
+            f"{latest_total:,}"
+        )
+        st.caption(f"{latest_date:%d %b %Y}")
+
+    with tanker_col:
+        st.metric(
+            "🛢️ Daily tanker transits",
+            f"{latest_tanker:,}"
+        )
+        st.caption("Included in total ship transits")
+
+else:
+    with traffic_col:
+        st.metric("🚢 Daily ship transits", "Unavailable")
+
+    with tanker_col:
+        st.metric("🛢️ Daily tanker transits", "Unavailable")
+
+
+for column, label in [
+    (brent_col, "BRENT"),
+    (wti_col, "WTI")
+]:
+    prices = market_data[label]
+
+    with column:
+        if prices.empty:
+            st.metric(f"{label} futures", "Unavailable")
+        else:
+            st.metric(
+                f"{label} futures",
+                f"${float(prices.iloc[-1]):.2f}"
+            )
+            st.caption(
+                f"USD/barrel · {prices.index[-1]:%d %b %Y}"
+            )
+
+
+st.divider()
+
+
+# CHARTS
+
+left, right = st.columns(2, gap="large")
+
+
+with left:
+    st.subheader("Traffic through Hormuz")
+    st.caption("Daily vessel counts · IMF PortWatch")
+
+    if shipping_df is not None:
+        period = st.selectbox(
+            "Shipping history",
+            [30, 90, 180, 365],
+            format_func=lambda days: f"Last {days} days",
+            key="shipping_history_period"
+        )
+
+        start_date = latest_date - pd.Timedelta(
+            days=period - 1
+        )
+
+        recent = shipping_df.loc[
+            shipping_df["date"] >= start_date
+        ].copy()
+
+        chart_data = (
+            recent
+            .set_index("date")[["n_total", "n_tanker"]]
+            .rename(
+                columns={
+                    "n_total": "All ships",
+                    "n_tanker": "Tankers"
+                }
+            )
+        )
+
+        st.line_chart(
+            chart_data,
+            color=["#38bdf8", "#f59e0b"],
+            height=350,
+            use_container_width=True
+        )
+
+        st.caption(
+            f"Latest observation: {latest_date:%d %b %Y}. "
+            "Tankers are included in all ships."
+        )
+
+    else:
+        st.info("Shipping data is unavailable.")
+
+
+with right:
+    st.subheader("Brent futures")
+    st.caption("USD per barrel · Yahoo Finance")
+
+    months = st.selectbox(
+        "Price history",
+        [1, 3, 6],
+        format_func=lambda value: f"Last {value} months",
+        index=2,
+        key="shipping_brent_period"
+    )
+
+    brent_prices = market_data["BRENT"]
+
+    if brent_prices.empty:
+        st.info("Brent prices are temporarily unavailable.")
+    else:
+        cutoff = (
+            brent_prices.index.max()
+            - pd.DateOffset(months=months)
+        )
+
+        selected_prices = brent_prices.loc[
+            brent_prices.index >= cutoff
+        ]
+
+        st.line_chart(
+            selected_prices.rename("Brent"),
+            color="#34d399",
+            height=350,
+            use_container_width=True
+        )
+
+        st.caption(
+            "Latest available daily prices; "
+            "quotes may be delayed."
+        )
+
+
+# ADDITIONAL MARKET INDICATORS
+
+with st.expander("More market indicators"):
+    vix_col, dollar_col = st.columns(2)
+
+    for column, label in [
+        (vix_col, "VIX"),
+        (dollar_col, "DOLLAR INDEX")
+    ]:
+        prices = market_data[label]
+
+        with column:
+            if prices.empty:
+                st.metric(label, "Unavailable")
+            else:
+                st.metric(
+                    label,
+                    f"{float(prices.iloc[-1]):.2f}"
+                )
+                st.caption(
+                    f"Observation: "
+                    f"{prices.index[-1]:%d %b %Y}"
+                )
+
+
+# DATA AND SOURCES
+
+st.divider()
+
+with st.expander("Shipping data and download"):
+    if shipping_df is not None:
+        st.dataframe(
+            shipping_df.sort_values(
+                "date",
+                ascending=False
+            ),
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.download_button(
+            label="Download Hormuz data",
+            data=shipping_df.to_csv(
+                index=False
+            ).encode("utf-8"),
+            file_name="hormuz_shipping.csv",
+            mime="text/csv",
+            key="download_hormuz_shipping"
+        )
+    else:
+        st.info("No shipping data available.")
+
+
+st.caption(
+    "Sources: IMF PortWatch — Hormuz daily transits; "
+    "Yahoo Finance — market prices. "
+    "Shipping data updates when the CSV is replaced. "
+    "Shipping and market observations may have different dates."
+)
+
+st.caption(
+    "These charts show traffic and prices separately; "
+    "they do not establish a causal relationship."
+)
 
 st.subheader("Latest available market prices")
 
