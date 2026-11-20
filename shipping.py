@@ -12,22 +12,10 @@ st.markdown("""
 <style>
 
 [data-testid="stMetric"]{
-    background-color:#0f172a;
+    background-color:#f8fafc;
     padding:20px;
     border-radius:15px;
-    border:1px solid #334155;
-}
-
-h1{
-    color:white;
-}
-
-.main{
-    background-color:#020617;
-}
-
-.block-container{
-    padding-top:2rem;
+    border:1px solid #d1d5db;
 }
 
 </style>
