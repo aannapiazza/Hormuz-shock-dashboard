@@ -65,6 +65,14 @@ BLS_URL = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
 BLS_CODES = {"Headline": "CUUR0000SA0", "Energy": "CUUR0000SA0E",
              "Food": "CUUR0000SAF1", "Services": "CUUR0000SAS"}
 
+# Shipping: IMF PortWatch daily chokepoint transits (satellite ship-tracking data).
+# The full file downloaded from portwatch.imf.org is kept in data/ as the raw source.
+PORTWATCH_RAW = DATA_DIR / "portwatch_daily_chokepoints.csv"
+PORTWATCH_API = ("https://services9.arcgis.com/weJ1QsnbMYJlCHdG/arcgis/rest/services/"
+                 "Daily_Chokepoints_Data/FeatureServer/0/query")
+CHOKEPOINT = "Strait of Hormuz"
+NORMAL_YEAR = "2025"                       # "normal" traffic = the 2025 average
+
 # Oil and exchange rates: Yahoo Finance via yfinance (Sessions 6 and 11)
 OIL_TICKER = "BZ=F"                                        # Brent crude, US$ per barrel
 FX_TICKERS = {"EUR": ("EURUSD=X", "usd_per"), "GBP": ("GBPUSD=X", "usd_per"),   # US$ per 1 unit
@@ -231,12 +239,41 @@ def download_oil() -> pd.DataFrame:
     return oil.dropna().reset_index()
 
 
+def download_hormuz() -> pd.DataFrame:
+    """Daily oil-tanker traffic through the Strait of Hormuz (IMF PortWatch).
+
+    Reads the raw PortWatch file in data/ if it is there; otherwise asks the
+    PortWatch API for the Hormuz rows directly. Keeps only Hormuz and the
+    columns this panel uses.
+    """
+    if PORTWATCH_RAW.exists():
+        df = pd.read_csv(PORTWATCH_RAW)
+    else:
+        rows, offset = [], 0
+        while True:
+            reply = requests.get(PORTWATCH_API, timeout=TIMEOUT_SECONDS, params={
+                "where": f"portname='{CHOKEPOINT}'", "outFields": "*", "f": "json",
+                "orderByFields": "date", "resultOffset": offset, "resultRecordCount": 2000}).json()
+            batch = [f["attributes"] for f in reply.get("features", [])]
+            rows += batch
+            if len(batch) < 2000:
+                break
+            offset += 2000
+        df = pd.DataFrame(rows)
+        if pd.api.types.is_numeric_dtype(df["date"]):       # the API sends dates in milliseconds
+            df["date"] = pd.to_datetime(df["date"], unit="ms")
+    df = df[df["portname"] == CHOKEPOINT]
+    df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None).dt.normalize()
+    return df[["date", "n_tanker", "n_total", "capacity_tanker"]].sort_values("date")
+
+
 SOURCES = {   # file name in data/: (label shown on screen, download function)
     "eurostat": ("Eurostat (Europe)", download_eurostat),
     "oecd": ("OECD (UK and Asia)", download_oecd),
     "bls": ("BLS (USA)", download_bls),
     "weights": ("Eurostat basket weights", download_weights),
     "oil": ("Brent and exchange rates (yfinance)", download_oil),
+    "hormuz": ("IMF PortWatch (Hormuz tankers)", download_hormuz),
 }
 
 
@@ -263,7 +300,11 @@ def load_data() -> dict:
     oil = None
     if tables["oil"] is not None:
         oil = tables["oil"].assign(date=pd.to_datetime(tables["oil"]["date"])).set_index("date")
-    return {"inflation": inflation, "weights": weights, "oil": oil, "status": status}
+    hormuz = None
+    if tables["hormuz"] is not None:
+        daily = tables["hormuz"].assign(date=pd.to_datetime(tables["hormuz"]["date"])).set_index("date")
+        hormuz = daily.sort_index().resample("MS").mean()        # daily -> monthly averages
+    return {"inflation": inflation, "weights": weights, "oil": oil, "hormuz": hormuz, "status": status}
 
 
 def save_all() -> None:
@@ -297,6 +338,12 @@ def change_since_war(s: pd.Series) -> tuple[float, float] | None:
     if before.empty or after.empty:
         return None
     return s.iloc[-1], s.iloc[-1] - before.iloc[-1]
+
+
+def traffic_vs_normal(hormuz: pd.DataFrame, column: str = "capacity_tanker") -> pd.Series:
+    """Monthly Hormuz tanker capacity as a % of the NORMAL_YEAR average (100 = normal)."""
+    normal = hormuz.loc[NORMAL_YEAR, column].mean()
+    return hormuz[column] / normal * 100
 
 
 def currency_of(country: str) -> str:
@@ -387,8 +434,12 @@ def add_war_and_events(fig: go.Figure, start: pd.Timestamp) -> go.Figure:
     return fig
 
 
-def chart_inflation(inflation, countries, measure, start) -> go.Figure:
-    """Section 1 chart: one line per country, the war shaded, events marked."""
+def chart_inflation(inflation, countries, measure, start, traffic=None) -> go.Figure:
+    """Section 1 chart: one line per country, the war shaded, events marked.
+
+    If `traffic` is given, Hormuz tanker capacity (% of normal) is drawn on a
+    second axis on the right, so the supply cut and inflation can be compared.
+    """
     fig = go.Figure()
     changes = {}
     for colour, country in zip(COLOURS, countries):
@@ -409,7 +460,15 @@ def chart_inflation(inflation, countries, measure, start) -> go.Figure:
                  f"{abs(changes[top]):.1f} points since the war began")
     else:
         title = f"{measure} inflation"
-    return style(fig, 460, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"))
+    extra = {}
+    if traffic is not None:
+        t = traffic[traffic.index >= start]
+        fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Hormuz tanker capacity (right axis)", yaxis="y2",
+                                 mode="lines", line=dict(color="#d48806", width=2, dash="dot"),
+                                 hovertemplate="Hormuz tankers: %{y:.0f}% of normal<extra></extra>"))
+        extra["yaxis2"] = dict(title=f"Tanker capacity, % of {NORMAL_YEAR} average", overlaying="y", side="right",
+                               range=[0, 140], ticksuffix="%", showgrid=False)
+    return style(fig, 460, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"), **extra)
 
 
 def chart_passthrough(model, scenario, country, currency) -> go.Figure:
@@ -440,7 +499,7 @@ def chart_passthrough(model, scenario, country, currency) -> go.Figure:
 # 5. LAYOUT
 # =============================================================================
 
-def section_1_inflation(inflation: pd.DataFrame) -> None:
+def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None = None) -> None:
     """Section 1: how far has inflation moved since the war began?"""
     st.subheader("1 · Inflation since the war")
     c1, c2, c3 = st.columns([3, 1.5, 1.5])
@@ -451,6 +510,10 @@ def section_1_inflation(inflation: pd.DataFrame) -> None:
     if not countries:
         st.info("Pick at least one country.")
         return
+    show_traffic = hormuz is not None and st.toggle(
+        "Show oil tankers through Hormuz", value=True, key="infl_hormuz",
+        help="Daily tanker capacity through the strait (IMF PortWatch), as a monthly % of the 2025 average.")
+    traffic = traffic_vs_normal(hormuz) if show_traffic else None
     have = [c for c in countries if not series_for(inflation, c, measure).empty]
     missing = [c for c in countries if c not in have]
 
@@ -460,12 +523,15 @@ def section_1_inflation(inflation: pd.DataFrame) -> None:
         if result:
             col.metric(country, f"{result[0]:.1f}%", f"{result[1]:+.1f} pts since Feb 2026",
                        delta_color="inverse")
-    st.plotly_chart(chart_inflation(inflation, have, measure, pd.Timestamp(f"{start_year}-01-01")),
+    st.plotly_chart(chart_inflation(inflation, have, measure, pd.Timestamp(f"{start_year}-01-01"), traffic),
                     width="stretch", theme=None, key="infl_chart")
+    if traffic is not None:
+        st.caption(f"Tanker capacity through Hormuz in {traffic.index[-1]:%B %Y} was **{traffic.iloc[-1]:.1f}%** of the "
+                   f"{NORMAL_YEAR} average, against {traffic.loc['2026-02-01']:.0f}% in February 2026, the month before the war.")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
     st.caption(f"Annual inflation to {END:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, South "
-               "Korea, China, India); US Bureau of Labor Statistics CPI. Non-euro figures are national measures, close to "
+               "Korea, China, India); US Bureau of Labor Statistics CPI; IMF PortWatch (tankers). Non-euro figures are national measures, close to "
                "but not exactly comparable with the euro-area HICP. Shaded: since 28 Feb 2026.")
 
 
@@ -529,7 +595,7 @@ def render() -> None:
     if data["inflation"] is None:
         st.error("No inflation data. Check the inflation_*.csv files in the data folder.")
         return
-    section_1_inflation(data["inflation"])
+    section_1_inflation(data["inflation"], data["hormuz"])
     st.divider()
     if data["oil"] is None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")
