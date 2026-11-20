@@ -8,19 +8,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.markdown("""
-<style>
-
-[data-testid="stMetric"]{
-    background-color:#f8fafc;
-    padding:20px;
-    border-radius:15px;
-    border:1px solid #d1d5db;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
 st.title("Hormuz: Economic Impact")
 
 st.header("Shipping: traffic collapses, risk gets priced in")
