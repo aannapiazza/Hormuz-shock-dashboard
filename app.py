@@ -20,9 +20,9 @@ import streamlit as st
 # SETTINGS - one line per panel: (tab name, file, author)
 # =============================================================================
 PANELS = [
-    ("🛢️ Oil prices",            "panels/oil.py",       "name"),
-    ("🚢 Shipping & insurance",  "panels/shipping.py",  "name"),
-    ("🔥 Gas & LNG",             "gas_lng.py",          "name"),
+    ("🛢️ Oil prices",            "panels/oil.py",       "Erin"),
+    ("🚢 Shipping & insurance",  "app.py",   "Anna Piazzaa"),
+    ("🔥 Gas & LNG",             "gas_lng.py",          "Eabha Kelly"),
     ("🧾 Inflation & households", "panels/inflation.py", "Eleena Golchin"),
 ]
 
