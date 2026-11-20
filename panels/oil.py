@@ -298,6 +298,14 @@ def build_second_figure(mode, sel):
     return fig, title, sub
 
 
+def phase_for(date_str):
+    for name, p in PHASES.items():
+        start_month = p["start"][:8] + "01"
+        if start_month <= date_str <= p["end"]:
+            return name
+    return None
+
+
 # ------------------------------- HTML snippets -------------------------------
 
 def header_html():
@@ -323,6 +331,46 @@ def kpi_html(title, value, description, color):
 </div>"""
 
 
+def detail_html(sel):
+    row = OIL.iloc[sel]
+    d, month = row["DateStr"], row["Month"]
+
+    def coloured(v):
+        if pd.isna(v):
+            return "n/a"
+        colour = "#c0392b" if v > 0 else "#1e8449"
+        return f'<span style="color:{colour}">{signed(v)}%</span>'
+
+    estimated = month in ESTIMATED_MONTHS
+    brent_txt = f"${row['Brent']:.2f}" + ("*" if estimated else "")
+    wti_txt = "n/a" if pd.isna(row["WTI"]) else f"${row['WTI']:.2f}"
+    rows = [("Brent average", brent_txt), ("WTI average", wti_txt),
+            ("vs previous month", coloured(row["MoM"])),
+            ("vs same month last year", coloured(row["YoY"])),
+            ("vs pre-war price", coloured(row["vsPrewar"]))]
+    table = "".join(
+        f'<tr><td style="padding:7px 0;border-bottom:1px solid #eef0f3">{label}</td>'
+        f'<td style="padding:7px 0;border-bottom:1px solid #eef0f3;text-align:right;font-weight:700">{value}</td></tr>'
+        for label, value in rows)
+
+    phase = phase_for(d)
+    if phase:
+        heading = f'<b style="color:{PHASES[phase]["color"]}">{phase}.</b> '
+        text = MONTH_NOTES.get(month, PHASES[phase]["text"])
+    else:
+        heading = f"<b>{BEFORE_EVENTS_NOTE[0]}</b> "
+        text = MONTH_NOTES.get(month, BEFORE_EVENTS_NOTE[1])
+    if estimated:
+        text += f" <i>*{ESTIMATED_MONTHS[month]}</i>"
+
+    return f"""
+<div style="font-size:16px;font-weight:700;color:{COLORS['navy']}">Month in focus</div>
+<div style="font-size:22px;font-weight:700;color:{COLORS['navy']}">{month_label(d)}</div>
+<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:14px">{table}</table>
+<div style="background:#f7f9fb;border-left:3px solid {COLORS['orange']};padding:10px 12px;font-size:13px;
+            line-height:1.5;border-radius:0 4px 4px 0">{heading}{text}</div>"""
+
+
 # ----------------------------- Streamlit helpers -----------------------------
 
 def choice(label, options, default, key, style="segmented"):
@@ -338,11 +386,49 @@ def choice(label, options, default, key, style="segmented"):
     value = st.radio(label, radio_options, index=index, horizontal=True, key=key)
     return None if value == "None" else value
 
+
+def apply_chart_click(chart_key):
+    """If the user clicked a new point on a chart, select that month."""
+    state = st.session_state.get(chart_key)
+    if not state:
+        return
+    try:
+        points = state["selection"]["points"]
+    except (KeyError, TypeError):
+        return
+    signature = tuple(str(p.get("x", ""))[:10] for p in points)
+    last_key = f"{chart_key}_last"
+    if signature and signature != st.session_state.get(last_key):
+        x = signature[0][:7] + "-01"
+        if x in DATES:
+            st.session_state["ho_sel"] = DATES.index(x)
+    st.session_state[last_key] = signature
+
+
+def show_chart(fig, key):
+    """Clickable chart on Streamlit 1.35+, normal chart on older versions."""
+    try:
+        st.plotly_chart(fig, use_container_width=True, key=key,
+                        on_select="rerun", selection_mode="points",
+                        config={"displayModeBar": False})
+    except TypeError:
+        st.plotly_chart(fig, use_container_width=True, key=key,
+                        config={"displayModeBar": False})
+
+
+def step_month(delta):
+    st.session_state["ho_sel"] = max(0, min(N - 1, st.session_state["ho_sel"] + delta))
+
 # ----------------------------------- page ------------------------------------
 
 def render():
     """Draw the oil prices panel."""
-    sel = N - 1   # latest month (made interactive in a later stage)
+    st.session_state.setdefault("ho_sel", N - 1)
+    st.session_state["ho_sel"] = min(st.session_state["ho_sel"], N - 1)
+    apply_chart_click("ho_main_chart")
+    apply_chart_click("ho_second_chart")
+    sel = st.session_state["ho_sel"]
+
     st.markdown(header_html(), unsafe_allow_html=True)
 
     # KPI row
@@ -378,18 +464,29 @@ def render():
     # main chart
     with st.container(border=True):
         st.markdown(f"**Brent crude, monthly average**  \n"
-                    f"<span style='font-size:12.5px;color:{COLORS['muted']}'>Use the buttons on the chart to zoom to the last 3 or 6 months.</span>",
+                    f"<span style='font-size:12.5px;color:{COLORS['muted']}'>Click any month to see its "
+                    f"details below. Use the buttons on the chart to zoom to the last 3 or 6 months.</span>",
                     unsafe_allow_html=True)
-        st.plotly_chart(build_main_figure(phase, view, show_wti, sel), use_container_width=True,
-                        config={"displayModeBar": False})
+        show_chart(build_main_figure(phase, view, show_wti, sel), key="ho_main_chart")
 
-    # second chart
-    with st.container(border=True):
-        mode = choice("Second chart", SECOND_OPTIONS, SECOND_OPTIONS[0], key="ho_second")
-        fig, title, sub = build_second_figure(mode, sel)
-        st.markdown(f"**{title}**  \n<span style='font-size:12.5px;color:{COLORS['muted']}'>{sub}</span>",
-                    unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    # second chart + month in focus
+    left, right = st.columns([2, 1])
+    with left:
+        with st.container(border=True):
+            mode = choice("Second chart", SECOND_OPTIONS, SECOND_OPTIONS[0], key="ho_second")
+            fig, title, sub = build_second_figure(mode, sel)
+            st.markdown(f"**{title}**  \n<span style='font-size:12.5px;color:{COLORS['muted']}'>{sub}</span>",
+                        unsafe_allow_html=True)
+            show_chart(fig, key="ho_second_chart")
+    with right:
+        with st.container(border=True):
+            st.markdown(detail_html(sel), unsafe_allow_html=True)
+            b1, b2 = st.columns(2)
+            b1.button("◀ Previous", key="ho_prev", on_click=step_month, args=(-1,),
+                      use_container_width=True, disabled=sel == 0)
+            b2.button("Next ▶", key="ho_next", on_click=step_month, args=(1,),
+                      use_container_width=True, disabled=sel == N - 1)
+            st.caption("Or click a point on either chart.")
 
 
 # -----------------------------------------------------------------------------
