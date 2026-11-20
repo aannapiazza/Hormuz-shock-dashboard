@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -590,11 +590,19 @@ with st.expander("More market indicators"):
         with column:
             if prices.empty:
                 st.metric(label, "Unavailable")
-            else:
-                st.metric(
-                    label,
-                    f"{float(prices.iloc[-1]):.2f}"
-                )
+           else:
+                values = prices.to_numpy()
+                delta = None
+
+            if len(values) >= 2 and values[-2] != 0:
+                daily_returns = np.diff(values) / values[:-1] * 100
+                delta = f"{daily_returns[-1]:+.2f}%"
+
+     st.metric(
+        f"{label} futures",
+        f"${float(values[-1]):.2f}",
+        delta=delta
+    )
                 st.caption(
                     f"Observation: "
                     f"{prices.index[-1]:%d %b %Y}"
