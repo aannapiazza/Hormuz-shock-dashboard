@@ -89,6 +89,93 @@ def all_countries() -> list:
 
 
 # =============================================================================
+# 2. DATA - every download returns the same tidy table: date, country, measure, value
+# =============================================================================
+
+def up_to_end(df: pd.DataFrame) -> pd.DataFrame:
+    """Keep only rows from START to END, so every run shows the same months."""
+    dates = pd.to_datetime(df["date"])
+    return df[(dates >= START) & (dates <= END)].copy()
+
+
+def load(name: str, download) -> tuple[pd.DataFrame, str]:
+    """Get one dataset: the saved copy in data/, or a fresh download.
+
+    Returns the table and where it came from ("saved copy" or "live").
+    If LIVE is on but the website fails, the saved copy is used instead,
+    so the dashboard always runs (the Session 11 pattern).
+    """
+    path = DATA_DIR / f"inflation_{name}.csv"
+    if LIVE or not path.exists():
+        try:
+            df = up_to_end(download())
+            DATA_DIR.mkdir(exist_ok=True)
+            df.to_csv(path, index=False)
+            return df, "live"
+        except Exception:
+            if not path.exists():
+                raise
+    return up_to_end(pd.read_csv(path)), "saved copy"
+
+
+def jsonstat_to_frame(j: dict) -> pd.DataFrame:
+    """Turn Eurostat's JSON-stat reply into a table: one column per dimension + value.
+
+    JSON-stat stores every number in one flat list; its position tells you
+    which country, item and month it belongs to (like reading a grid row by row).
+    """
+    dims = j["id"]
+    codes = []
+    for d in dims:
+        index = j["dimension"][d]["category"]["index"]
+        if isinstance(index, dict):
+            index = sorted(index, key=index.get)
+        codes.append(list(index))
+    values = j["value"]
+    if isinstance(values, list):
+        values = {i: v for i, v in enumerate(values) if v is not None}
+    rows = []
+    for flat, value in values.items():
+        position = np.unravel_index(int(flat), j["size"])
+        row = {d: codes[k][p] for k, (d, p) in enumerate(zip(dims, position))}
+        row["value"] = value
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def eurostat(dataset: str, params: list) -> pd.DataFrame:
+    """Download one Eurostat dataset, filtered by params, as a table."""
+    response = requests.get(EUROSTAT_API + dataset, params=params,
+                            headers=HEADERS, timeout=TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return jsonstat_to_frame(response.json())
+
+
+def download_eurostat() -> pd.DataFrame:
+    """HICP annual inflation for the euro countries, one request per measure."""
+    names = {code: name for name, code in EUROSTAT_COUNTRIES.items()}
+    parts = []
+    for measure, code in EUROSTAT_CODES.items():
+        params = [("unit", "RCH_A"), ("coicop18", code), ("sinceTimePeriod", START.strftime("%Y-%m"))]
+        params += [("geo", g) for g in EUROSTAT_COUNTRIES.values()]
+        df = eurostat("prc_hicp_minr", params)
+        parts.append(pd.DataFrame({"date": pd.to_datetime(df["time"]), "country": df["geo"].map(names),
+                                   "measure": measure, "value": df["value"]}))
+    return pd.concat(parts, ignore_index=True)
+
+
+def download_weights() -> pd.DataFrame:
+    """Latest share of energy in each euro country's shopping basket, as %."""
+    params = [("coicop18", EUROSTAT_CODES["Energy"]), ("sinceTimePeriod", "2024")]
+    params += [("geo", g) for g in EUROSTAT_COUNTRIES.values()]
+    df = eurostat("prc_hicp_iw", params).sort_values("time")
+    names = {code: name for name, code in EUROSTAT_COUNTRIES.items()}
+    latest = df.groupby("geo")["value"].last()
+    return pd.DataFrame({"date": END, "country": latest.index.map(names),
+                         "weight": latest.values / 10})          # per 1000 -> %
+
+
+# =============================================================================
 # PANEL
 # =============================================================================
 
