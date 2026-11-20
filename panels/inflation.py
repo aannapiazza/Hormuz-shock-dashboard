@@ -353,8 +353,13 @@ def months_word(n: int) -> str:
 # =============================================================================
 
 def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
-    """The look shared by both charts: white background, title on the left."""
+    """The look shared by both charts: white background, dark text, title on the left.
+
+    The charts are drawn with theme=None, so Streamlit keeps this white look
+    even when the computer is in dark mode.
+    """
     settings = dict(template="plotly_white", height=height, hovermode="x unified",
+                    paper_bgcolor="white", plot_bgcolor="white", font=dict(color="#17202e"),
                     title=dict(text=f"<b>{title}</b>", x=0, xanchor="left", font=dict(size=16)),
                     margin=dict(l=10, r=20, t=50, b=40), legend=dict(orientation="h", y=-0.15, x=0))
     settings.update(layout)          # anything passed in replaces the default
@@ -446,7 +451,7 @@ def section_1_inflation(inflation: pd.DataFrame) -> None:
             col.metric(country, f"{result[0]:.1f}%", f"{result[1]:+.1f} pts since Feb 2026",
                        delta_color="inverse")
     st.plotly_chart(chart_inflation(inflation, have, measure, pd.Timestamp(f"{start_year}-01-01")),
-                    width="stretch", key="infl_chart")
+                    width="stretch", theme=None, key="infl_chart")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
     st.caption(f"Annual inflation to {END:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, Japan, "
@@ -489,7 +494,7 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
               f"{result['headline'] - headline.iloc[-1]:+.1f} pts vs now", delta_color="inverse")
     m3.metric("Your energy bill", f"{symbol}{bill + result['extra_per_month']:,.0f}/month",
               f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse")
-    st.plotly_chart(chart_passthrough(model, result, country, currency), width="stretch", key="infl_model")
+    st.plotly_chart(chart_passthrough(model, result, country, currency), width="stretch", theme=None, key="infl_model")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
     st.caption(
         f"Brent averaged ${brent_now:.0f} in {oil.index[-1]:%B %Y}, so ${brent_future} is a "
