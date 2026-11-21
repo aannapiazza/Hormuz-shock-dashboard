@@ -501,6 +501,18 @@ def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd
     return cards
 
 
+def main_point_household(country: str, model: dict, base: pd.Timestamp, brent_future: float, symbol: str,
+                         extra_year: float) -> str:
+    """Section 2's main finding in one or two sentences, for the country, month and oil price picked."""
+    text = (f"Oil prices reach energy bills in {country} after about **{months_word(model['lag'])}**: each 10% rise "
+            f"in oil adds about **{10 * model['slope']:.1f} points** to energy inflation. Starting from "
+            f"{base:%B %Y}, if Brent is ${brent_future:.0f} a year later, a household like yours pays about "
+            f"**{symbol}{abs(extra_year):,.0f} {'more' if extra_year >= 0 else 'less'} a year** for energy.")
+    if model["r2"] < 0.3:
+        text += " The link is weak in this country's data, so treat this as a rough guide."
+    return text
+
+
 def months_word(n: int) -> str:
     """'1 month' or '2 months'."""
     return f"{n} month{'s' if n != 1 else ''}"
@@ -681,6 +693,7 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
                         start: pd.Timestamp | None = None, end: pd.Timestamp | None = None) -> None:
     """Section 2: what would a new oil price mean for my household? Months from start to end stand out."""
     st.subheader("2 · What it means for your household")
+    point = st.empty()                           # the main point goes here once the controls are read
     options = [c for c in all_countries() if currency_of(c) in oil
                and not series_for(inflation, c, "Energy").empty
                and not series_for(inflation, c, "Headline").empty]
@@ -710,13 +723,22 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     result = household_scenario(model, brent_now, brent_future, energy_now, headline_now, weight, bill)
 
     extra_year = 12 * result["extra_per_month"]
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Energy inflation", f"{result['energy']:.1f}%",
-              f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse")
-    m2.metric("Headline inflation", f"{result['headline']:.1f}%",
-              f"{result['headline'] - headline_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse")
-    m3.metric("Your energy bill", f"{symbol}{bill + result['extra_per_month']:,.0f}/month",
-              f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse")
+    point.info("**The main point:** " + main_point_household(country, model, base, brent_future, symbol, extra_year)
+               .replace("$", "\\$"), icon="📌")
+    scenario_cards = [
+        dict(label="Energy inflation", value=f"{result['energy']:.1f}%",
+             delta=f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse",
+             note=f"If Brent is ${brent_future} a year after {base:%b %Y} ({result['oil_change']:+.0f}%). "
+                  f"Bills follow oil about {months_word(model['lag'])} later."),
+        dict(label="Headline inflation", value=f"{result['headline']:.1f}%",
+             delta=f"{result['headline'] - headline_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse",
+             note=f"Energy is {weight:.1f}% of the {country} basket, so it moves headline inflation a little."),
+        dict(label="Your energy bill", value=f"{symbol}{bill + result['extra_per_month']:,.0f}/month",
+             delta=f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse",
+             note=f"From a {symbol}{bill:,.0f} monthly bill, if it rises with energy inflation."),
+    ]
+    for col, card in zip(st.columns(3), scenario_cards):
+        story_card(col, card)
     st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
                     key="infl_model")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
