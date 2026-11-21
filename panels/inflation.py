@@ -587,8 +587,16 @@ def chart_inflation(inflation, countries, measure, start, end) -> go.Figure:
                  f"{abs(changes[top]):.1f} points since the war began")
     else:
         title = f"{measure} inflation"
-    return style(fig, 420, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"),
-                 xaxis=dict(range=[start, end]))
+    return style(fig, 420, title, margin=dict(l=75, r=20, t=50, b=40),      # same left edge as the tanker chart
+                 yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%", automargin=False),
+                 xaxis=month_axis(start, end))
+
+
+def month_axis(start: pd.Timestamp, end: pd.Timestamp) -> dict:
+    """An x-axis from start to end whose ticks count back from the LAST month, so it is always labelled."""
+    months = (end.year - start.year) * 12 + end.month - start.month
+    step = 1 if months <= 12 else 2 if months <= 24 else 3 if months <= 48 else 6 if months <= 96 else 12
+    return dict(range=[start, end], tick0=end.to_period("M").to_timestamp(), dtick=f"M{step}", tickformat="%b %Y")
 
 
 def chart_hormuz(traffic: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> go.Figure:
@@ -605,9 +613,9 @@ def chart_hormuz(traffic: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> 
                   annotation_text=f"normal ({NORMAL_YEAR})", annotation_position="top right")
     add_war_and_events(fig, pd.Timestamp("2000-01-01"), end)       # an early start = lines but no labels here
     return style(fig, 220, f"Oil-tanker capacity through Hormuz, % of the {NORMAL_YEAR} average", title_size=13,
-                 showlegend=False, margin=dict(l=10, r=20, t=40, b=20),
-                 yaxis=dict(range=[0, 145], ticksuffix="%", tickmode="linear", tick0=0, dtick=50),
-                 xaxis=dict(range=[start, end]))
+                 showlegend=False, margin=dict(l=75, r=20, t=40, b=30),
+                 yaxis=dict(range=[0, 145], ticksuffix="%", tickmode="linear", tick0=0, dtick=50, automargin=False),
+                 xaxis=month_axis(start, end))
 
 
 def chart_passthrough(model, scenario, country, currency, start=None, end=None) -> go.Figure:
@@ -665,20 +673,16 @@ def chart_lags(model: dict) -> go.Figure:
 # =============================================================================
 
 def story_card(col, card: dict) -> None:
-    """One number card: a bordered box with the number, and a grey note under it if the card has one."""
-    with col.container(border=True):
-        st.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"))
-        if card.get("note"):
-            st.caption(card["note"].replace("$", "\\$"))      # \\$ stops Streamlit reading $...$ as maths
+    """One headline number. Its note, if it has one, shows when you hover over the (?) icon."""
+    note = card.get("note")
+    col.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"),
+               help=note.replace("$", "\\$") if note else None)      # \\$ stops Streamlit reading $...$ as maths
 
 
 def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oil: pd.DataFrame | None,
                         start: pd.Timestamp, end: pd.Timestamp) -> None:
     """Section 1: how far has inflation moved since the war began? Shows only start to end."""
     st.subheader("1 · Inflation since the war")
-    point = main_point_inflation(inflation, traffic_vs_normal(hormuz) if hormuz is not None else None, end)
-    if point:
-        st.info("**The main point:** " + point, icon="📌")
     all_traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
     for col, card in zip(st.columns(4), story_numbers(inflation, oil, all_traffic, end)):
         story_card(col, card)
@@ -701,8 +705,6 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oi
         st.plotly_chart(chart_hormuz(traffic, start, end), width="stretch", theme=None, key="infl_hormuz_chart")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
-    st.caption("Sources: Eurostat, OECD, US BLS, IMF PortWatch. Shaded: since the war began (28 Feb 2026). "
-               "More in *About the data* at the bottom.")
 
 
 def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFrame,
