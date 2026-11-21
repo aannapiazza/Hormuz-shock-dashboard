@@ -659,10 +659,11 @@ def chart_lags(model: dict) -> go.Figure:
 # =============================================================================
 
 def story_card(col, card: dict) -> None:
-    """One number card: a bordered box with the number and a grey note under it."""
+    """One number card: a bordered box with the number, and a grey note under it if the card has one."""
     with col.container(border=True):
         st.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"))
-        st.caption(card["note"].replace("$", "\\$"))      # \\$ stops Streamlit reading $...$ as maths
+        if card.get("note"):
+            st.caption(card["note"].replace("$", "\\$"))      # \\$ stops Streamlit reading $...$ as maths
 
 
 def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oil: pd.DataFrame | None,
@@ -712,8 +713,6 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     end = min(end or END, oil.index[-1] + pd.offsets.MonthEnd(0))
     base = oil[oil.index <= end].index[-1]          # the month the scenario starts from (end of the period)
     brent_now = float(oil.loc[base, "USD"])
-    st.caption(f"Starting point: **{base:%B %Y}**, the last month of the time period above. Move the slider "
-               "back to see what the outlook was then.")
     c1, c2, c3 = st.columns(3)
     country = c1.selectbox("Country", options, key="infl_hh_country",
                            index=options.index("Ireland") if "Ireland" in options else 0)
@@ -736,34 +735,29 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
                .replace("$", "\\$"), icon="📌")
     scenario_cards = [
         dict(label="Energy inflation", value=f"{result['energy']:.1f}%",
-             delta=f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse",
-             note=f"If Brent is ${brent_future} a year after {base:%b %Y} ({result['oil_change']:+.0f}%). "
-                  f"Bills follow oil about {months_word(model['lag'])} later."),
+             delta=f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse"),
         dict(label="Headline inflation", value=f"{result['headline']:.1f}%",
-             delta=f"{result['headline'] - headline_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse",
-             note=f"Energy is {weight:.1f}% of the {country} basket, so it moves headline inflation a little."),
+             delta=f"{result['headline'] - headline_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse"),
         dict(label="Your energy bill", value=f"{symbol}{bill + result['extra_per_month']:,.0f}/month",
-             delta=f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse",
-             note=f"From a {symbol}{bill:,.0f} monthly bill, if it rises with energy inflation."),
+             delta=f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse"),
     ]
     for col, card in zip(st.columns(3), scenario_cards):
         story_card(col, card)
     st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
                     key="infl_model")
-    with st.expander("How the model works: choosing the delay"):
-        st.caption("The model tests delays of 0 to 6 months between a change in the oil price and energy "
-                   "inflation, and keeps the delay where the two move together most closely (the orange bar).")
-        st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
+    st.caption(f"Brent averaged \\${brent_now:.0f} in {base:%B %Y}. Faint dots: months outside the time period.")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
-    st.caption(
-        f"Brent averaged ${brent_now:.0f} in {base:%B %Y}, so ${brent_future} a year later is a "
-        f"{round(result['oil_change']) + 0:+d}% move. If oil stays flat, energy inflation falls back, because "
-        f"last year's jump drops out of the comparison. Energy is {weight:.1f}% of the {country} basket"
-        f"{weight_note}. Model: correlation at delays of 0–{MAX_LAG_MONTHS} months, then a least-squares line. "
-        "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. "
-        f"The line uses every month since {model['points'].index.min():%Y}; months outside "
-        f"{start:%b %Y}–{end:%b %Y} are drawn faint. "
-        "Oil: Yahoo Finance via yfinance.".replace("$", "\\$"))
+    with st.expander("How the model works"):
+        st.markdown(
+            f"1. For each delay of 0 to {MAX_LAG_MONTHS} months, it measures how closely energy inflation follows the "
+            "change in the oil price that many months earlier (the bars below). It keeps the closest (orange).\n"
+            "2. It fits a straight line through every month since "
+            f"{model['points'].index.min():%Y} (the dashed line above), so a short time period still has enough data.\n"
+            "3. Your scenario reads the oil change off that line. Headline inflation moves by energy's share of the "
+            f"basket ({weight:.1f}% in {country}{weight_note}), and your bill rises with energy inflation.\n\n"
+            "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. If oil "
+            "stays flat, energy inflation falls back, because last year's jump drops out of the comparison.")
+        st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
 
 
 # =============================================================================
