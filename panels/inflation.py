@@ -422,41 +422,6 @@ def household_scenario(model: dict, brent_now: float, brent_future: float, energ
             "headline": headline_future, "extra_per_month": extra_per_month}
 
 
-def main_point_inflation(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Timestamp = END) -> str:
-    """Section 1's main finding in two or three sentences, as of the end of the time period.
-
-    It counts EVERY country, not only the ones ticked, so it gives the overall
-    pattern (the consensus) that the reader would otherwise have to work out.
-    """
-    rises, above = [], []
-    for country in all_countries():
-        energy = change_since_war(series_for(inflation, country, "Energy").loc[:end])
-        if energy:
-            rises.append(energy[1])
-        headline = series_for(inflation, country, "Headline").loc[:end]
-        if not headline.empty:
-            above.append(headline.iloc[-1] > TARGET)
-    month = f"{min(end, END):%B %Y}"
-    if end < WAR_START:
-        text = f"This period ends before the war (in {month})."
-        if above:
-            text += (f" Headline inflation was above the {TARGET:.0f}% target in **{sum(above)} of {len(above)}** "
-                     "countries.")
-        return text + " Move the end of the time slider past February 2026 to see the shock."
-    parts = []
-    if traffic is not None and pd.Timestamp("2026-02-01") in traffic.index:
-        t = traffic.loc[:end]
-        parts.append(f"Oil-tanker traffic through Hormuz fell from **{t.loc['2026-02-01']:.0f}%** of normal in "
-                     f"February 2026 to **{t.iloc[-1]:.1f}%** in {t.index[-1]:%B %Y}.")
-    if rises:
-        up = sum(r > 0 for r in rises)
-        parts.append(f"By {month}, energy inflation had risen in **{up} of the {len(rises)}** countries that publish "
-                     f"it, by **{np.mean(rises):.1f} points** on average since the war began.")
-    if above:
-        parts.append(f"Headline inflation was above the {TARGET:.0f}% target in **{sum(above)} of {len(above)}** countries.")
-    return " ".join(parts)
-
-
 def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd.Series | None,
                   end: pd.Timestamp = END) -> list[dict]:
     """The four numbers at the top of Section 1, as of the end of the time period, each with a note.
@@ -499,18 +464,6 @@ def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd
                           delta=delta, delta_color="normal",
                           note=f"Oil tankers through the strait, against the {NORMAL_YEAR} average (IMF PortWatch)."))
     return cards
-
-
-def main_point_household(country: str, model: dict, base: pd.Timestamp, brent_future: float, symbol: str,
-                         extra_year: float) -> str:
-    """Section 2's main finding in one or two sentences, for the country, month and oil price picked."""
-    text = (f"Oil prices reach energy bills in {place(country)} after about **{months_word(model['lag'])}**: each 10% rise "
-            f"in oil adds about **{10 * model['slope']:.1f} points** to energy inflation. Starting from "
-            f"{base:%B %Y}, if Brent is ${brent_future:.0f} a year later, a household like yours pays about "
-            f"**{symbol}{abs(extra_year):,.0f} {'more' if extra_year >= 0 else 'less'} a year** for energy.")
-    if model["r2"] < 0.3:
-        text += " The link is weak in this country's data, so treat this as a rough guide."
-    return text
 
 
 def place(country: str) -> str:
