@@ -422,6 +422,41 @@ def household_scenario(model: dict, brent_now: float, brent_future: float, energ
             "headline": headline_future, "extra_per_month": extra_per_month}
 
 
+def main_point_inflation(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Timestamp = END) -> str:
+    """Section 1's main finding in two or three sentences, as of the end of the time period.
+
+    It counts EVERY country, not only the ones ticked, so it gives the overall
+    pattern (the consensus) that the reader would otherwise have to work out.
+    """
+    rises, above = [], []
+    for country in all_countries():
+        energy = change_since_war(series_for(inflation, country, "Energy").loc[:end])
+        if energy:
+            rises.append(energy[1])
+        headline = series_for(inflation, country, "Headline").loc[:end]
+        if not headline.empty:
+            above.append(headline.iloc[-1] > TARGET)
+    month = f"{min(end, END):%B %Y}"
+    if end < WAR_START:
+        text = f"This period ends before the war (in {month})."
+        if above:
+            text += (f" Headline inflation was above the {TARGET:.0f}% target in **{sum(above)} of {len(above)}** "
+                     "countries.")
+        return text + " Move the end of the time slider past February 2026 to see the shock."
+    parts = []
+    if traffic is not None and pd.Timestamp("2026-02-01") in traffic.index:
+        t = traffic.loc[:end]
+        parts.append(f"Oil-tanker traffic through Hormuz fell from **{t.loc['2026-02-01']:.0f}%** of normal in "
+                     f"February 2026 to **{t.iloc[-1]:.1f}%** in {t.index[-1]:%B %Y}.")
+    if rises:
+        up = sum(r > 0 for r in rises)
+        parts.append(f"By {month}, energy inflation had risen in **{up} of the {len(rises)}** countries that publish "
+                     f"it, by **{np.mean(rises):.1f} points** on average since the war began.")
+    if above:
+        parts.append(f"Headline inflation was above the {TARGET:.0f}% target in **{sum(above)} of {len(above)}** countries.")
+    return " ".join(parts)
+
+
 def months_word(n: int) -> str:
     """'1 month' or '2 months'."""
     return f"{n} month{'s' if n != 1 else ''}"
@@ -549,6 +584,9 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
                         start: pd.Timestamp, end: pd.Timestamp) -> None:
     """Section 1: how far has inflation moved since the war began? Shows only start to end."""
     st.subheader("1 · Inflation since the war")
+    point = main_point_inflation(inflation, traffic_vs_normal(hormuz) if hormuz is not None else None, end)
+    if point:
+        st.info("**The main point:** " + point, icon="📌")
     c1, c2 = st.columns([3, 1.5])
     countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
                                default=["Euro area", "Ireland", "United Kingdom", "United States", "China"])
