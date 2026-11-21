@@ -19,6 +19,7 @@ Refresh the data: python3 -c "from panels.inflation import save_all; save_all()"
 """
 
 import io
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -44,6 +45,10 @@ WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
           ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
 TARGET = 2.0                              # central banks' inflation target, %
+
+# The time slider at the top of the panel links both sections: Section 1 shows
+# only these months, and Section 2 starts its scenario from the last of them.
+DEFAULT_PERIOD = (date(2025, 1, 1), END.date())
 
 MEASURES = ["Headline", "Energy", "Food", "Services"]
 
@@ -329,6 +334,30 @@ def series_for(inflation: pd.DataFrame, country: str, measure: str) -> pd.Series
     return rows.set_index("date")["value"].sort_index()
 
 
+def chosen_period() -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Draw the panel's time slider and return (first month, last day) of the period picked.
+
+    The start is moved back to the 1st of its month, because the data is
+    monthly (each month is dated on the 1st).
+    """
+    st.session_state.setdefault("infl_period", DEFAULT_PERIOD)      # first visit: Jan 2025 to Oct 2026
+    start, end = st.slider("📅 Time period (links both sections)", min_value=date(START.year + 1, 1, 1),
+                           max_value=END.date(), format="MMM YYYY", key="infl_period",
+                           help="Section 1 shows only these months. Section 2 starts its scenario from the "
+                                "last month you pick, so you can see what the outlook was at any point.")
+    return pd.Timestamp(start).to_period("M").to_timestamp(), pd.Timestamp(end)
+
+
+def value_at(s: pd.Series | pd.DataFrame, end: pd.Timestamp):
+    """The last value on or before `end` (the latest month the period reaches)."""
+    return s[s.index <= end].iloc[-1]
+
+
+def in_period(s: pd.Series | pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp):
+    """Only the rows dated from start to end (both included)."""
+    return s[(s.index >= start) & (s.index <= end)]
+
+
 def change_since_war(s: pd.Series) -> tuple[float, float] | None:
     """Latest value and its change since February 2026, the last month before the war.
 
@@ -415,7 +444,7 @@ def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
     return fig
 
 
-def add_war_and_events(fig: go.Figure, start: pd.Timestamp) -> go.Figure:
+def add_war_and_events(fig: go.Figure, start: pd.Timestamp, end: pd.Timestamp = END) -> go.Figure:
     """Shade the war period and draw a dotted line at each key event.
 
     Labels are only written when the chart starts in 2025 or later; over a
@@ -423,18 +452,23 @@ def add_war_and_events(fig: go.Figure, start: pd.Timestamp) -> go.Figure:
     "War begins" is labelled. Labels alternate between two heights so
     neighbouring events don't overlap.
     """
-    fig.add_vrect(x0=WAR_START, x1=END, fillcolor="#d23f3f", opacity=0.07, line_width=0, layer="below")
+    if end > WAR_START:
+        fig.add_vrect(x0=max(WAR_START, start), x1=end, fillcolor="#d23f3f", opacity=0.07, line_width=0,
+                      layer="below")
     zoomed_in = start >= pd.Timestamp("2025-01-01")
-    for i, (date, label) in enumerate(EVENTS):
-        fig.add_vline(x=pd.Timestamp(date), line=dict(color="#98a2b3", width=1, dash="dot"))
+    for i, (day, label) in enumerate(EVENTS):
+        day = pd.Timestamp(day)
+        if not start <= day <= end:                  # event outside the chosen period: leave it out
+            continue
+        fig.add_vline(x=day, line=dict(color="#98a2b3", width=1, dash="dot"))
         if zoomed_in or i == 0:
-            fig.add_annotation(x=pd.Timestamp(date), y=1 if i % 2 == 0 else 0.9, yref="paper", text=label,
+            fig.add_annotation(x=day, y=1 if i % 2 == 0 else 0.9, yref="paper", text=label,
                                showarrow=False, xanchor="left", yanchor="top", xshift=3,
                                font=dict(size=10, color="#6b7785"), bgcolor="rgba(255,255,255,0.8)")
     return fig
 
 
-def chart_inflation(inflation, countries, measure, start, traffic=None) -> go.Figure:
+def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> go.Figure:
     """Section 1 chart: one line per country, the war shaded, events marked.
 
     If `traffic` is given, Hormuz tanker capacity (% of normal) is drawn on a
@@ -444,16 +478,16 @@ def chart_inflation(inflation, countries, measure, start, traffic=None) -> go.Fi
     changes = {}
     for colour, country in zip(COLOURS, countries):
         s = series_for(inflation, country, measure)
-        s = s[s.index >= start]
+        result = change_since_war(s[s.index <= end])       # Feb 2026 counts even if the period starts later
+        s = in_period(s, start, end)
         fig.add_trace(go.Scatter(x=s.index, y=s.values, name=country, mode="lines",
                                  line=dict(color=colour, width=3 if country == countries[0] else 2),
                                  hovertemplate=f"{country}: %{{y:.1f}}%<extra></extra>"))
-        result = change_since_war(s)
         if result:
             changes[country] = result[1]
     fig.add_hline(y=TARGET, line=dict(color="#6b7785", dash="dash", width=1),
                   annotation_text="2% target", annotation_position="bottom right")
-    add_war_and_events(fig, start)
+    add_war_and_events(fig, start, end)
     if changes:   # a title that states the finding (Session 9)
         top = max(changes, key=lambda c: abs(changes[c]))
         title = (f"{measure} inflation in {top} is {'up' if changes[top] >= 0 else 'down'} "
@@ -462,13 +496,15 @@ def chart_inflation(inflation, countries, measure, start, traffic=None) -> go.Fi
         title = f"{measure} inflation"
     extra = {}
     if traffic is not None:
-        t = traffic[traffic.index >= start]
+        t = in_period(traffic, start, end)
         fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Hormuz tanker capacity (right axis)", yaxis="y2",
                                  mode="lines", line=dict(color="#1b2a41", width=2, dash="dot"),
                                  hovertemplate="Hormuz tankers: %{y:.0f}% of normal<extra></extra>"))
         extra["yaxis2"] = dict(title=f"Tanker capacity, % of {NORMAL_YEAR} average", overlaying="y", side="right",
-                               range=[0, 140], ticksuffix="%", showgrid=False, tickmode="linear", tick0=0, dtick=20)
-    return style(fig, 460, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"), **extra)
+                               range=[0, 140], ticksuffix="%", showgrid=False,
+                               tickmode="linear", tick0=0, dtick=20)
+    return style(fig, 460, title, yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"),
+                 xaxis=dict(range=[start, end]), **extra)
 
 
 def chart_passthrough(model, scenario, country, currency) -> go.Figure:
@@ -499,14 +535,14 @@ def chart_passthrough(model, scenario, country, currency) -> go.Figure:
 # 5. LAYOUT
 # =============================================================================
 
-def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None = None) -> None:
-    """Section 1: how far has inflation moved since the war began?"""
+def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
+                        start: pd.Timestamp, end: pd.Timestamp) -> None:
+    """Section 1: how far has inflation moved since the war began? Shows only start to end."""
     st.subheader("1 · Inflation since the war")
-    c1, c2, c3 = st.columns([3, 1.5, 1.5])
+    c1, c2 = st.columns([3, 1.5])
     countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
                                default=["Euro area", "Ireland", "United Kingdom", "United States", "China"])
     measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
-    start_year = c3.slider("Start year", START.year + 1, END.year, 2021, key="infl_start")
     if not countries:
         st.info("Pick at least one country.")
         return
@@ -514,23 +550,29 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None = N
         "Show oil tankers through Hormuz", value=True, key="infl_hormuz",
         help="Daily tanker capacity through the strait (IMF PortWatch), as a monthly % of the 2025 average.")
     traffic = traffic_vs_normal(hormuz) if show_traffic else None
+    if traffic is not None:
+        traffic = traffic[traffic.index <= end]      # the chart itself cuts it to start-end
     have = [c for c in countries if not series_for(inflation, c, measure).empty]
     missing = [c for c in countries if c not in have]
 
     cols = st.columns(max(1, min(len(have), 5)))
     for col, country in zip(cols, have[:5]):
-        result = change_since_war(series_for(inflation, country, measure))
-        if result:
-            col.metric(country, f"{result[0]:.1f}%", f"{result[1]:+.1f} pts since Feb 2026",
+        s = series_for(inflation, country, measure)
+        s = s[s.index <= end]                        # up to the end of the period, so Feb 2026 is always there
+        result = change_since_war(s)
+        if result:                                   # the period reaches past the war: show the change since
+            col.metric(f"{country}, {s.index[-1]:%b %Y}", f"{result[0]:.1f}%", f"{result[1]:+.1f} pts since Feb 2026",
                        delta_color="inverse")
-    st.plotly_chart(chart_inflation(inflation, have, measure, pd.Timestamp(f"{start_year}-01-01"), traffic),
+        elif not s.empty:                            # the period ends before the war: just the value
+            col.metric(f"{country}, {s.index[-1]:%b %Y}", f"{s.iloc[-1]:.1f}%")
+    st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
                     width="stretch", theme=None, key="infl_chart")
-    if traffic is not None:
+    if traffic is not None and end >= WAR_START:
         st.caption(f"Tanker capacity through Hormuz in {traffic.index[-1]:%B %Y} was **{traffic.iloc[-1]:.1f}%** of the "
                    f"{NORMAL_YEAR} average, against {traffic.loc['2026-02-01']:.0f}% in February 2026, the month before the war.")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
-    st.caption(f"Annual inflation to {END:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, South "
+    st.caption(f"Annual inflation, {start:%B %Y} to {end:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, South "
                "Korea, China, India); US Bureau of Labor Statistics CPI; IMF PortWatch (tankers). Non-euro figures are national measures, close to "
                "but not exactly comparable with the euro-area HICP. Shaded: since 28 Feb 2026.")
 
@@ -595,7 +637,8 @@ def render() -> None:
     if data["inflation"] is None:
         st.error("No inflation data. Check the inflation_*.csv files in the data folder.")
         return
-    section_1_inflation(data["inflation"], data["hormuz"])
+    start, end = chosen_period()
+    section_1_inflation(data["inflation"], data["hormuz"], start, end)
     st.divider()
     if data["oil"] is None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")
