@@ -105,3 +105,43 @@ def test_download_hormuz_keeps_only_hormuz(tmp_path, monkeypatch):
     monkeypatch.setattr(inf, "PORTWATCH_RAW", raw)
     df = inf.download_hormuz()
     assert len(df) == 1 and df["n_tanker"].iloc[0] == 1
+
+
+# ---- tests for the time slider, cards and delay chart ----
+
+def make_inflation(rows):
+    """A small inflation table from (country, measure, date, value) tuples."""
+    return pd.DataFrame([{"country": c, "measure": m, "date": pd.Timestamp(d), "value": v} for c, m, d, v in rows])
+
+
+def test_in_period_keeps_both_ends():
+    s = pd.Series(range(12), index=pd.date_range("2025-01-01", periods=12, freq="MS"))
+    kept = inf.in_period(s, pd.Timestamp("2025-03-01"), pd.Timestamp("2025-05-31"))
+    assert list(kept) == [2, 3, 4]
+
+
+def test_value_at_takes_the_last_month_of_the_period():
+    s = pd.Series([1.0, 2.0, 3.0], index=pd.to_datetime(["2026-01-01", "2026-02-01", "2026-03-01"]))
+    assert inf.value_at(s, pd.Timestamp("2026-02-28")) == 2.0       # the period ends in February
+    assert inf.value_at(s, pd.Timestamp("2026-10-31")) == 3.0       # past the data: the latest month
+
+
+def test_story_numbers_follow_the_end_of_the_period():
+    inflation = make_inflation([("Euro area", "Headline", "2026-02-01", 2.0), ("Euro area", "Headline", "2026-10-01", 4.5),
+                                ("Euro area", "Energy", "2026-02-01", 1.0), ("Euro area", "Energy", "2026-10-01", 18.0),
+                                ("Euro area", "Food", "2026-02-01", 2.0), ("Euro area", "Food", "2026-10-01", 3.0)])
+    traffic = pd.Series([90.0, 0.6], index=pd.to_datetime(["2026-02-01", "2026-10-01"]))
+    cards = inf.story_numbers(inflation, traffic)
+    assert len(cards) == 3
+    assert cards[0]["delta"] == "+2.5 pts since Feb 2026"
+    assert cards[2]["value"] == "0.6% of normal"
+    assert "food 3.0% (+1.0 pts)" in cards[1]["note"]                    # energy compared with food
+    before = inf.story_numbers(inflation, traffic, pd.Timestamp("2026-02-28"))
+    assert before[0]["value"] == "2.0%" and before[0]["delta"] is None   # nothing to compare with yet
+
+
+def test_fit_passthrough_keeps_every_correlation(oil):
+    change = inf.oil_change_yoy(oil, "EUR")
+    model = inf.fit_passthrough((0.4 * change.shift(2)).dropna(), change)
+    assert list(model["correlations"]) == list(range(inf.MAX_LAG_MONTHS + 1))
+    assert max(model["correlations"], key=model["correlations"].get) == model["lag"]
