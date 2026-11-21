@@ -677,15 +677,12 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oi
         story_card(col, card)
     c1, c2 = st.columns([3, 1.5])
     countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
-                               default=["Euro area", "Ireland", "United Kingdom", "United States", "China"])
+                               default=["Euro area", "United Kingdom", "United States"])
     measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
     if not countries:
         st.info("Pick at least one country.")
         return
-    show_traffic = hormuz is not None and st.toggle(
-        "Show the Hormuz tanker chart", value=True, key="infl_hormuz",
-        help="Daily tanker capacity through the strait (IMF PortWatch), as a monthly % of the 2025 average.")
-    traffic = traffic_vs_normal(hormuz) if show_traffic else None
+    traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
     if traffic is not None:
         traffic = traffic[traffic.index <= end]      # the chart itself cuts it to start-end
     have = [c for c in countries if not series_for(inflation, c, measure).empty]
@@ -695,14 +692,10 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oi
                     width="stretch", theme=None, key="infl_chart")
     if traffic is not None:
         st.plotly_chart(chart_hormuz(traffic, start, end), width="stretch", theme=None, key="infl_hormuz_chart")
-    if traffic is not None and end >= WAR_START:
-        st.caption(f"Tanker capacity through Hormuz in {traffic.index[-1]:%B %Y} was **{traffic.iloc[-1]:.1f}%** of the "
-                   f"{NORMAL_YEAR} average, against {traffic.loc['2026-02-01']:.0f}% in February 2026, the month before the war.")
     if missing:
         st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
-    st.caption(f"Annual inflation, {start:%B %Y} to {end:%B %Y}. Sources: Eurostat HICP (euro countries); OECD CPI (UK, South "
-               "Korea, China, India); US Bureau of Labor Statistics CPI; IMF PortWatch (tankers). Non-euro figures are national measures, close to "
-               "but not exactly comparable with the euro-area HICP. Shaded: since 28 Feb 2026.")
+    st.caption("Sources: Eurostat, OECD, US BLS, IMF PortWatch. Shaded: since the war began (28 Feb 2026). "
+               "More in *About the data* at the bottom.")
 
 
 def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFrame,
