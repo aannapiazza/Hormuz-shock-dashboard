@@ -557,10 +557,10 @@ def chart_hormuz(traffic: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> 
 
 
 def chart_passthrough(model, scenario, country, currency, start=None, end=None) -> go.Figure:
-    """Section 2 chart: every past month, the fitted line, and your scenario.
+    """Section 2 chart: the months in the chosen period, the fitted line, and your scenario.
 
-    The line is fitted on every month, but months outside the chosen period
-    (the time slider) are drawn faint, so the period you picked stands out.
+    The line is fitted on every month since the data starts, but only the
+    months in the time period are drawn, so the chart stays uncluttered.
     """
     p = model["points"]
     war = p.index >= WAR_START
@@ -568,14 +568,11 @@ def chart_passthrough(model, scenario, country, currency, start=None, end=None) 
     fig = go.Figure()
     for mask, name, colour, size in [(~war, "Months before the war", "#98a2b3", 7),
                                      (war, "Months since the war", "#d23f3f", 10)]:
-        for inside in (True, False):             # bold inside the period, faint outside; one legend entry
-            m = mask & (shown if inside else ~shown)
-            x, y = (p.loc[m, "oil"], p.loc[m, "energy"]) if m.any() else ([None], [None])   # keeps the legend entry
-            fig.add_trace(go.Scatter(x=x, y=y, mode="markers", name=name,
-                                     legendgroup=name, showlegend=inside,
-                                     marker=dict(color=colour, size=size, opacity=1.0 if inside else 0.2),
-                                     text=p.index[m].strftime("%b %Y"),
-                                     hovertemplate="%{text}: oil %{x:+.0f}%, energy %{y:.1f}%<extra></extra>"))
+        m = mask & shown
+        x, y = (p.loc[m, "oil"], p.loc[m, "energy"]) if m.any() else ([None], [None])   # keeps the legend entry
+        fig.add_trace(go.Scatter(x=x, y=y, mode="markers", name=name, marker=dict(color=colour, size=size),
+                                 text=p.index[m].strftime("%b %Y"),
+                                 hovertemplate="%{text}: oil %{x:+.0f}%, energy %{y:.1f}%<extra></extra>"))
     x = np.linspace(min(p["oil"].min(), scenario["oil_change"]), max(p["oil"].max(), scenario["oil_change"]), 50)
     fig.add_trace(go.Scatter(x=x, y=model["intercept"] + model["slope"] * x, mode="lines", hoverinfo="skip",
                              name=f"Fitted line (R² = {model['r2']:.2f})", line=dict(color="#1b2a41", dash="dash")))
@@ -687,8 +684,8 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     ]
     for col, card in zip(st.columns(3), scenario_cards):
         story_card(col, card)
-    st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
-                    key="infl_model")
+    st.container(border=True).plotly_chart(chart_passthrough(model, result, country, currency, start, end),
+                                           width="stretch", theme=None, key="infl_model")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
     with st.expander("How the model works"):
         st.markdown(
@@ -699,7 +696,7 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
             "3. Your scenario reads the oil change off that line. Headline inflation moves by energy's share of the "
             f"basket ({weight:.1f}% in {place(country)}{weight_note}), and your bill rises with energy inflation.\n\n"
             f"Brent averaged \\${brent_now:.0f} in {base:%B %Y}, the last month of the time period. On the chart, "
-            "faint dots are months outside the time period.\n\n"
+            "the dots are the months in the time period; the line uses every month.\n\n"
             "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. If oil "
             "stays flat, energy inflation falls back, because last year's jump drops out of the comparison.")
         st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
