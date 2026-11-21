@@ -457,6 +457,50 @@ def main_point_inflation(inflation: pd.DataFrame, traffic: pd.Series | None, end
     return " ".join(parts)
 
 
+def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd.Series | None,
+                  end: pd.Timestamp = END) -> list[dict]:
+    """The four numbers at the top of Section 1, as of the end of the time period, each with a note.
+
+    Each card: label, value, delta (change since February 2026, the last month
+    before the war; none if the period ends before then), delta_color, note.
+    A card is left out if its data is missing.
+    """
+    feb = pd.Timestamp("2026-02-01")
+    cards = []
+    others = []                                  # food and services, to compare with energy in its note
+    for measure in ("Food", "Services"):
+        o = series_for(inflation, "Euro area", measure).loc[:end]
+        if not o.empty:
+            moved = change_since_war(o)
+            others.append(f"{measure.lower()} {o.iloc[-1]:.1f}%" + (f" ({moved[1]:+.1f} pts)" if moved else ""))
+    energy_note = "Energy is the direct link from oil to prices."
+    if others:
+        energy_note += " Same month: " + ", ".join(others) + "."
+    for measure, label, note in [
+            ("Headline", "Euro-area inflation", "All prices, average of the euro countries. The ECB aims for 2%."),
+            ("Energy", "Euro-area energy inflation", energy_note)]:
+        s = series_for(inflation, "Euro area", measure).loc[:end]
+        if s.empty:
+            continue
+        result = change_since_war(s)
+        cards.append(dict(label=f"{label}, {s.index[-1]:%b %Y}", value=f"{s.iloc[-1]:.1f}%",
+                          delta=f"{result[1]:+.1f} pts since Feb 2026" if result else None,
+                          delta_color="inverse", note=note))
+    if oil is not None and not oil.loc[:end].empty:
+        o = oil.loc[:end, "USD"]
+        delta = f"{(o.iloc[-1] / oil.loc[feb, 'USD'] - 1) * 100:+.0f}% since Feb 2026" if o.index[-1] > feb else None
+        cards.append(dict(label=f"Brent crude, {o.index[-1]:%b %Y} average", value=f"${o.iloc[-1]:.0f}",
+                          delta=delta, delta_color="inverse",
+                          note=f"US$ a barrel. It averaged ${oil.loc[feb, 'USD']:.0f} in February 2026, before the war."))
+    if traffic is not None and not traffic.loc[:end].empty:
+        t = traffic.loc[:end]
+        delta = f"{t.iloc[-1] - traffic.loc[feb]:+.0f} pts since Feb 2026" if t.index[-1] > feb else None
+        cards.append(dict(label=f"Hormuz tankers, {t.index[-1]:%b %Y}", value=f"{t.iloc[-1]:.1f}% of normal",
+                          delta=delta, delta_color="normal",
+                          note=f"Oil tankers through the strait, against the {NORMAL_YEAR} average (IMF PortWatch)."))
+    return cards
+
+
 def months_word(n: int) -> str:
     """'1 month' or '2 months'."""
     return f"{n} month{'s' if n != 1 else ''}"
@@ -580,13 +624,23 @@ def chart_passthrough(model, scenario, country, currency, start=None, end=None) 
 # 5. LAYOUT
 # =============================================================================
 
-def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
+def story_card(col, card: dict) -> None:
+    """One number card: a bordered box with the number and a grey note under it."""
+    with col.container(border=True):
+        st.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"))
+        st.caption(card["note"].replace("$", "\\$"))      # \\$ stops Streamlit reading $...$ as maths
+
+
+def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oil: pd.DataFrame | None,
                         start: pd.Timestamp, end: pd.Timestamp) -> None:
     """Section 1: how far has inflation moved since the war began? Shows only start to end."""
     st.subheader("1 · Inflation since the war")
     point = main_point_inflation(inflation, traffic_vs_normal(hormuz) if hormuz is not None else None, end)
     if point:
         st.info("**The main point:** " + point, icon="📌")
+    all_traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
+    for col, card in zip(st.columns(4), story_numbers(inflation, oil, all_traffic, end)):
+        story_card(col, card)
     c1, c2 = st.columns([3, 1.5])
     countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
                                default=["Euro area", "Ireland", "United Kingdom", "United States", "China"])
@@ -603,16 +657,6 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
     have = [c for c in countries if not series_for(inflation, c, measure).empty]
     missing = [c for c in countries if c not in have]
 
-    cols = st.columns(max(1, min(len(have), 5)))
-    for col, country in zip(cols, have[:5]):
-        s = series_for(inflation, country, measure)
-        s = s[s.index <= end]                        # up to the end of the period, so Feb 2026 is always there
-        result = change_since_war(s)
-        if result:                                   # the period reaches past the war: show the change since
-            col.metric(f"{country}, {s.index[-1]:%b %Y}", f"{result[0]:.1f}%", f"{result[1]:+.1f} pts since Feb 2026",
-                       delta_color="inverse")
-        elif not s.empty:                            # the period ends before the war: just the value
-            col.metric(f"{country}, {s.index[-1]:%b %Y}", f"{s.iloc[-1]:.1f}%")
     st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
                     width="stretch", theme=None, key="infl_chart")
     if traffic is not None and end >= WAR_START:
@@ -694,7 +738,7 @@ def render() -> None:
         st.error("No inflation data. Check the inflation_*.csv files in the data folder.")
         return
     start, end = chosen_period()
-    section_1_inflation(data["inflation"], data["hormuz"], start, end)
+    section_1_inflation(data["inflation"], data["hormuz"], data["oil"], start, end)
     st.divider()
     if data["oil"] is None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")
