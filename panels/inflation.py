@@ -42,8 +42,6 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 # Story dates (the same events as the other three panels)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
-EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
-          ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
 TARGET = 2.0                              # central banks' inflation target, %
 
 # The time slider at the top of the panel links both sections: Section 1 shows
@@ -422,9 +420,8 @@ def household_scenario(model: dict, brent_now: float, brent_future: float, energ
             "headline": headline_future, "extra_per_month": extra_per_month}
 
 
-def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd.Series | None,
-                  end: pd.Timestamp = END) -> list[dict]:
-    """The four numbers at the top of Section 1, as of the end of the time period, each with a note.
+def story_numbers(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Timestamp = END) -> list[dict]:
+    """The three numbers at the top of Section 1, as of the end of the time period, each with a note.
 
     Each card: label, value, delta (change since February 2026, the last month
     before the war; none if the period ends before then), delta_color, note.
@@ -451,12 +448,6 @@ def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd
         cards.append(dict(label=f"{label}, {s.index[-1]:%b %Y}", value=f"{s.iloc[-1]:.1f}%",
                           delta=f"{result[1]:+.1f} pts since Feb 2026" if result else None,
                           delta_color="inverse", note=note))
-    if oil is not None and not oil.loc[:end].empty:
-        o = oil.loc[:end, "USD"]
-        delta = f"{(o.iloc[-1] / oil.loc[feb, 'USD'] - 1) * 100:+.0f}% since Feb 2026" if o.index[-1] > feb else None
-        cards.append(dict(label=f"Brent crude, {o.index[-1]:%b %Y} average", value=f"${o.iloc[-1]:.0f}",
-                          delta=delta, delta_color="inverse",
-                          note=f"US$ a barrel. It averaged ${oil.loc[feb, 'USD']:.0f} in February 2026, before the war."))
     if traffic is not None and not traffic.loc[:end].empty:
         t = traffic.loc[:end]
         delta = f"{t.iloc[-1] - traffic.loc[feb]:+.0f} pts since Feb 2026" if t.index[-1] > feb else None
@@ -494,32 +485,26 @@ def style(fig: go.Figure, height: int, title: str, title_size: int = 16, **layou
     return fig
 
 
-def add_war_and_events(fig: go.Figure, start: pd.Timestamp, end: pd.Timestamp = END) -> go.Figure:
-    """Shade the war period and draw a dotted line at each key event.
+def add_war_and_events(fig: go.Figure, start: pd.Timestamp, end: pd.Timestamp = END,
+                       label: bool = True) -> go.Figure:
+    """Shade the months since the war began and mark its start with one dotted line.
 
-    Labels are only written when the chart starts in 2025 or later; over a
-    longer period the events sit too close together to read, so only
-    "War begins" is labelled. Labels alternate between two heights so
-    neighbouring events don't overlap.
+    Only the start of the war is marked: more event lines made the chart hard to read.
     """
     if end > WAR_START:
         fig.add_vrect(x0=max(WAR_START, start), x1=end, fillcolor="#d23f3f", opacity=0.07, line_width=0,
                       layer="below")
-    zoomed_in = start >= pd.Timestamp("2025-01-01")
-    for i, (day, label) in enumerate(EVENTS):
-        day = pd.Timestamp(day)
-        if not start <= day <= end:                  # event outside the chosen period: leave it out
-            continue
-        fig.add_vline(x=day, line=dict(color="#98a2b3", width=1, dash="dot"))
-        if zoomed_in or i == 0:
-            fig.add_annotation(x=day, y=1 if i % 2 == 0 else 0.9, yref="paper", text=label,
-                               showarrow=False, xanchor="left", yanchor="top", xshift=3,
-                               font=dict(size=10, color="#6b7785"), bgcolor="rgba(255,255,255,0.8)")
+    if start <= WAR_START <= end:
+        fig.add_vline(x=WAR_START, line=dict(color="#98a2b3", width=1, dash="dot"))
+        if label:
+            fig.add_annotation(x=WAR_START, y=1, yref="paper", text="War begins", showarrow=False,
+                               xanchor="left", yanchor="top", xshift=3, font=dict(size=11, color="#6b7785"),
+                               bgcolor="rgba(255,255,255,0.8)")
     return fig
 
 
 def chart_inflation(inflation, countries, measure, start, end) -> go.Figure:
-    """Section 1 chart: one line per country, the war shaded, events marked."""
+    """Section 1 chart: one line per country, the months since the war shaded."""
     fig = go.Figure()
     changes = {}
     for colour, country in zip(COLOURS, countries):
@@ -564,7 +549,7 @@ def chart_hormuz(traffic: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> 
                                hovertemplate="Tankers: %{y:.1f}% of normal<extra></extra>"))
     fig.add_hline(y=100, line=dict(color="#6b7785", dash="dash", width=1),
                   annotation_text=f"normal ({NORMAL_YEAR})", annotation_position="top right")
-    add_war_and_events(fig, pd.Timestamp("2000-01-01"), end)       # an early start = lines but no labels here
+    add_war_and_events(fig, start, end, label=False)               # the label is already on the chart above
     return style(fig, 220, f"Oil-tanker capacity through Hormuz, % of the {NORMAL_YEAR} average", title_size=13,
                  showlegend=False, margin=dict(l=75, r=20, t=40, b=30),
                  yaxis=dict(range=[0, 145], ticksuffix="%", tickmode="linear", tick0=0, dtick=50, automargin=False),
@@ -626,38 +611,39 @@ def chart_lags(model: dict) -> go.Figure:
 # =============================================================================
 
 def story_card(col, card: dict) -> None:
-    """One headline number. Its note, if it has one, shows when you hover over the (?) icon."""
+    """One headline number in a box. Its note, if it has one, shows when you hover over the (?) icon."""
     note = card.get("note")
-    col.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"),
+    col.container(border=True).metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"),
                help=note.replace("$", "\\$") if note else None)      # \\$ stops Streamlit reading $...$ as maths
 
 
-def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None, oil: pd.DataFrame | None,
+def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
                         start: pd.Timestamp, end: pd.Timestamp) -> None:
     """Section 1: how far has inflation moved since the war began? Shows only start to end."""
     st.subheader("1 · Inflation since the war")
     all_traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
-    for col, card in zip(st.columns(4), story_numbers(inflation, oil, all_traffic, end)):
+    for col, card in zip(st.columns(3), story_numbers(inflation, all_traffic, end)):
         story_card(col, card)
-    c1, c2 = st.columns([3, 1.5])
-    countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
-                               default=["Euro area", "United Kingdom", "United States"])
-    measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
-    if not countries:
-        st.info("Pick at least one country.")
-        return
-    traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
-    if traffic is not None:
-        traffic = traffic[traffic.index <= end]      # the chart itself cuts it to start-end
-    have = [c for c in countries if not series_for(inflation, c, measure).empty]
-    missing = [c for c in countries if c not in have]
+    with st.container(border=True):              # the controls and the charts they change, in one box
+        c1, c2 = st.columns([3, 1.5])
+        countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
+                                   default=["Euro area", "United Kingdom", "United States"])
+        measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
+        if not countries:
+            st.info("Pick at least one country.")
+            return
+        traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
+        if traffic is not None:
+            traffic = traffic[traffic.index <= end]      # the chart itself cuts it to start-end
+        have = [c for c in countries if not series_for(inflation, c, measure).empty]
+        missing = [c for c in countries if c not in have]
 
-    st.plotly_chart(chart_inflation(inflation, have, measure, start, end),
-                    width="stretch", theme=None, key="infl_chart")
-    if traffic is not None:
-        st.plotly_chart(chart_hormuz(traffic, start, end), width="stretch", theme=None, key="infl_hormuz_chart")
-    if missing:
-        st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
+        st.plotly_chart(chart_inflation(inflation, have, measure, start, end),
+                        width="stretch", theme=None, key="infl_chart")
+        if traffic is not None:
+            st.plotly_chart(chart_hormuz(traffic, start, end), width="stretch", theme=None, key="infl_hormuz_chart")
+        if missing:
+            st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
 
 
 def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFrame,
@@ -734,7 +720,7 @@ def render() -> None:
         st.error("No inflation data. Check the inflation_*.csv files in the data folder.")
         return
     start, end = chosen_period()
-    section_1_inflation(data["inflation"], data["hormuz"], data["oil"], start, end)
+    section_1_inflation(data["inflation"], data["hormuz"], start, end)
     st.divider()
     if data["oil"] is None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")

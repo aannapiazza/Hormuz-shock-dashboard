@@ -126,17 +126,17 @@ def test_value_at_takes_the_last_month_of_the_period():
     assert inf.value_at(s, pd.Timestamp("2026-10-31")) == 3.0       # past the data: the latest month
 
 
-def test_story_numbers_follow_the_end_of_the_period(oil):
+def test_story_numbers_follow_the_end_of_the_period():
     inflation = make_inflation([("Euro area", "Headline", "2026-02-01", 2.0), ("Euro area", "Headline", "2026-10-01", 4.5),
                                 ("Euro area", "Energy", "2026-02-01", 1.0), ("Euro area", "Energy", "2026-10-01", 18.0),
                                 ("Euro area", "Food", "2026-02-01", 2.0), ("Euro area", "Food", "2026-10-01", 3.0)])
     traffic = pd.Series([90.0, 0.6], index=pd.to_datetime(["2026-02-01", "2026-10-01"]))
-    cards = inf.story_numbers(inflation, oil, traffic)
-    assert len(cards) == 4
+    cards = inf.story_numbers(inflation, traffic)
+    assert len(cards) == 3
     assert cards[0]["delta"] == "+2.5 pts since Feb 2026"
-    assert cards[3]["value"] == "0.6% of normal"
+    assert cards[2]["value"] == "0.6% of normal"
     assert "food 3.0% (+1.0 pts)" in cards[1]["note"]                    # energy compared with food
-    before = inf.story_numbers(inflation, oil, traffic, pd.Timestamp("2026-02-28"))
+    before = inf.story_numbers(inflation, traffic, pd.Timestamp("2026-02-28"))
     assert before[0]["value"] == "2.0%" and before[0]["delta"] is None   # nothing to compare with yet
 
 
