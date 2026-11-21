@@ -404,7 +404,7 @@ def fit_passthrough(energy: pd.Series, oil_change: pd.Series) -> dict:
                      axis=1, sort=True).dropna()
     slope, intercept = np.polyfit(pair["oil"], pair["energy"], 1)
     return {"lag": best_lag, "slope": slope, "intercept": intercept,
-            "r2": correlations[best_lag] ** 2, "points": pair}
+            "r2": correlations[best_lag] ** 2, "points": pair, "correlations": correlations}
 
 
 def household_scenario(model: dict, brent_now: float, brent_future: float, energy_now: float,
@@ -638,6 +638,22 @@ def chart_passthrough(model, scenario, country, currency, start=None, end=None) 
                  yaxis=dict(title="Energy inflation, % a year", zeroline=True))
 
 
+def chart_lags(model: dict) -> go.Figure:
+    """Slim bar chart: the correlation at each delay, with the delay the model picked in orange.
+
+    It shows the reader how the delay in the chart above was chosen (step 2 of fit_passthrough).
+    """
+    lags = list(model["correlations"])
+    values = [model["correlations"][lag] for lag in lags]
+    fig = go.Figure(go.Bar(x=lags, y=values, text=[f"{v:.2f}" for v in values], textposition="outside",
+                           marker_color=["#c2410c" if lag == model["lag"] else "#d5dae2" for lag in lags],
+                           hovertemplate="Delay of %{x} months: correlation %{y:.2f}<extra></extra>"))
+    title = f"How the delay was chosen: correlation at each delay (best = {months_word(model['lag'])})"
+    return style(fig, 220, title, title_size=13, showlegend=False, hovermode="closest",
+                 margin=dict(l=10, r=20, t=40, b=20),
+                 xaxis=dict(title="Delay (months)", dtick=1), yaxis=dict(range=[min(0, min(values)) - 0.05, 1.1]))
+
+
 # =============================================================================
 # 5. LAYOUT
 # =============================================================================
@@ -741,6 +757,10 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
         story_card(col, card)
     st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
                     key="infl_model")
+    with st.expander("How the model works: choosing the delay"):
+        st.caption("The model tests delays of 0 to 6 months between a change in the oil price and energy "
+                   "inflation, and keeps the delay where the two move together most closely (the orange bar).")
+        st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
     st.caption(
         f"Brent averaged ${brent_now:.0f} in {base:%B %Y}, so ${brent_future} a year later is a "
