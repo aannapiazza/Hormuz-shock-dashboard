@@ -711,7 +711,6 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
                         start: pd.Timestamp | None = None, end: pd.Timestamp | None = None) -> None:
     """Section 2: what would a new oil price mean for my household? Months from start to end stand out."""
     st.subheader("2 · What it means for your household")
-    point = st.empty()                           # the main point goes here once the controls are read
     options = [c for c in all_countries() if currency_of(c) in oil
                and not series_for(inflation, c, "Energy").empty
                and not series_for(inflation, c, "Headline").empty]
@@ -739,8 +738,6 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     result = household_scenario(model, brent_now, brent_future, energy_now, headline_now, weight, bill)
 
     extra_year = 12 * result["extra_per_month"]
-    point.info("**The main point:** " + main_point_household(country, model, base, brent_future, symbol, extra_year)
-               .replace("$", "\\$"), icon="📌")
     scenario_cards = [
         dict(label="Energy inflation", value=f"{result['energy']:.1f}%",
              delta=f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse"),
@@ -753,7 +750,6 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
         story_card(col, card)
     st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
                     key="infl_model")
-    st.caption(f"Brent averaged \\${brent_now:.0f} in {base:%B %Y}. Faint dots: months outside the time period.")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
     with st.expander("How the model works"):
         st.markdown(
@@ -763,6 +759,8 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
             f"{model['points'].index.min():%Y} (the dashed line above), so a short time period still has enough data.\n"
             "3. Your scenario reads the oil change off that line. Headline inflation moves by energy's share of the "
             f"basket ({weight:.1f}% in {place(country)}{weight_note}), and your bill rises with energy inflation.\n\n"
+            f"Brent averaged \\${brent_now:.0f} in {base:%B %Y}, the last month of the time period. On the chart, "
+            "faint dots are months outside the time period.\n\n"
             "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. If oil "
             "stays flat, energy inflation falls back, because last year's jump drops out of the comparison.")
         st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
