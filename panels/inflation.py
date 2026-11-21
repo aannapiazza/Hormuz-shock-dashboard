@@ -504,13 +504,19 @@ def story_numbers(inflation: pd.DataFrame, oil: pd.DataFrame | None, traffic: pd
 def main_point_household(country: str, model: dict, base: pd.Timestamp, brent_future: float, symbol: str,
                          extra_year: float) -> str:
     """Section 2's main finding in one or two sentences, for the country, month and oil price picked."""
-    text = (f"Oil prices reach energy bills in {country} after about **{months_word(model['lag'])}**: each 10% rise "
+    text = (f"Oil prices reach energy bills in {place(country)} after about **{months_word(model['lag'])}**: each 10% rise "
             f"in oil adds about **{10 * model['slope']:.1f} points** to energy inflation. Starting from "
             f"{base:%B %Y}, if Brent is ${brent_future:.0f} a year later, a household like yours pays about "
             f"**{symbol}{abs(extra_year):,.0f} {'more' if extra_year >= 0 else 'less'} a year** for energy.")
     if model["r2"] < 0.3:
         text += " The link is weak in this country's data, so treat this as a rough guide."
     return text
+
+
+def place(country: str) -> str:
+    """The country's name as it reads in a sentence: "the euro area", "the United States", "Ireland"."""
+    return {"Euro area": "the euro area", "United States": "the United States",
+            "United Kingdom": "the United Kingdom"}.get(country, country)
 
 
 def months_word(n: int) -> str:
@@ -577,7 +583,7 @@ def chart_inflation(inflation, countries, measure, start, end) -> go.Figure:
     add_war_and_events(fig, start, end)
     if changes:   # a title that states the finding (Session 9)
         top = max(changes, key=lambda c: abs(changes[c]))
-        title = (f"{measure} inflation in {top} is {'up' if changes[top] >= 0 else 'down'} "
+        title = (f"{measure} inflation in {place(top)} is {'up' if changes[top] >= 0 else 'down'} "
                  f"{abs(changes[top]):.1f} points since the war began")
     else:
         title = f"{measure} inflation"
@@ -632,7 +638,7 @@ def chart_passthrough(model, scenario, country, currency, start=None, end=None) 
                              hovertemplate="Your scenario: oil %{x:+.0f}%, energy %{y:.1f}%<extra></extra>"))
     lag = months_word(model["lag"])
     return style(fig, 440,
-                 f"In {country}, a 10% oil rise adds about {10 * model['slope']:.1f} points to energy inflation {lag} later",
+                 f"In {place(country)}, a 10% oil rise adds about {10 * model['slope']:.1f} points to energy inflation {lag} later",
                  hovermode="closest",
                  xaxis=dict(title=f"Change in the oil price in {currency} vs a year earlier, {lag} before (%)", zeroline=True),
                  yaxis=dict(title="Energy inflation, % a year", zeroline=True))
@@ -754,7 +760,7 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
             "2. It fits a straight line through every month since "
             f"{model['points'].index.min():%Y} (the dashed line above), so a short time period still has enough data.\n"
             "3. Your scenario reads the oil change off that line. Headline inflation moves by energy's share of the "
-            f"basket ({weight:.1f}% in {country}{weight_note}), and your bill rises with energy inflation.\n\n"
+            f"basket ({weight:.1f}% in {place(country)}{weight_note}), and your bill rises with energy inflation.\n\n"
             "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. If oil "
             "stays flat, energy inflation falls back, because last year's jump drops out of the comparison.")
         st.plotly_chart(chart_lags(model), width="stretch", theme=None, key="infl_lags")
@@ -781,6 +787,23 @@ def render() -> None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")
         return
     section_2_household(data["inflation"], data["weights"], data["oil"], start, end)
+    about_the_data(data["status"])
+
+
+def about_the_data(status: dict) -> None:
+    """A closed box at the bottom with the full source notes, so they don't crowd the charts."""
+    with st.expander("About the data"):
+        st.markdown(
+            f"- **Inflation:** annual change in consumer prices, monthly, to {END:%B %Y}. Euro countries: Eurostat "
+            "HICP. UK, South Korea, China, India: OECD CPI. USA: Bureau of Labor Statistics CPI (to September 2026; "
+            "October 2025 was never published because of the US government shutdown). Non-euro figures are "
+            "national measures, close to but not exactly comparable with the euro-area HICP. China publishes no "
+            "energy or services figures, and India only headline.\n"
+            "- **Oil:** Brent crude futures and exchange rates, monthly averages, from Yahoo Finance (yfinance).\n"
+            f"- **Tankers:** daily oil-tanker capacity through the Strait of Hormuz from IMF PortWatch, as a monthly "
+            f"% of the {NORMAL_YEAR} average.\n"
+            "- **Energy weights:** Eurostat HICP item weights; other countries use an approximate weight.\n"
+            "- **Loaded from:** " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
 
 
 if __name__ == "__main__":
