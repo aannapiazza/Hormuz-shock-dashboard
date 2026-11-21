@@ -43,6 +43,11 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 # Story dates (the same events as the other three panels)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 TARGET = 2.0                              # central banks' inflation target, %
+PHASES = [   # the phases of the war, shaded on the Section 1 charts: (name, start, end, colour)
+    ("War & closure", "2026-02-28", "2026-04-08", "#d23f3f"),
+    ("Ceasefire", "2026-04-08", "2026-07-07", "#2e6fd8"),
+    ("Strikes resume", "2026-07-07", "2026-10-31", "#7c5cd6"),
+]
 
 # The time slider at the top of the panel links both sections: Section 1 shows
 # only these months, and Section 2 starts its scenario from the last of them.
@@ -487,24 +492,25 @@ def style(fig: go.Figure, height: int, title: str, title_size: int = 16, **layou
 
 def add_war_and_events(fig: go.Figure, start: pd.Timestamp, end: pd.Timestamp = END,
                        label: bool = True) -> go.Figure:
-    """Shade the months since the war began and mark its start with one dotted line.
+    """Shade each phase of the war in its own light colour, with its name at the top.
 
-    Only the start of the war is marked: more event lines made the chart hard to read.
+    Only the part of each phase inside the chosen period is shaded. Names sit at
+    two heights in turn, so a short phase's name doesn't run into the next one.
     """
-    if end > WAR_START:
-        fig.add_vrect(x0=max(WAR_START, start), x1=end, fillcolor="#d23f3f", opacity=0.07, line_width=0,
-                      layer="below")
-    if start <= WAR_START <= end:
-        fig.add_vline(x=WAR_START, line=dict(color="#98a2b3", width=1, dash="dot"))
+    for i, (name, p_start, p_end, colour) in enumerate(PHASES):
+        x0, x1 = max(pd.Timestamp(p_start), start), min(pd.Timestamp(p_end), end)
+        if x0 >= x1:                                 # phase outside the chosen period
+            continue
+        fig.add_vrect(x0=x0, x1=x1, fillcolor=colour, opacity=0.09, line_width=0, layer="below")
         if label:
-            fig.add_annotation(x=WAR_START, y=1, yref="paper", text="War begins", showarrow=False,
-                               xanchor="left", yanchor="top", xshift=3, font=dict(size=11, color="#6b7785"),
+            fig.add_annotation(x=x0, y=1 if i % 2 == 0 else 0.93, yref="paper", text=name, showarrow=False,
+                               xanchor="left", yanchor="top", xshift=3, font=dict(size=11, color=colour),
                                bgcolor="rgba(255,255,255,0.8)")
     return fig
 
 
 def chart_inflation(inflation, countries, measure, start, end) -> go.Figure:
-    """Section 1 chart: one line per country, the months since the war shaded."""
+    """Section 1 chart: one line per country, each phase of the war shaded."""
     fig = go.Figure()
     changes = {}
     for colour, country in zip(COLOURS, countries):
