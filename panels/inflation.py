@@ -507,16 +507,26 @@ def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> 
                  xaxis=dict(range=[start, end]), **extra)
 
 
-def chart_passthrough(model, scenario, country, currency) -> go.Figure:
-    """Section 2 chart: every past month, the fitted line, and your scenario."""
+def chart_passthrough(model, scenario, country, currency, start=None, end=None) -> go.Figure:
+    """Section 2 chart: every past month, the fitted line, and your scenario.
+
+    The line is fitted on every month, but months outside the chosen period
+    (the time slider) are drawn faint, so the period you picked stands out.
+    """
     p = model["points"]
     war = p.index >= WAR_START
+    shown = (p.index >= (start or p.index.min())) & (p.index <= (end or p.index.max()))
     fig = go.Figure()
     for mask, name, colour, size in [(~war, "Months before the war", "#98a2b3", 7),
                                      (war, "Months since the war", "#d23f3f", 10)]:
-        fig.add_trace(go.Scatter(x=p.loc[mask, "oil"], y=p.loc[mask, "energy"], mode="markers", name=name,
-                                 marker=dict(color=colour, size=size), text=p.index[mask].strftime("%b %Y"),
-                                 hovertemplate="%{text}: oil %{x:+.0f}%, energy %{y:.1f}%<extra></extra>"))
+        for inside in (True, False):             # bold inside the period, faint outside; one legend entry
+            m = mask & (shown if inside else ~shown)
+            x, y = (p.loc[m, "oil"], p.loc[m, "energy"]) if m.any() else ([None], [None])   # keeps the legend entry
+            fig.add_trace(go.Scatter(x=x, y=y, mode="markers", name=name,
+                                     legendgroup=name, showlegend=inside,
+                                     marker=dict(color=colour, size=size, opacity=1.0 if inside else 0.2),
+                                     text=p.index[m].strftime("%b %Y"),
+                                     hovertemplate="%{text}: oil %{x:+.0f}%, energy %{y:.1f}%<extra></extra>"))
     x = np.linspace(min(p["oil"].min(), scenario["oil_change"]), max(p["oil"].max(), scenario["oil_change"]), 50)
     fig.add_trace(go.Scatter(x=x, y=model["intercept"] + model["slope"] * x, mode="lines", hoverinfo="skip",
                              name=f"Fitted line (R² = {model['r2']:.2f})", line=dict(color="#1b2a41", dash="dash")))
@@ -577,8 +587,9 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
                "but not exactly comparable with the euro-area HICP. Shaded: since 28 Feb 2026.")
 
 
-def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFrame) -> None:
-    """Section 2: what would a new oil price mean for my household?"""
+def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFrame,
+                        start: pd.Timestamp | None = None, end: pd.Timestamp | None = None) -> None:
+    """Section 2: what would a new oil price mean for my household? Months from start to end stand out."""
     st.subheader("2 · What it means for your household")
     options = [c for c in all_countries() if currency_of(c) in oil
                and not series_for(inflation, c, "Energy").empty
@@ -586,7 +597,11 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     if not options:
         st.warning("No energy inflation figures available, so Section 2 cannot run.")
         return
-    brent_now = float(oil["USD"].iloc[-1])
+    end = min(end or END, oil.index[-1] + pd.offsets.MonthEnd(0))
+    base = oil[oil.index <= end].index[-1]          # the month the scenario starts from (end of the period)
+    brent_now = float(oil.loc[base, "USD"])
+    st.caption(f"Starting point: **{base:%B %Y}**, the last month of the time period above. Move the slider "
+               "back to see what the outlook was then.")
     c1, c2, c3 = st.columns(3)
     country = c1.selectbox("Country", options, key="infl_hh_country",
                            index=options.index("Ireland") if "Ireland" in options else 0)
@@ -601,25 +616,28 @@ def section_2_household(inflation: pd.DataFrame, weights: dict, oil: pd.DataFram
     headline = series_for(inflation, country, "Headline")
     model = fit_passthrough(energy, oil_change_yoy(oil, currency))
     weight = weights.get(country, DEFAULT_ENERGY_WEIGHT)
-    result = household_scenario(model, brent_now, brent_future, energy.iloc[-1],
-                                headline.iloc[-1], weight, bill)
+    energy_now, headline_now = value_at(energy, base), value_at(headline, base)
+    result = household_scenario(model, brent_now, brent_future, energy_now, headline_now, weight, bill)
 
     extra_year = 12 * result["extra_per_month"]
     m1, m2, m3 = st.columns(3)
     m1.metric("Energy inflation", f"{result['energy']:.1f}%",
-              f"{result['energy'] - energy.iloc[-1]:+.1f} pts vs now", delta_color="inverse")
+              f"{result['energy'] - energy_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse")
     m2.metric("Headline inflation", f"{result['headline']:.1f}%",
-              f"{result['headline'] - headline.iloc[-1]:+.1f} pts vs now", delta_color="inverse")
+              f"{result['headline'] - headline_now:+.1f} pts vs {base:%b %Y}", delta_color="inverse")
     m3.metric("Your energy bill", f"{symbol}{bill + result['extra_per_month']:,.0f}/month",
               f"{'+' if extra_year >= 0 else '-'}{symbol}{abs(extra_year):,.0f} a year", delta_color="inverse")
-    st.plotly_chart(chart_passthrough(model, result, country, currency), width="stretch", theme=None, key="infl_model")
+    st.plotly_chart(chart_passthrough(model, result, country, currency, start, end), width="stretch", theme=None,
+                    key="infl_model")
     weight_note = "" if country in weights else " (an approximate weight: no official figure)"
     st.caption(
-        f"Brent averaged ${brent_now:.0f} in {oil.index[-1]:%B %Y}, so ${brent_future} is a "
+        f"Brent averaged ${brent_now:.0f} in {base:%B %Y}, so ${brent_future} a year later is a "
         f"{round(result['oil_change']) + 0:+d}% move. If oil stays flat, energy inflation falls back, because "
         f"last year's jump drops out of the comparison. Energy is {weight:.1f}% of the {country} basket"
         f"{weight_note}. Model: correlation at delays of 0–{MAX_LAG_MONTHS} months, then a least-squares line. "
         "It assumes exchange rates and other prices stay put, so it is a rough guide, not a forecast. "
+        f"The line uses every month since {model['points'].index.min():%Y}; months outside "
+        f"{start:%b %Y}–{end:%b %Y} are drawn faint. "
         "Oil: Yahoo Finance via yfinance.".replace("$", "\\$"))
 
 
@@ -643,7 +661,7 @@ def render() -> None:
     if data["oil"] is None:
         st.error("No oil data, so Section 2 cannot run. Check data/inflation_oil.csv.")
         return
-    section_2_household(data["inflation"], data["weights"], data["oil"])
+    section_2_household(data["inflation"], data["weights"], data["oil"], start, end)
 
 
 if __name__ == "__main__":
