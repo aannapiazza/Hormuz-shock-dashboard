@@ -20,6 +20,8 @@ pandas, numpy. Older Streamlit versions still work, with radio buttons instead.
 All widget keys start with "ho_" so they can't clash with the other panels.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -30,19 +32,27 @@ import streamlit as st
 # ✏️  EDIT HERE
 # =============================================================================
 
-# 1) MONTHLY PRICES — one line per month: ("YYYY-MM", Brent, WTI)
-#    Monthly averages in $ per barrel. Use None if a figure isn't available.
-#    To add a new month, add a line at the bottom of the list.
+# 0) DATA SETTINGS
+END = pd.Timestamp("2026-10-31")     # cut-off: nothing after this date is used anywhere
+START = pd.Timestamp("2025-09-01")   # first month shown on the charts
+LIVE = False                         # False = use the saved copies in data/ (default)
+                                     # True  = download fresh data from FRED, cut it at END, save it to data/
+BRENT_SERIES = "MCOILBRENTEU"        # FRED series: Crude Oil Prices: Brent - Europe (monthly)
+WTI_SERIES = "MCOILWTICO"            # FRED series: Crude Oil Prices: WTI - Cushing, Oklahoma (monthly)
+#    The saved copies are data/MCOILBRENTEU.csv and data/MCOILWTICO.csv.
+
+# 1) BACKUP MONTHLY PRICES — only used if the saved copies in data/ can't be read.
+#    One line per month: ("YYYY-MM", Brent, WTI), matching the FRED files.
 MONTHLY_PRICES = [
-    ("2025-09", 67.99, None),
+    ("2025-09", 67.99, 63.96),
     ("2025-10", 64.54, 60.89),
     ("2025-11", 63.80, 60.06),
     ("2025-12", 62.54, 57.97),
     ("2026-01", 66.60, 60.04),
     ("2026-02", 70.89, 64.51),
-    ("2026-03", 103.13, 90.84),
+    ("2026-03", 103.13, 91.38),
     ("2026-04", 117.29, 100.32),
-    ("2026-05", 107.40, None),
+    ("2026-05", 107.14, 102.13),
     ("2026-06", 85.40, 84.81),
     ("2026-07", 83.76, 80.46),
     ("2026-08", 91.08, 83.90),
@@ -50,10 +60,11 @@ MONTHLY_PRICES = [
     ("2026-10", 123.93, 102.07),
 ]
 
-# 2) LATEST PRICE — the most recent daily Brent price (shown on the first KPI card
-#    and as a dotted line at the end of the chart)
-LATEST_DATE = "2026-11-19"
-LATEST_PRICE = 91.98
+# 2) LATEST PRICE
+#    The latest daily Brent price (first KPI card, and the dotted line at the end of the chart).
+#    30 Oct 2026 was the last trading day of October (31 Oct was a Saturday).
+LATEST_DATE = "2026-10-30"
+LATEST_PRICE = 117.64                # front-month (December contract) settlement on its expiry day
 LATEST_LABEL = "Settlement"          # e.g. "Settlement" or "Spot"
 
 # 3) PRE-WAR REFERENCE — the price everything is compared against
@@ -63,7 +74,7 @@ PREWAR_PRICE = 71.32
 # 4) ESTIMATED FIGURES — months marked with * on the page.
 #    Delete a line once you have the real figure.
 ESTIMATED_MONTHS = {
-    "2026-05": "May 2026 Brent is derived from EIA's statement that June averaged $22 below May.",
+    # "YYYY-MM": "note explaining the estimate",
 }
 
 # 5) EVENTS — the phase buttons that shade the chart.
@@ -78,9 +89,9 @@ EVENTS = {
     "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
                   "Brent drops about 16% on the 8 Apr ceasefire and falls again after the "
                   "17 Jun US–Iran MOU, but tanker traffic barely recovers."),
-    "Conflict resumes": ("2026-07-07", "2026-11-19", "#8e44ad",
+    "Conflict resumes": ("2026-07-07", "2026-10-31", "#8e44ad",
                          "Strikes resume on 7 Jul. With inventories falling, Brent rises for "
-                         "three months to a $124 average in October, then eases in November."),
+                         "three months to a $124 average in October, the highest since mid-2022."),
 }
 
 # 6) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
@@ -100,9 +111,9 @@ BEFORE_EVENTS_NOTE = ("Before the war.",
 # 7) TEXT
 TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
-SOURCES = ("Data: EIA Europe Brent and Cushing WTI spot prices, monthly averages (via EIA, FRED and "
-           "EIA Short-Term Energy Outlooks). The latest price is the Brent futures settlement on "
-           "19 Nov 2026 (Reuters).")
+SOURCE_FRED = ("U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU) and "
+               "Cushing WTI (MCOILWTICO) spot prices, monthly averages")
+LATEST_NOTE = "The latest price is the Brent futures settlement on 30 Oct 2026, the last trading day of October."
 
 # 8) COLOURS
 COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
@@ -115,11 +126,55 @@ COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
 
 
 # ----------------------------- data preparation -----------------------------
-def build_data():
-    df = pd.DataFrame(MONTHLY_PRICES, columns=["Month", "Brent", "WTI"])
-    df["Date"] = pd.to_datetime(df["Month"] + "-01")
-    df["WTI"] = pd.to_numeric(df["WTI"], errors="coerce")
+def data_folder():
+    """The repo's data/ folder (this file lives in panels/, one level down)."""
+    here = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+    for folder in (here.parent / "data", here / "data", Path.cwd() / "data"):
+        if folder.is_dir():
+            return folder
+    return here.parent / "data"
+
+
+def up_to_end(series):
+    """Throw away anything after the END cut-off date."""
+    return series[series.index <= END]
+
+
+def read_fred_csv(source):
+    """Read a FRED CSV (file or URL) into a monthly Series. Handles both FRED layouts
+    and '.' or blank for missing values."""
+    raw = pd.read_csv(source)
+    values = pd.to_numeric(raw.iloc[:, 1], errors="coerce").values
+    series = pd.Series(values, index=pd.to_datetime(raw.iloc[:, 0], errors="coerce"))
+    series = series[series.index.notna()].dropna()
+    series.index = series.index.to_period("M").to_timestamp()   # first of the month
+    return series.groupby(level=0).mean().sort_index()
+
+
+def download(series_id):
+    """Fresh copy from FRED, cut at END, then saved over the copy in data/."""
+    series = up_to_end(read_fred_csv(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"))
+    try:
+        series.rename(series_id).rename_axis("observation_date").to_csv(data_folder() / f"{series_id}.csv")
+    except OSError:
+        pass   # e.g. a read-only server: still use the download, just don't save it
+    return series
+
+
+def load_series(series_id):
+    """LIVE = True: download (falling back to the saved copy if that fails).
+    LIVE = False: the saved copy. Either way it's cut at END again, just in case."""
+    if LIVE:
+        try:
+            return up_to_end(download(series_id)), "downloaded from FRED"
+        except Exception:
+            pass
+    return up_to_end(read_fred_csv(data_folder() / f"{series_id}.csv")), "saved copy in data/"
+
+
+def add_metrics(df):
     df = df.sort_values("Date").reset_index(drop=True)
+    df["Month"] = df["Date"].dt.strftime("%Y-%m")
     df["MoM"] = (df["Brent"] / df["Brent"].shift(1) - 1) * 100
     df["Volatility"] = df["MoM"].rolling(window=3).std() * np.sqrt(12)
     df["Spread"] = df["Brent"] - df["WTI"]
@@ -129,7 +184,30 @@ def build_data():
     return df
 
 
-OIL = build_data()
+def build_data():
+    """Returns (data, source description, warning or None)."""
+    try:
+        brent, how = load_series(BRENT_SERIES)
+        try:
+            wti, _ = load_series(WTI_SERIES)
+        except Exception:
+            wti = pd.Series(dtype=float)
+        df = pd.DataFrame({"Brent": brent})
+        df["WTI"] = wti.reindex(df.index)
+        df = add_metrics(df.rename_axis("Date").reset_index())   # full history, so YoY works
+        source, warning = f"{SOURCE_FRED} ({how})", None
+    except Exception as e:
+        df = pd.DataFrame(MONTHLY_PRICES, columns=["Month", "Brent", "WTI"])
+        df["Date"] = pd.to_datetime(df["Month"] + "-01")
+        df["WTI"] = pd.to_numeric(df["WTI"], errors="coerce")
+        df = add_metrics(df[["Date", "Brent", "WTI"]])
+        source = f"{SOURCE_FRED} (backup figures in the code)"
+        warning = f"Couldn't read the oil price files in data/ ({type(e).__name__}), so this shows the backup figures."
+    df = df[(df["Date"] >= START) & (df["Date"] <= END)].reset_index(drop=True)
+    return df, source, warning
+
+
+OIL, DATA_SOURCE, DATA_WARNING = build_data()
 N = len(OIL)
 DATES = OIL["DateStr"].tolist()
 PHASES = {name: {"start": s, "end": e, "color": c, "text": t} for name, (s, e, c, t) in EVENTS.items()}
@@ -315,7 +393,7 @@ def header_html():
     <div style="color:#b8c4d3;font-size:13px;margin-top:3px">{SUBTITLE}</div>
   </div>
   <span style="background:{COLORS['orange']};color:#fff;font-weight:700;font-size:12px;padding:6px 10px;
-               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(LATEST_DATE).upper()}</span>
+               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(END).upper()}</span>
 </div>"""
 
 
@@ -427,6 +505,8 @@ def render():
     sel = st.session_state["ho_sel"]
 
     st.markdown(header_html(), unsafe_allow_html=True)
+    if DATA_WARNING:
+        st.warning(DATA_WARNING, icon="⚠️")
 
     # KPI row
     peak_idx = OIL["Brent"].idxmax()
@@ -486,7 +566,7 @@ def render():
             st.caption("Or click a point on either chart.")
 
     notes = " ".join(f"*{text}" for text in ESTIMATED_MONTHS.values())
-    footer = (f"{SOURCES} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
+    footer = (f"Data: {DATA_SOURCE}. {LATEST_NOTE} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
               f"(${PREWAR_PRICE:.2f}).")
     st.caption(footer.replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
 
