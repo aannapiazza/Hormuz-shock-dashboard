@@ -252,6 +252,26 @@ def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> 
                  xaxis=month_axis(start, end))
 
 
+def chart_by_country(inflation: pd.DataFrame, measure: str, end: pd.Timestamp, highlight: list) -> go.Figure:
+    """Bar chart: how far each country's inflation has moved since February 2026, biggest at the top.
+
+    The countries ticked in the Countries box are orange; the rest are grey.
+    """
+    changes = {}
+    for country in all_countries():
+        moved = change_since_war(series_for(inflation, country, measure).loc[:end])
+        if moved:
+            changes[country] = moved[1]
+    ranked = sorted(changes, key=changes.get)              # smallest first = drawn at the bottom
+    fig = go.Figure(go.Bar(x=[changes[c] for c in ranked], y=ranked, orientation="h",
+                           marker_color=["#c2410c" if c in highlight else "#c9ced6" for c in ranked],
+                           text=[f"{changes[c]:+.1f} pts" for c in ranked], textposition="outside",
+                           hovertemplate="%{y}: %{x:+.1f} points<extra></extra>"))
+    return style(fig, 450, f"{measure} inflation: change since the war started, {min(end, END):%b %Y}",
+                 showlegend=False, hovermode="closest",
+                 xaxis=dict(title="Change since February 2026 (percentage points)", zeroline=True))
+    
+    
 def month_axis(start: pd.Timestamp, end: pd.Timestamp) -> dict:
     """An x-axis from start to end whose ticks count back from the LAST month, so it is always labelled."""
     months = (end.year - start.year) * 12 + end.month - start.month
@@ -275,6 +295,21 @@ def story_card(col, card: dict) -> None:
         
     
 
+def chart_sensitivity(model: dict, brent_now: float, brent_future: float, bill: float, symbol: str) -> go.Figure:
+    """Sensitivity analysis: the new monthly bill at every oil price from $40 to $200, with your pick marked."""
+    prices = np.arange(40, 205, 5)
+    bills = [new_bill(model, brent_now, p, bill)["bill"] for p in prices]
+    fig = go.Figure(go.Scatter(x=prices, y=bills, mode="lines", line=dict(color="#c2410c", width=2),
+                               hovertemplate=f"Oil $%{{x}}: {symbol}%{{y:,.0f}} a month<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[brent_future], y=[new_bill(model, brent_now, brent_future, bill)["bill"]],
+                             mode="markers", marker=dict(size=10, color="#c2410c"), hoverinfo="skip"))
+    fig.add_hline(y=bill, line=dict(color="#98a2b3", dash="dash", width=1),
+                  annotation_text="today's bill", annotation_position="bottom right")
+    return style(fig, 200, "Your bill at other oil prices", title_size=12, showlegend=False, hovermode="closest",
+                 margin=dict(l=10, r=10, t=30, b=30), xaxis=dict(tickprefix="$", dtick=40),
+                 yaxis=dict(tickprefix=symbol))
+    
+    
 def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestamp) -> None:
     """The small 'Your energy bill' box: pick a country, an oil price and today's bill."""
     st.markdown("**Your energy bill**")   
@@ -297,6 +332,9 @@ def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestam
               f"{'+' if extra >= 0 else '-'}{symbol}{abs(extra):,.0f} a year", delta_color="inverse")
     st.caption(f"From {base:%b %Y}, when oil was \\${brent_now:.0f} a barrel. Energy inflation would be "
                f"{result['energy']:.1f}%. Bills usually follow oil about {months_word(model['lag'])} later.")
+    st.plotly_chart(chart_sensitivity(model, brent_now, brent_future, bill, symbol),
+                    width="stretch", theme=None, key="infl_sensitivity")
+    
 
 
 # =============================================================================
@@ -330,8 +368,14 @@ def render() -> None:
     with chart_col.container(border=True):
         for col, card in zip(st.columns(3), story_numbers(inflation, traffic, end)):
             story_card(col, card)
+        view = st.radio("View", ["Over time", "By country"], horizontal=True, key="infl_view")
         have = [c for c in countries if not series_for(inflation, c, measure).empty]
-        if have:
+        if view == "By country" and end >= WAR_START:
+            st.plotly_chart(chart_by_country(inflation, measure, end, have), width="stretch", theme=None,
+                            key="infl_bars")
+        elif view == "By country":
+            st.info("The period ends before the war, so there is no change to compare yet.")
+        elif have:
             st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
                             width="stretch", theme=None, key="infl_chart")
         else:
