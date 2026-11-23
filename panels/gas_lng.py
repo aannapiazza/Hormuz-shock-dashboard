@@ -416,18 +416,33 @@ def phase_summary(table, data, phase) -> str:
             f'<span style="color:{COLORS["muted"]}">({dates})</span>: ' + " · ".join(parts) + "</div>")
 
 
-def card_figure(table):
-    """Small chart for the home page card: the same filled line and phase colours as the main chart."""
-    fig = go.Figure(go.Scatter(x=table["date"], y=table["ttf"], mode="lines+markers",
-                               line=dict(color=COLORS["navy"], width=3, shape="spline", smoothing=0.6),
-                               fill="tozeroy", fillcolor="rgba(27,42,65,0.07)",
-                               marker=dict(size=8, color=[phase_colour(p) for p in table["phase"]],
-                                           line=dict(color="#fff", width=1.5)),
-                               hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
-    for p in PHASES.values():
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.06, layer="below", line_width=0)
-    fig.update_layout(**layout(250, showlegend=False, yaxis=dict(title="$ per MMBtu", gridcolor="#f0f2f5"),
-                               xaxis=dict(type="date", tickformat="%b", showgrid=False)))
+def card_figure(table, daily):
+    """Small chart for the home page card, in the same style as the other panels' cards.
+
+    A thin grey daily price (Yahoo Finance, from October 2025) behind the bold monthly average
+    (World Bank), the four phases shaded and named, and a dashed pre-war line, so the jump is easy to see.
+    """
+    prewar = table.loc[table["month"] == PREWAR_MONTH, "ttf"].iloc[0]
+    fig = go.Figure()
+    fig.add_scatter(x=daily["date"], y=ttf_in_usd(daily), mode="lines", name="Daily",
+                    line=dict(color="#b8bfc9", width=1), hovertemplate="%{x|%d %b %Y}: $%{y:.2f}<extra></extra>")
+    fig.add_scatter(x=table["date"], y=table["ttf"], mode="lines+markers", name="Monthly average",
+                    line=dict(color=COLORS["navy"], width=3, shape="spline", smoothing=0.6),
+                    marker=dict(size=8, color=[phase_colour(p) for p in table["phase"]],
+                                line=dict(color="#fff", width=1.5)),
+                    hovertemplate="%{x|%b %Y} average: $%{y:.2f}<extra></extra>")
+    for name, p in PHASES.items():
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.08, layer="below", line_width=0)
+        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+        fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False, text=name,
+                           font=dict(color=p["color"], size=10))
+    fig.add_hline(y=prewar, line=dict(color="#9aa5b1", dash="dash", width=1), annotation_text="pre-war",
+                  annotation_position="bottom right", annotation_font=dict(size=10, color=COLORS["muted"]))
+    fig.update_layout(**layout(270, showlegend=False, hovermode="x unified",
+                               yaxis=dict(title="$ per MMBtu", gridcolor="#f0f2f5", rangemode="tozero"),
+                               xaxis=dict(type="date", tickformat="%b %Y", showgrid=False,
+                                          range=[daily["date"].min(), table["date"].iloc[-1] + pd.Timedelta(days=20)])))
+    fig.update_layout(margin=dict(l=55, r=20, t=30, b=40))
     return fig
 
 
@@ -527,7 +542,7 @@ def render_card():
               delta_color="inverse")
     c2.metric(f"LNG tankers via Hormuz, {tk['date']:%b}", f"{tk['tankers']:.0f}",
               f"{tk['tanker_pct'] - 100:.0f}% vs pre-war")
-    st.plotly_chart(card_figure(table), key="gas_card_chart", config={"displayModeBar": False})
+    st.plotly_chart(card_figure(table, data["daily"]), key="gas_card_chart", config={"displayModeBar": False})
 
 
 def render():
