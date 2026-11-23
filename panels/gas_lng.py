@@ -184,18 +184,43 @@ def layout(height, **kwargs):
                 margin=dict(l=55, r=20, t=20, b=40), **kwargs)
 
 
-def shade(fig, phase):
-    """Shade one phase of the crisis on a chart, with its name on top."""
-    if phase in PHASES:
-        p = PHASES[phase]
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.15, layer="below", line_width=0,
-                      annotation_text=f"<b>{phase}</b>", annotation_position="top",
-                      annotation_font=dict(color=p["color"], size=12))
+def shade(fig, phase, faint=False):
+    """Shade phases of the crisis on a chart.
+
+    faint=True: every phase as a light band with its name on top (the background of the main chart).
+    Otherwise: only the chosen phase, a little stronger, with its name.
+    """
+    for name, p in PHASES.items():
+        chosen = name == phase
+        if not (faint or chosen):
+            continue
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18 if chosen else 0.06,
+                      layer="below", line_width=0)
+        if chosen or faint:
+            mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+            fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False,
+                               text=f"<b>{name}</b>" if chosen else name,
+                               font=dict(color=p["color"], size=12 if chosen else 11))
+
+
+def phase_colour(phase) -> str:
+    """The colour of a phase (grey before the war), so every chart uses the same colours."""
+    return PHASES[phase]["color"] if phase in PHASES else COLORS["grey"]
+
+
+def cursor(fig, date):
+    """A dotted line at the month in focus: the same marker on every chart over time."""
+    fig.add_vline(x=date, line=dict(color=COLORS["navy"], dash="dot", width=1.5), layer="above")
 
 
 # --------------------------------- charts ---------------------------------
 def main_figure(table, phase, view, show_us, sel):
-    """Main chart: European gas, monthly average, with price labels and optional US gas."""
+    """Main chart: European gas as a filled line, with every phase shaded in the background.
+
+    Points are coloured by phase (same colours as the buttons). Labels only on the key months
+    (before the war, the first war month, the peak and the latest), so the chart stays clean.
+    The dotted line and ringed point show the month in focus.
+    """
     as_pct = view == VIEWS[1]
     def tf(values, ref):
         values = np.asarray(values, dtype=float)
@@ -203,30 +228,39 @@ def main_figure(table, phase, view, show_us, sel):
     prewar = table.loc[table["month"] == PREWAR_MONTH].iloc[0]
     fmt = "%{y:+.0f}%" if as_pct else "$%{y:.2f}"
     n, y = len(table), tf(table["ttf"], prewar["ttf"])
-    fig = go.Figure(go.Scatter(
-        x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text",
-        text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition="top center",
-        textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
-        marker=dict(size=[13 if i == sel else 7 for i in range(n)], line=dict(color="#fff", width=1.5),
-                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(n)]),
-        selected=KEEP, unselected=KEEP, hovertemplate=f"Europe: {fmt}<extra></extra>"))
+    key_months = {PREWAR_MONTH, "2026-03", table.loc[table["ttf"].idxmax(), "month"], table["month"].iloc[-1]}
+    labels = [(f"{v:+.0f}%" if as_pct else f"${v:.2f}") if m in key_months or i == sel else ""
+              for i, (m, v) in enumerate(zip(table["month"], y))]
+    fig = go.Figure()
     if show_us:
-        fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)",
-                        mode="lines+markers", marker=dict(size=5), line=dict(color=COLORS["teal"], width=2),
-                        selected=KEEP, unselected=KEEP, hovertemplate=f"US: {fmt}<extra></extra>")
+        fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)", mode="lines",
+                        line=dict(color=COLORS["teal"], width=2.5, dash="dot", shape="spline"),
+                        hovertemplate=f"US: {fmt}<extra></extra>")
+    fig.add_scatter(
+        x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text", text=labels,
+        textposition="top center", textfont=dict(size=12, color=COLORS["navy"]),
+        line=dict(color=COLORS["navy"], width=3, shape="spline", smoothing=0.6),
+        fill="tozeroy" if not as_pct else None, fillcolor="rgba(27,42,65,0.07)",
+        marker=dict(size=[16 if i == sel else 10 for i in range(n)], color=[phase_colour(p) for p in table["phase"]],
+                    line=dict(color=[COLORS["navy"] if i == sel else "#fff" for i in range(n)],
+                              width=[3 if i == sel else 2 for i in range(n)])),
+        selected=KEEP, unselected=KEEP, customdata=table["phase"].fillna("Before the war"),
+        hovertemplate=f"<b>Europe: {fmt}</b><br>%{{customdata}}<extra></extra>")
     ref = 0 if as_pct else prewar["ttf"]
     fig.add_hline(y=ref, line=dict(dash="dash", color="#9aa5b1", width=1),
-                  annotation_text="Pre-war level" if as_pct else f"Pre-war (Feb avg) ${prewar['ttf']:.2f}",
+                  annotation_text="Pre-war level" if as_pct else f"Pre-war ${prewar['ttf']:.2f}",
                   annotation_position="bottom right", annotation_font=dict(size=11, color=COLORS["muted"]))
-    shade(fig, phase)
-    fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_us,
-                               legend=dict(orientation="h", x=1, xanchor="right", y=1.1),
-                               yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#edf0f3",
-                                          zeroline=False, ticksuffix="%" if as_pct else ""),
-                               xaxis=dict(type="date", tickformat="%b %y",
-                                          range=[table["date"].iloc[0] - pd.Timedelta(days=20),
-                                                 table["date"].iloc[-1] + pd.Timedelta(days=20)])))
-    fig.update_layout(margin_t=40)
+    shade(fig, phase, faint=True)
+    cursor(fig, table["date"].iloc[sel])
+    top = max(np.nanmax(y), np.nanmax(tf(table["hh"], prewar["hh"])) if show_us else 0)
+    fig.update_layout(**layout(440, hovermode="x unified", showlegend=show_us,
+                               legend=dict(orientation="h", x=0, y=-0.15),
+                               yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#f0f2f5",
+                                          zeroline=False, ticksuffix="%" if as_pct else "",
+                                          range=[min(0, np.nanmin(y)) * 1.1, top * 1.18]),
+                               xaxis=dict(type="date", tickformat="%b", showgrid=False,
+                                          range=[pd.Timestamp("2025-12-28"), table["date"].iloc[-1] + pd.Timedelta(days=22)])))
+    fig.update_layout(margin=dict(l=55, r=20, t=36, b=40 if not show_us else 70))
     return fig
 
 
@@ -251,25 +285,23 @@ def second_figure(mode, table, data, sel, phase, view):
     if mode == SECOND[1]:                    # EU storage (already in %, so the price view doesn't change it)
         st_ = data["storage"]
         fig = go.Figure()
-        for name, colour, dash, width in [("5-year average", COLORS["muted"], "dash", 2),
-                                          ("2025 (same date)", COLORS["amber"], None, 2), ("2026", COLORS["red"], None, 3.5)]:
+        for name, colour, dash, width in [("5-year average", "#9aa5b1", "dash", 2),
+                                          ("2025 (same date)", "#c4cad4", None, 2), ("2026", COLORS["navy"], None, 3.5)]:
             s = st_[st_["series"] == name].sort_values("date")
             fig.add_scatter(x=s["date"], y=s["pct_full"], name=name.replace(" (same date)", ""), mode="lines+markers",
                             line=dict(color=colour, dash=dash, width=width),
                             hovertemplate=f"{name.split(' (')[0]}: %{{y:.1f}}%<extra></extra>")
         fig.add_hline(y=90, line=dict(color=COLORS["teal"], dash="dot", width=1), annotation_text="EU target 90%",
                       annotation_font_color=COLORS["teal"], annotation_position="top left")
-        start = pd.Timestamp(month + "-01")
-        fig.add_vrect(x0=start, x1=start + pd.offsets.MonthEnd(0), fillcolor=COLORS["orange"], opacity=0.12,
-                      layer="below", line_width=0)
         shade(fig, phase)
+        cursor(fig, table.iloc[sel]["date"])
         fig.update_layout(**layout(330, hovermode="x unified", legend=dict(orientation="h", y=1.12, x=0),
                                    yaxis=dict(title="% full", range=[0, 105], ticksuffix="%", gridcolor="#edf0f3"),
                                    xaxis=dict(type="date", range=["2026-03-20", "2026-11-20"], tickformat="%b")))
         now = storage_now(st_)
         return (fig, "EU gas storage: refilling fell short",
                 f"On {now['date']:%d %b} storage was {now['pct']:.0f}% full, {abs(now['gap']):.0f} points below the "
-                "5-year average. The orange band is the month in focus.")
+                "5-year average. The dotted line is the month in focus.")
 
     if mode == SECOND[2]:                    # 2026 vs 2022
         b = data["benchmarks"]
@@ -282,7 +314,8 @@ def second_figure(mode, table, data, sel, phase, view):
         for i, row in enumerate(rows):
             focus = bench_month(row) == month
             fig.add_scatter(x=[ttf[i], jkm[i]], y=[row, row], mode="lines", hoverinfo="skip", showlegend=False,
-                            line=dict(color=COLORS["orange"] if focus else "#c4cad4", width=8 if focus else 6))
+                            line=dict(color=phase_colour(table.iloc[sel]["phase"]) if focus else "#dfe3e8",
+                                      width=9 if focus else 6))
         fig.add_scatter(x=ttf, y=rows, mode="markers", name="Europe (TTF)", selected=KEEP, unselected=KEEP,
                         marker=dict(size=15, color=COLORS["navy"]), hovertemplate=f"Europe: {fmt}<extra></extra>")
         fig.add_scatter(x=jkm, y=rows, mode="markers", name="Asia (JKM)", selected=KEEP, unselected=KEEP,
@@ -295,19 +328,21 @@ def second_figure(mode, table, data, sel, phase, view):
         rise = (b["ttf_usd_per_mmbtu"].iloc[-2] / b["ttf_usd_per_mmbtu"].iloc[0] - 1) * 100
         return (fig, "How big is this shock? 2026 vs 2022",
                 f"Europe's gas price is up {rise:.0f}% since before the war, but still about a third of the 2022 "
-                "peak. Click a 2026 row to see that month. The orange row is the month in focus.")
+                "peak. Click a 2026 row to see that month. The coloured row is the month in focus.")
 
     # LNG tankers (default)
     tk = table.dropna(subset=["tankers"])
     y = tk["tanker_pct"] if as_pct else tk["tankers"]
-    colours = [COLORS["orange"] if m == month else COLORS["muted"] if m == PREWAR_MONTH
-               else COLORS["amber"] if tr == "Kpler" else COLORS["red"] for m, tr in zip(tk["month"], tk["tracker"])]
-    fig = go.Figure(go.Bar(x=tk["date"], y=y, marker_color=colours,
+    focus = [m == month for m in tk["month"]]
+    fig = go.Figure(go.Bar(x=tk["date"], y=y,
+                           marker=dict(color=[phase_colour(p) for p in tk["phase"]],
+                                       opacity=[1 if f else 0.55 for f in focus],
+                                       line=dict(color=COLORS["navy"], width=[2.5 if f else 0 for f in focus])),
                            text=[f"{v:.0f}%" if as_pct else f"{v:.0f}" for v in y],
                            textposition="outside", cliponaxis=False, selected=KEEP, unselected=KEEP,
-                           customdata=np.stack([tk["tankers"], tk["tanker_pct"], tk["tanker_note"]], axis=1),
+                           customdata=np.stack([tk["tankers"], tk["tanker_pct"], tk["tanker_note"], tk["tracker"]], axis=1),
                            hovertemplate="<b>%{x|%b %Y}: %{customdata[0]} tankers</b> (%{customdata[1]:.0f}% of normal)"
-                                         "<br>%{customdata[2]}<extra></extra>"))
+                                         "<br>%{customdata[2]}<br><i>Counted by %{customdata[3]}</i><extra></extra>"))
     top = 100 if as_pct else tk.loc[tk["month"] == PREWAR_MONTH, "tankers"].iloc[0]
     fig.add_hline(y=top, line=dict(color=COLORS["teal"], dash="dash", width=1.5), annotation_text="Pre-war level",
                   annotation_font_color=COLORS["teal"], annotation_position="top right")
@@ -317,8 +352,8 @@ def second_figure(mode, table, data, sel, phase, view):
                                           gridcolor="#edf0f3", range=[0, top * 1.25], ticksuffix="%" if as_pct else ""),
                                xaxis=dict(type="date", tickformat="%b %y")))
     return (fig, "LNG tankers through Hormuz each month",
-            "Red: S&P Global (laden tankers leaving). Amber: Kpler (all LNG-carrier crossings). "
-            "Click a bar to see that month.")
+            "Bars are coloured by phase; the outlined bar is the month in focus. Counts from S&P Global and "
+            "Kpler (hover a bar to see which). Click a bar to see that month.")
 
 
 def phase_summary(table, data, phase) -> str:
@@ -343,14 +378,17 @@ def phase_summary(table, data, phase) -> str:
 
 
 def card_figure(table):
-    """Small chart for the home page card: the monthly price with every phase shaded."""
+    """Small chart for the home page card: the same filled line and phase colours as the main chart."""
     fig = go.Figure(go.Scatter(x=table["date"], y=table["ttf"], mode="lines+markers",
-                               line=dict(color=COLORS["navy"], width=3), marker=dict(size=6),
+                               line=dict(color=COLORS["navy"], width=3, shape="spline", smoothing=0.6),
+                               fill="tozeroy", fillcolor="rgba(27,42,65,0.07)",
+                               marker=dict(size=8, color=[phase_colour(p) for p in table["phase"]],
+                                           line=dict(color="#fff", width=1.5)),
                                hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
     for p in PHASES.values():
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.12, layer="below", line_width=0)
-    fig.update_layout(**layout(260, showlegend=False, yaxis=dict(title="$ per MMBtu", gridcolor="#edf0f3"),
-                               xaxis=dict(type="date", tickformat="%b")))
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.06, layer="below", line_width=0)
+    fig.update_layout(**layout(250, showlegend=False, yaxis=dict(title="$ per MMBtu", gridcolor="#f0f2f5"),
+                               xaxis=dict(type="date", tickformat="%b", showgrid=False)))
     return fig
 
 
@@ -364,26 +402,43 @@ def kpi_html(title, value, desc, color):
             f'<div style="font-size:12px;color:{COLORS["muted"]}">{desc}</div></div>')
 
 
-def detail_html(row):
-    """The Month in focus card: the numbers for one month and what happened."""
+def donut(value, total, colour, middle, below):
+    """A small donut: how full something is (e.g. tankers as % of normal), in the phase colour."""
+    empty = pd.isna(value)
+    share = 0 if empty else max(0, min(value / total, 1))
+    fig = go.Figure(go.Pie(values=[share, 1 - share] if not empty else [1], hole=0.72, sort=False,
+                           direction="clockwise", textinfo="none", hoverinfo="skip",
+                           marker=dict(colors=[colour, "#eef0f3"] if not empty else ["#eef0f3"])))
+    fig.add_annotation(text=f"<b>{'n/a' if empty else middle}</b>", x=0.5, y=0.5, showarrow=False,
+                       font=dict(size=20, color=COLORS["navy"]))
+    fig.update_layout(height=150, margin=dict(l=5, r=5, t=5, b=5), showlegend=False,
+                      paper_bgcolor="rgba(0,0,0,0)")
+    return fig, below
+
+
+def focus_header_html(row):
+    """Top of the Month in focus card: the month and its phase, in the phase colour."""
+    colour = phase_colour(row["phase"])
+    return (f'<div style="font-size:13px;color:{COLORS["muted"]};text-transform:uppercase;letter-spacing:.5px">'
+            f'Month in focus</div><div style="font-size:24px;font-weight:700;color:{COLORS["navy"]}">'
+            f'{row["date"]:%B %Y}</div><span style="display:inline-block;background:{colour}1f;color:{colour};'
+            f'font-weight:700;font-size:12px;padding:2px 10px;border-radius:999px;margin-top:4px">'
+            f'{row["phase"] or "Before the war"}</span>')
+
+
+def focus_table_html(row):
+    """Bottom of the Month in focus card: the price numbers and what happened."""
     def coloured(v):
         return "n/a" if pd.isna(v) else f'<span style="color:{"#c0392b" if v > 0 else "#1e8449"}">{signed(v)}%</span>'
     rows = [("European gas (TTF)", f"&#36;{row['ttf']:.2f}"),
             ("vs before the war", coloured(row["vs_prewar"])),
-            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US"),
-            ("LNG tankers via Hormuz", "n/a" if pd.isna(row["tankers"])
-             else f"{row['tankers']:.0f} ({row['tanker_pct']:.0f}% of normal)"),
-            ("EU storage", "n/a" if pd.isna(row["storage"]) else f"{row['storage']:.0f}% full")]
+            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US")]
     cell = "padding:7px 0;border-bottom:1px solid #eef0f3"
     table = "".join(f'<tr><td style="{cell}">{a}</td><td style="{cell};text-align:right;font-weight:700">{b}</td></tr>'
                     for a, b in rows)
-    phase = row["phase"]
-    heading = f'<b style="color:{PHASES[phase]["color"]}">{phase}.</b>' if phase else "<b>Before the war.</b>"
-    return (f'<div style="font-size:16px;font-weight:700;color:{COLORS["navy"]}">Month in focus</div>'
-            f'<div style="font-size:22px;font-weight:700;color:{COLORS["navy"]}">{row["date"]:%B %Y}</div>'
-            f'<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:14px">{table}</table>'
-            f'<div style="background:#f7f9fb;border-left:3px solid {COLORS["orange"]};padding:10px 12px;'
-            f'font-size:13px;line-height:1.5">{heading} {MONTH_NOTES.get(row["month"], "")}</div>')
+    return (f'<table style="width:100%;border-collapse:collapse;margin:0 0 10px;font-size:14px">{table}</table>'
+            f'<div style="background:#f7f9fb;border-left:3px solid {phase_colour(row["phase"])};padding:10px 12px;'
+            f'font-size:13px;line-height:1.5">{MONTH_NOTES.get(row["month"], "")}</div>')
 
 
 def apply_click(key, months):
@@ -486,7 +541,16 @@ def render():
         subtitle(title, sub)
         show_chart(fig, "gas_second_chart")
     with right.container(border=True):
-        st.markdown(detail_html(table.iloc[sel]), unsafe_allow_html=True)
+        row = table.iloc[sel]
+        st.markdown(focus_header_html(row), unsafe_allow_html=True)
+        colour = phase_colour(row["phase"])
+        donuts = [donut(row["tanker_pct"], 100, colour, f"{row['tanker_pct']:.0f}%", "LNG traffic vs normal"),
+                  donut(row["storage"], 100, colour, f"{row['storage']:.0f}%", "EU storage full")]
+        for col, (fig, label), key in zip(st.columns(2), donuts, ["gas_donut_tankers", "gas_donut_storage"]):
+            col.plotly_chart(fig, key=key, config={"displayModeBar": False, "staticPlot": True})
+            col.markdown(f"<div style='text-align:center;font-size:12.5px;color:{COLORS['muted']};margin-top:-10px'>"
+                         f"{label}</div>", unsafe_allow_html=True)
+        st.markdown(focus_table_html(row), unsafe_allow_html=True)
         b1, b2 = st.columns(2)
         b1.button("◀ Previous", "gas_prev", on_click=step_month, args=(-1, n), disabled=sel == 0)
         b2.button("Next ▶", "gas_next", on_click=step_month, args=(1, n), disabled=sel == n - 1)
