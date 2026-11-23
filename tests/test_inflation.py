@@ -40,6 +40,12 @@ def test_higher_oil_means_a_higher_bill():
     assert inf.new_bill(model, 100, 150, 200)["bill"] > inf.new_bill(model, 100, 80, 200)["bill"]
     
     
+def test_bill_rises_steadily_with_the_oil_price():
+    model = {"intercept": 0.0, "slope": 0.4}
+    bills = [inf.new_bill(model, 100, p, 200)["bill"] for p in range(40, 205, 5)]
+    assert bills == sorted(bills)
+    
+    
 def test_change_since_war():
     s = pd.Series([2.0, 2.5, 4.0], index=pd.to_datetime(["2026-01-01", "2026-02-01", "2026-09-01"]))
     latest, change = inf.change_since_war(s)

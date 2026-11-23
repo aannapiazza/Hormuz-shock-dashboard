@@ -275,6 +275,21 @@ def story_card(col, card: dict) -> None:
         
     
 
+def chart_sensitivity(model: dict, brent_now: float, brent_future: float, bill: float, symbol: str) -> go.Figure:
+    """Sensitivity analysis: the new monthly bill at every oil price from $40 to $200, with your pick marked."""
+    prices = np.arange(40, 205, 5)
+    bills = [new_bill(model, brent_now, p, bill)["bill"] for p in prices]
+    fig = go.Figure(go.Scatter(x=prices, y=bills, mode="lines", line=dict(color="#c2410c", width=2),
+                               hovertemplate=f"Oil $%{{x}}: {symbol}%{{y:,.0f}} a month<extra></extra>"))
+    fig.add_trace(go.Scatter(x=[brent_future], y=[new_bill(model, brent_now, brent_future, bill)["bill"]],
+                             mode="markers", marker=dict(size=10, color="#c2410c"), hoverinfo="skip"))
+    fig.add_hline(y=bill, line=dict(color="#98a2b3", dash="dash", width=1),
+                  annotation_text="today's bill", annotation_position="bottom right")
+    return style(fig, 200, "Your bill at other oil prices", title_size=12, showlegend=False, hovermode="closest",
+                 margin=dict(l=10, r=10, t=30, b=30), xaxis=dict(tickprefix="$", dtick=40),
+                 yaxis=dict(tickprefix=symbol))
+    
+    
 def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestamp) -> None:
     """The small 'Your energy bill' box: pick a country, an oil price and today's bill."""
     st.markdown("**Your energy bill**")   
@@ -297,6 +312,9 @@ def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestam
               f"{'+' if extra >= 0 else '-'}{symbol}{abs(extra):,.0f} a year", delta_color="inverse")
     st.caption(f"From {base:%b %Y}, when oil was \\${brent_now:.0f} a barrel. Energy inflation would be "
                f"{result['energy']:.1f}%. Bills usually follow oil about {months_word(model['lag'])} later.")
+    st.plotly_chart(chart_sensitivity(model, brent_now, brent_future, bill, symbol),
+                    width="stretch", theme=None, key="infl_sensitivity")
+    
 
 
 # =============================================================================
