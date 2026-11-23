@@ -215,12 +215,7 @@ def cursor(fig, date):
 
 # --------------------------------- charts ---------------------------------
 def main_figure(table, phase, view, show_us, sel):
-    """Main chart: European gas as a filled line, with every phase shaded in the background.
-
-    Points are coloured by phase (same colours as the buttons). Labels only on the key months
-    (before the war, the first war month, the peak and the latest), so the chart stays clean.
-    The dotted line and ringed point show the month in focus.
-    """
+    """Main chart: European gas, monthly average, with price labels and optional US gas."""
     as_pct = view == VIEWS[1]
     def tf(values, ref):
         values = np.asarray(values, dtype=float)
@@ -228,39 +223,30 @@ def main_figure(table, phase, view, show_us, sel):
     prewar = table.loc[table["month"] == PREWAR_MONTH].iloc[0]
     fmt = "%{y:+.0f}%" if as_pct else "$%{y:.2f}"
     n, y = len(table), tf(table["ttf"], prewar["ttf"])
-    key_months = {PREWAR_MONTH, "2026-03", table.loc[table["ttf"].idxmax(), "month"], table["month"].iloc[-1]}
-    labels = [(f"{v:+.0f}%" if as_pct else f"${v:.2f}") if m in key_months or i == sel else ""
-              for i, (m, v) in enumerate(zip(table["month"], y))]
-    fig = go.Figure()
+    fig = go.Figure(go.Scatter(
+        x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text",
+        text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition="top center",
+        textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
+        marker=dict(size=[13 if i == sel else 7 for i in range(n)], line=dict(color="#fff", width=1.5),
+                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(n)]),
+        selected=KEEP, unselected=KEEP, hovertemplate=f"Europe: {fmt}<extra></extra>"))
     if show_us:
-        fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)", mode="lines",
-                        line=dict(color=COLORS["teal"], width=2.5, dash="dot", shape="spline"),
-                        hovertemplate=f"US: {fmt}<extra></extra>")
-    fig.add_scatter(
-        x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text", text=labels,
-        textposition="top center", textfont=dict(size=12, color=COLORS["navy"]),
-        line=dict(color=COLORS["navy"], width=3, shape="spline", smoothing=0.6),
-        fill="tozeroy" if not as_pct else None, fillcolor="rgba(27,42,65,0.07)",
-        marker=dict(size=[16 if i == sel else 10 for i in range(n)], color=[phase_colour(p) for p in table["phase"]],
-                    line=dict(color=[COLORS["navy"] if i == sel else "#fff" for i in range(n)],
-                              width=[3 if i == sel else 2 for i in range(n)])),
-        selected=KEEP, unselected=KEEP, customdata=table["phase"].fillna("Before the war"),
-        hovertemplate=f"<b>Europe: {fmt}</b><br>%{{customdata}}<extra></extra>")
+        fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)",
+                        mode="lines+markers", marker=dict(size=5), line=dict(color=COLORS["teal"], width=2),
+                        selected=KEEP, unselected=KEEP, hovertemplate=f"US: {fmt}<extra></extra>")
     ref = 0 if as_pct else prewar["ttf"]
     fig.add_hline(y=ref, line=dict(dash="dash", color="#9aa5b1", width=1),
-                  annotation_text="Pre-war level" if as_pct else f"Pre-war ${prewar['ttf']:.2f}",
+                  annotation_text="Pre-war level" if as_pct else f"Pre-war (Feb avg) ${prewar['ttf']:.2f}",
                   annotation_position="bottom right", annotation_font=dict(size=11, color=COLORS["muted"]))
-    shade(fig, phase, faint=True)
-    cursor(fig, table["date"].iloc[sel])
-    top = max(np.nanmax(y), np.nanmax(tf(table["hh"], prewar["hh"])) if show_us else 0)
-    fig.update_layout(**layout(440, hovermode="x unified", showlegend=show_us,
-                               legend=dict(orientation="h", x=0, y=-0.15),
-                               yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#f0f2f5",
-                                          zeroline=False, ticksuffix="%" if as_pct else "",
-                                          range=[min(0, np.nanmin(y)) * 1.1, top * 1.18]),
-                               xaxis=dict(type="date", tickformat="%b", showgrid=False,
-                                          range=[pd.Timestamp("2025-12-28"), table["date"].iloc[-1] + pd.Timedelta(days=22)])))
-    fig.update_layout(margin=dict(l=55, r=20, t=36, b=40 if not show_us else 70))
+    shade(fig, phase)
+    fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_us,
+                               legend=dict(orientation="h", x=1, xanchor="right", y=1.1),
+                               yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#edf0f3",
+                                          zeroline=False, ticksuffix="%" if as_pct else ""),
+                               xaxis=dict(type="date", tickformat="%b %y",
+                                          range=[table["date"].iloc[0] - pd.Timedelta(days=20),
+                                                 table["date"].iloc[-1] + pd.Timedelta(days=20)])))
+    fig.update_layout(margin_t=40)
     return fig
 
 
@@ -285,11 +271,17 @@ def second_figure(mode, table, data, sel, phase, view):
     if mode == SECOND[1]:                    # EU storage (already in %, so the price view doesn't change it)
         st_ = data["storage"]
         fig = go.Figure()
-        for name, colour, dash, width in [("5-year average", "#9aa5b1", "dash", 2),
-                                          ("2025 (same date)", "#c4cad4", None, 2), ("2026", COLORS["navy"], None, 3.5)]:
+        # soft pastels for the comparisons; 2026 in navy with a light fill, its dots in the colour of each phase
+        for name, colour, dash, width in [("5-year average", "#f2a48f", "dash", 2.5),
+                                          ("2025 (same date)", "#8fbbe8", None, 2.5), ("2026", COLORS["navy"], None, 3.5)]:
             s = st_[st_["series"] == name].sort_values("date")
+            is_2026 = name == "2026"
             fig.add_scatter(x=s["date"], y=s["pct_full"], name=name.replace(" (same date)", ""), mode="lines+markers",
-                            line=dict(color=colour, dash=dash, width=width),
+                            line=dict(color=colour, dash=dash, width=width, shape="spline", smoothing=0.5),
+                            fill="tozeroy" if is_2026 else None, fillcolor="rgba(27,42,65,0.07)",
+                            marker=dict(size=10 if is_2026 else 6, line=dict(color="#fff", width=1.5),
+                                        color=[PHASES[phase_for(d)]["color"] if phase_for(d) else COLORS["navy"]
+                                               for d in s["date"]] if is_2026 else colour),
                             hovertemplate=f"{name.split(' (')[0]}: %{{y:.1f}}%<extra></extra>")
         fig.add_hline(y=90, line=dict(color=COLORS["teal"], dash="dot", width=1), annotation_text="EU target 90%",
                       annotation_font_color=COLORS["teal"], annotation_position="top left")
