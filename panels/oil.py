@@ -20,41 +20,27 @@ WTI_MONTHLY = ("MCOILWTICO", "oil_monthly_wti_data.csv")         # WTI - Cushing
 BRENT_DAILY = ("DCOILBRENTEU", "oil_daily_brent_data.csv")       # Brent - Europe, daily
 PREWAR_DATE = "2026-02-27"           # last trading day before the war. The latest and pre-war prices are both
                                      # read from the daily file (the last price on or before END / PREWAR_DATE).
-# Sources for the events and notes below (price records, e.g. "highest since", are checked against the FRED data):
-#   Pre-war rise in Feb: Prothom Alo, 28 Feb 2026, "Strait of Hormuz halts after US-Israel attack on Iran"
-#   28 Feb war and closure: S&P Global, 28 Feb 2026, "Iran claims Hormuz is shut down after IRGC threat to shipping"
-#   7 Apr record $144 dated Brent, pre-war glut: MarketWatch (Dow Jones), 8 Apr 2026,
-#     "Real-world oil prices just hit a record high"
+# Phase buttons that shade the chart: "Name": ("start", "end", "colour", "description").
+# Build-up start (1 Jan) and the pre-war date are our own choices. Prices and "highest since" come from the FRED data.
+# Sources for the dates:
+#   28 Feb war: S&P Global, 28 Feb 2026, "Iran claims Hormuz is shut down after IRGC threat to shipping"
 #   8 Apr ceasefire: ING Think, 8 Apr 2026, "Oil slumps below $100 after US, Iran agree to two-week ceasefire"
-#   17 Jun MOU: Euronews, 18 Jun 2026, "Oil sinks further as Trump and Pezeshkian sign deal to end Iran war"
 #   8 Jul US strikes: Reuters photo caption via Al-Monitor, 12 Jul 2026,
 #     "Iran's IRGC navy says Strait of Hormuz closed until further notice, state media"
-#   12 Jul closure: Reuters via The Star, 12 Jul 2026, "Iran's IRGC navy says Strait of Hormuz closed until further notice"
-#   Falling stockpiles, October attacks on ships: Al Jazeera, 30 Oct 2026, "Oil flows are up as Iran war turmoil eases. Why do prices keep rising?"
-
-# Phase buttons that shade the chart: "Name": ("start", "end", "colour", "description")
 EVENTS = {
     "Build-up": ("2026-01-01", "2026-02-28", "#e0a800",
-                 "Prices climb in the run-up to the war as traders worry about US strikes on Iran."),
+                 "Brent's monthly average climbs from $62.54 in December to $70.89 in February."),
     "War & closure": ("2026-02-28", "2026-04-08", "#d64545",
-                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. Physical (dated) "
-                      "Brent hits a record $144 on 7 Apr."),
+                      "US–Israel strikes on 28 Feb, and Iran says it has shut the strait. Brent's March "
+                      "average jumps 45%, the biggest rise since 2020."),
     "Ceasefire": ("2026-04-08", "2026-07-08", "#2e86de",
-                  "Brent drops as much as 16% on the 8 Apr ceasefire and falls again after the 17 Jun "
-                  "US–Iran MOU."),
+                  "Brent falls as much as 16% on the 8 Apr ceasefire, and the monthly average drops to "
+                  "$83.76 by July."),
     "Conflict resumes": ("2026-07-08", "2026-10-31", "#8e44ad",
-                         "US strikes resume on 8 Jul. With stockpiles falling, Brent rises for three months "
-                         "to a $124 average in October, the highest since March 2012."),
+                         "US strikes resume on 8 Jul. Brent rises to a $124 average in October, the highest "
+                         "since March 2012."),
 }
-# Notes for the "Month in focus" panel. Months without a note show their phase's description.
-MONTH_NOTES = {
-    "2026-03": "War begins on 28 Feb. The biggest one-month rise since 2020.",
-    "2026-04": "Physical (dated) Brent hit a record $144 on 7 Apr, the day before the ceasefire.",
-    "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
-    "2026-07": "US strikes resume on 8 Jul, and Iran declares the strait closed on 12 Jul.",
-    "2026-10": "The highest monthly average since March 2012, and the worst month yet for attacks on ships.",
-}
-BEFORE_EVENTS_NOTE = ("Before the war.", "Prices sit in the low-to-mid $60s amid a global glut, the lowest since 2021.")
+BEFORE_EVENTS_NOTE = ("Before the war.", "Brent averages $62–68 a month, its lowest level since early 2021.")
 
 TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
@@ -233,7 +219,7 @@ def detail_html(sel):
                     for a, b in rows)
     phase = next((n for n, p in PHASES.items() if p["start"][:8] + "01" <= row["DateStr"] <= p["end"]), None)
     heading = f'<b style="color:{PHASES[phase]["color"]}">{phase}.</b>' if phase else f"<b>{BEFORE_EVENTS_NOTE[0]}</b>"
-    text = MONTH_NOTES.get(row["Month"], PHASES[phase]["text"] if phase else BEFORE_EVENTS_NOTE[1])
+    text = PHASES[phase]["text"] if phase else BEFORE_EVENTS_NOTE[1]
     return (f'<div style="font-size:16px;font-weight:700;color:{COLORS["navy"]}">Month in focus</div>'
             f'<div style="font-size:22px;font-weight:700;color:{COLORS["navy"]}">{month_label(row["Date"])}</div>'
             f'<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:14px">{table}</table>'
