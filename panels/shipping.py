@@ -469,20 +469,15 @@ def render():
 
 
 def render_card():
-    """The small version for the overview grid: two numbers and one chart. The full panel is render()."""
+    """The small version for the overview grid: just one chart, no title. The full panel is render()."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
         return st.error(f"Shipping data unavailable: {error}")
     daily, base = build_daily(shipping_df), prewar_baseline(shipping_df)
-    latest, average = shipping_df.iloc[-1], daily["n_total_avg7"].dropna()
-    a, b = st.columns(2)
-    a.metric("Ship transits", f"{int(latest['n_total']):,}", help=f"On {nice_date(latest['date'])}.")
-    b.metric("Traffic vs pre-war", f"{signed(pct(base['n_total'], average.iloc[-1]))}%"
-             if base is not None and not average.empty else "n/a", help="7-day average of ships a day.")
-    last = latest["date"]
+    last = shipping_df["date"].max()
     fig = chart_traffic(daily, last - pd.Timedelta(days=364), last, VIEWS[0], False, True, base)
-    fig.update_layout(height=260, showlegend=False)
+    fig.update_layout(height=400, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=40))
     st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_chart")
 
 
