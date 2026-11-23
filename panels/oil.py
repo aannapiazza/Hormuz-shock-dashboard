@@ -20,35 +20,41 @@ WTI_MONTHLY = ("MCOILWTICO", "oil_monthly_wti_data.csv")         # WTI - Cushing
 BRENT_DAILY = ("DCOILBRENTEU", "oil_daily_brent_data.csv")       # Brent - Europe, daily
 PREWAR_DATE = "2026-02-27"           # last trading day before the war. The latest and pre-war prices are both
                                      # read from the daily file (the last price on or before END / PREWAR_DATE).
-# Sources for the events and notes below: S&P Global (28 Feb 2026, "Iran claims Hormuz is shut down"),
-# ING Think (8 Apr 2026, "Oil slumps below $100 after US, Iran agree to two-week ceasefire"),
-# Al Jazeera (30 Oct 2026, "Oil flows are up as Iran war turmoil eases. Why do prices keep rising?").
+# Sources for the events and notes below (price records, e.g. "highest since", are checked against the FRED data):
+#   Pre-war rise in Feb: Prothom Alo, 28 Feb 2026, "Strait of Hormuz halts after US-Israel attack on Iran"
+#   28 Feb war and closure: S&P Global, 28 Feb 2026, "Iran claims Hormuz is shut down after IRGC threat to shipping"
+#   7 Apr record $144 dated Brent, pre-war glut: MarketWatch (Dow Jones), 8 Apr 2026,
+#     "Real-world oil prices just hit a record high"
+#   8 Apr ceasefire: ING Think, 8 Apr 2026, "Oil slumps below $100 after US, Iran agree to two-week ceasefire"
+#   17 Jun MOU: Euronews, 18 Jun 2026, "Oil sinks further as Trump and Pezeshkian sign deal to end Iran war"
+#   8 Jul US strikes: Reuters photo caption via Al-Monitor, 12 Jul 2026,
+#     "Iran's IRGC navy says Strait of Hormuz closed until further notice, state media"
+#   12 Jul closure: Reuters via The Star, 12 Jul 2026, "Iran's IRGC navy says Strait of Hormuz closed until further notice"
+#   Falling stockpiles, October attacks on ships: Al Jazeera, 30 Oct 2026, "Oil flows are up as Iran war turmoil eases. Why do prices keep rising?"
 
 # Phase buttons that shade the chart: "Name": ("start", "end", "colour", "description")
 EVENTS = {
     "Build-up": ("2026-01-01", "2026-02-28", "#e0a800",
-                 "Prices drift up as markets price in the risk of war with Iran."),
+                 "Prices climb in the run-up to the war as traders worry about US strikes on Iran."),
     "War & closure": ("2026-02-28", "2026-04-08", "#d64545",
-                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. The IEA calls it "
-                      "the largest supply disruption in history, and Brent peaks near $138 on 7 Apr."),
-    "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
-                  "Brent drops about 16% on the 8 Apr ceasefire and falls again after the 17 Jun US–Iran "
-                  "MOU, but tanker traffic barely recovers."),
-    "Conflict resumes": ("2026-07-07", "2026-10-31", "#8e44ad",
-                         "Strikes resume on 7 Jul. With inventories falling, Brent rises for three months "
-                         "to a $124 average in October, the highest since mid-2022."),
+                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. Physical (dated) "
+                      "Brent hits a record $144 on 7 Apr."),
+    "Ceasefire": ("2026-04-08", "2026-07-08", "#2e86de",
+                  "Brent drops as much as 16% on the 8 Apr ceasefire and falls again after the 17 Jun "
+                  "US–Iran MOU."),
+    "Conflict resumes": ("2026-07-08", "2026-10-31", "#8e44ad",
+                         "US strikes resume on 8 Jul. With stockpiles falling, Brent rises for three months "
+                         "to a $124 average in October, the highest since March 2012."),
 }
 # Notes for the "Month in focus" panel. Months without a note show their phase's description.
 MONTH_NOTES = {
-    "2026-03": "War begins on 28 Feb. This is the biggest one-month jump in the series.",
-    "2026-04": "The peak month. Brent hit $138 on 7 Apr, before the next day's ceasefire.",
-    "2026-05": "Talks stall and the strait stays effectively shut.",
+    "2026-03": "War begins on 28 Feb. The biggest one-month rise since 2020.",
+    "2026-04": "Physical (dated) Brent hit a record $144 on 7 Apr, the day before the ceasefire.",
     "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
-    "2026-07": "Strikes resume on 7 Jul, and Iran declares the strait closed on 12 Jul.",
-    "2026-09": "Prices rebound as global inventories keep falling.",
-    "2026-10": "The highest monthly average since July 2022, and the worst month yet for attacks on ships.",
+    "2026-07": "US strikes resume on 8 Jul, and Iran declares the strait closed on 12 Jul.",
+    "2026-10": "The highest monthly average since March 2012, and the worst month yet for attacks on ships.",
 }
-BEFORE_EVENTS_NOTE = ("Before the war.", "Prices sit in the low-to-mid $60s on oversupply, the lowest since 2021.")
+BEFORE_EVENTS_NOTE = ("Before the war.", "Prices sit in the low-to-mid $60s amid a global glut, the lowest since 2021.")
 
 TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
