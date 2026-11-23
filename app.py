@@ -4,7 +4,7 @@ Group dashboard (MIS20080 Dashboard Project)
 Run:  python3 -m streamlit run app.py
 
 Home page: the four panels as small cards, two on top and two below. Click
-"Open panel" on a card to see the full panel, and "Back to overview" to return.
+a card's title to see the full panel, and "Back to overview" to return.
 
 Each group member owns one panel file; to add yours, fill in your line in PANELS below.
 A panel file can either
@@ -68,9 +68,7 @@ def show_card(file: str) -> None:
     path = ROOT / file
     if not path.exists():
         st.caption("Coming soon.")
-    elif "def render_card" not in path.read_text(encoding="utf-8"):
-        st.caption("Open the panel to see the full dashboard.")
-    else:
+    elif "def render_card" in path.read_text(encoding="utf-8"):
         try:
             load_module(file, f"card_{path.stem}").render_card()
         except Exception as error:
@@ -87,6 +85,16 @@ st.set_page_config(page_title="Group dashboard", page_icon="📊", layout="wide"
 # once per page, so after this point it is switched off for the panels.
 st.set_page_config = lambda *args, **kwargs: None
 
+# Use the full width of the screen (the default leaves wide margins on both sides).
+st.markdown("<style>.block-container{max-width:100%;padding-left:2rem;padding-right:2rem}</style>",
+            unsafe_allow_html=True)
+# On the overview, the panel's name is the card's title and also the click target:
+# the button is drawn like a plain heading (no border), and gets a hover colour so it looks clickable.
+CARD_TITLE_CSS = ("<style>div[data-testid='stButton'] > button{width:100%;justify-content:flex-start;"
+                  "font-size:1.5rem;font-weight:600;padding:0.2rem 0;border:none;background:transparent;"
+                  "box-shadow:none}"
+                  "div[data-testid='stButton'] > button:hover{background:transparent;color:#2e6fd8}</style>")
+
 st.title(TITLE)
 st.caption(SUBTITLE)
 
@@ -100,10 +108,9 @@ if current in details:                         # one panel in full
     show_panel(file)
     st.caption(f"Panel by {author} · {file}")
 else:                                          # overview: two cards on top, two below
+    st.markdown(CARD_TITLE_CSS, unsafe_allow_html=True)
     top, bottom = st.columns(2, gap="large"), st.columns(2, gap="large")
     for slot, (name, file, author) in zip(top + bottom, PANELS):
         with slot, st.container(border=True):
-            st.subheader(name)
-            st.caption(f"Panel by {author}")
+            st.button(f"{name}  →", key=f"open_{file}", on_click=open_panel, args=(name,))   # click to open
             show_card(file)
-            st.button("Open panel", key=f"open_{file}", on_click=open_panel, args=(name,))
