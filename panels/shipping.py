@@ -15,6 +15,9 @@ How this file is organised:
 Run on its own:   python3 -m streamlit run hormuz_dashboard.py
 """
 from pathlib import Path
+
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -42,6 +45,38 @@ DEFAULT_RANGE = "Last year"
 MONTHS_SHOWN = 18                    
 VIEWS = ["Absolute", "% vs pre-war"]
 SECOND_CHARTS = ["Monthly traffic", "Tanker share", "Traffic and Brent", "Brent daily change"]
+# =============================================================================
+# 1. SETTINGS - change dates, symbols and notes here, nowhere else
+# =============================================================================
+
+# Last day shown (the same date for the whole dashboard). Use None to show all the data.
+END = pd.Timestamp("2026-10-31")
+
+# Story dates (the same events as the other panels)
+WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
+EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
+          ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
+
+# Pre-war reference: everything is compared against these
+PREWAR_DATE = pd.Timestamp("2026-02-27")
+PREWAR_PRICE = 71.32                       # Brent settlement on PREWAR_DATE, USD per barrel
+BASELINE_START = pd.Timestamp("2026-01-01")   # "normal traffic" = average daily transits
+BASELINE_END = pd.Timestamp("2026-02-27")     # in this window (needs at least 14 days of data)
+
+# Market prices: Yahoo Finance via yfinance
+MARKET_SYMBOLS = {"BRENT": "BZ=F", "WTI": "CL=F", "VIX": "^VIX", "DOLLAR INDEX": "DX-Y.NYB"}
+MARKET_HISTORY = "2y"                      # how much price history to download
+
+# Time ranges: label -> number of days (None = everything available)
+TIME_RANGES = {"Last 30 days": 30, "Last 90 days": 90, "Last 180 days": 180,
+               "Last year": 365, "All data": None}
+DEFAULT_RANGE = "Last year"
+MONTHS_SHOWN = 18                          # bars in the monthly chart
+
+VIEWS = ["Absolute", "% vs pre-war"]
+SECOND_CHARTS = ["Monthly traffic", "Tanker share", "Traffic and Brent", "Brent daily change"]
+
+# Notes shown in "Month in focus" ("YYYY-MM": "note")
 MONTH_NOTES = {
     "2026-02": "The war begins on 28 Feb, the last day of the month.",
     "2026-03": "The first full month of the war.",
@@ -61,6 +96,39 @@ def load_shipping_data():
 
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip() #end reading file
+
+COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": "#7c5cd6",
+           "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
+
+
+# =============================================================================
+# 2. DATA
+# =============================================================================
+
+def load_shipping_data():
+    script_folder = Path(__file__).resolve().parent
+
+    possible_paths = [
+        script_folder / "Daily_Chokepoints_Data.csv",
+        script_folder.parent / "Daily_Chokepoints_Data.csv",
+        script_folder.parent / "data" / "Daily_Chokepoints_Data.csv",
+    ]
+
+    csv_path = next(
+        (path for path in possible_paths if path.is_file()),
+        None,
+    )
+
+    if csv_path is None:
+        raise FileNotFoundError(
+            "Cannot find Daily_Chokepoints_Data.csv. "
+            "Place it in the panel folder, the project root "
+            "or the project's data folder."
+        )
+
+    df = pd.read_csv(csv_path)
+    df.columns = df.columns.str.strip()
+
     required_columns = {
         "portname",
         "date",
@@ -68,26 +136,34 @@ def load_shipping_data():
         "n_tanker",
     }
     missing_columns = required_columns - set(df.columns)
+
+    missing_columns = required_columns - set(df.columns)
+
     if missing_columns:
         raise ValueError(
             "Missing CSV columns: "
             + ", ".join(sorted(missing_columns))
         ) #check columns
+        )
 
     df = df.loc[
         df["portname"]
         .astype("string")
         .str.contains("Hormuz", case=False, na=False)
     ].copy() # Hormuz datas
+    ].copy()
+
     if df.empty:
         raise ValueError(
             "No Hormuz records were found in the CSV."
         )
+
     df["date"] = pd.to_datetime(
         df["date"],
         errors="coerce",
         utc=True,
     ).dt.tz_convert(None).dt.normalize() #convertion in dates and tz:convert remove jet lag
+    ).dt.tz_convert(None).dt.normalize()
 
     for column in ["n_total", "n_tanker"]:
         df[column] = pd.to_numeric(
@@ -102,10 +178,16 @@ def load_shipping_data():
     )
     if END is not None:
         df = df[df["date"] <= END].reset_index(drop=True)
+
+    # Keep only the days up to END, so every run shows the same period.
+    if END is not None:
+        df = df[df["date"] <= END].reset_index(drop=True)
+
     if df.empty:
         raise ValueError(
             "The CSV contains no valid Hormuz shipping records."
         )
+
     if df["date"].duplicated().any():
         raise ValueError(
             "Multiple Hormuz records were found for the same date. "
@@ -140,16 +222,38 @@ def load_market_data(symbol, period=MARKET_HISTORY):
     ).dropna() #keeps valid prices
     prices = prices.loc[np.isfinite(prices.to_numpy())]
   # data adjustments
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_market_data(symbol, period=MARKET_HISTORY):
+    history = yf.Ticker(symbol).history(period=period)
+
+    if history.empty or "Close" not in history.columns:
+        return pd.Series(dtype=float)
+
+    prices = pd.to_numeric(
+        history["Close"],
+        errors="coerce",
+    ).dropna()
+
+    prices = prices.loc[np.isfinite(prices.to_numpy())]
+
+    # Drop the time zone so market dates line up with the shipping dates.
     index = pd.DatetimeIndex(prices.index)
     if index.tz is not None:
         index = index.tz_localize(None)
     prices.index = index.normalize()
+
     prices = prices.sort_index()
     if END is not None:
         prices = prices[prices.index <= END]
     return prices
     
 # ANALYSIS
+
+
+# =============================================================================
+# 3. ANALYSIS
+# =============================================================================
 
 def percentage_change(prices):
     """Percentage change between the last two observations."""
@@ -164,9 +268,24 @@ def pct(old, new) -> float:
     """Percentage change from old to new."""
     return (new / old - 1) * 100
     
+
+    values = prices.iloc[-2:].to_numpy(dtype=float)
+
+    if not np.all(np.isfinite(values)) or values[0] <= 0:
+        return None
+
+    return float(np.diff(values)[0] / values[0] * 100)
+
+
+def pct(old, new) -> float:
+    """Percentage change from old to new."""
+    return (new / old - 1) * 100
+
+
 def signed(v, decimals=1) -> str:
     """A number with a + sign when positive."""
     return f"{'+' if v > 0 else ''}{v:.{decimals}f}"
+
 
 def nice_date(ts) -> str:
     """'19 Nov 2026'."""
@@ -176,6 +295,13 @@ def nice_date(ts) -> str:
 def build_daily(shipping_df: pd.DataFrame) -> pd.DataFrame:
     """One row per calendar day, with 7-day averages.
     Missing days stay empty, and a 7-day average needs seven consecutive observations."""
+
+def build_daily(shipping_df: pd.DataFrame) -> pd.DataFrame:
+    """One row per calendar day, with 7-day averages.
+
+    Missing days stay empty (they are not turned into zeros), and a 7-day
+    average needs seven consecutive observations.
+    """
     daily = shipping_df.set_index("date")[["n_total", "n_tanker"]].asfreq("D")
     averages = daily.rolling(window=7, min_periods=7).mean().add_suffix("_avg7")
     out = daily.join(averages)
@@ -189,6 +315,7 @@ def prewar_baseline(shipping_df: pd.DataFrame):
     if len(window) < 14:
         return None
     return {"n_total": float(window["n_total"].mean()), "n_tanker": float(window["n_tanker"].mean())}
+
 
 def build_monthly(shipping_df: pd.DataFrame, brent: pd.Series, base) -> pd.DataFrame:
     """One row per month: average daily transits, tanker share, change vs pre-war, Brent average."""
@@ -208,6 +335,17 @@ def build_monthly(shipping_df: pd.DataFrame, brent: pd.Series, base) -> pd.DataF
 
 def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
     """The look shared by all charts: white background, dark text, title on the left. Charts are drawn with theme=None."""
+
+# =============================================================================
+# 4. CHARTS - Plotly
+# =============================================================================
+
+def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
+    """The look shared by all charts: white background, dark text, title on the left.
+
+    The charts are drawn with theme=None, so Streamlit keeps this white look
+    even when the computer is in dark mode.
+    """
     settings = dict(template="plotly_white", height=height, hovermode="x unified",
                     paper_bgcolor="white", plot_bgcolor="white", font=dict(color="#17202e"),
                     title=dict(text=f"<b>{title}</b>", x=0, xanchor="left", font=dict(size=16)),
@@ -220,6 +358,19 @@ def add_war_and_events(fig: go.Figure, start: pd.Timestamp, last: pd.Timestamp) 
 """Shade the war period and mark each key event with a dotted line.
 Labels appear for all events only when the chart covers about a year or less(to not overlap)"""
 
+    settings.update(layout)          # anything passed in replaces the default
+    fig.update_layout(**settings)
+    return fig
+
+
+def add_war_and_events(fig: go.Figure, start: pd.Timestamp, last: pd.Timestamp) -> go.Figure:
+    """Shade the war period and draw a dotted line at each key event.
+
+    Labels are only written when the chart starts in 2025 or later; over a
+    longer period the events sit too close together to read, so only
+    "War begins" is labelled. Labels alternate between two heights so
+    neighbouring events don't overlap.
+    """
     fig.add_vrect(x0=WAR_START, x1=last, fillcolor="#d23f3f", opacity=0.07, line_width=0, layer="below")
     zoomed_in = (last - start).days <= 400
     for i, (date, label) in enumerate(EVENTS):
@@ -239,6 +390,11 @@ def chart_traffic(daily, start, last, view, show_tankers, show_avg, base) -> go.
     as_pct = view == VIEWS[1] and base is not None
     d = daily.loc[(daily.index >= start) & (daily.index <= last)]
     fig = go.Figure()
+    """Daily ships (and tankers) through Hormuz, with 7-day averages."""
+    as_pct = view == VIEWS[1] and base is not None
+    d = daily.loc[(daily.index >= start) & (daily.index <= last)]
+    fig = go.Figure()
+
     def add(column, name, colour, width):
         if as_pct:
             y = (d[column] / base[column.replace("_avg7", "")] - 1) * 100
@@ -260,6 +416,7 @@ def chart_traffic(daily, start, last, view, show_tankers, show_avg, base) -> go.
             add("n_tanker", "Tankers", "rgba(46,111,216,0.40)", 1.2)
             if show_avg:
                 add("n_tanker_avg7", "Tankers (7-day avg)", COLOURS["blue"], 3)
+
     if base is not None:
         ref = 0 if as_pct else base["n_total"]
         fig.add_hline(y=ref, line=dict(color="#6b7785", dash="dash", width=1),
@@ -276,12 +433,15 @@ def chart_traffic(daily, start, last, view, show_tankers, show_avg, base) -> go.
                  yaxis=dict(title="% vs pre-war average" if as_pct else "Vessels per day",
                             ticksuffix="%" if as_pct else ""))
     
+
+
 def chart_brent(brent, wti, start, last, view, show_wti) -> go.Figure:
     """Brent futures (and optionally WTI), as USD per barrel or % vs the pre-war price."""
     as_pct = view == VIEWS[1]
     b = brent.loc[(brent.index >= start) & (brent.index <= last)]
     convert = (lambda s: (s / PREWAR_PRICE - 1) * 100) if as_pct else (lambda s: s)
     fmt = "%{y:+.1f}%" if as_pct else "$%{y:.2f}"
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=b.index, y=convert(b), name="Brent", mode="lines",
                              line=dict(color=COLOURS["green"], width=3),
@@ -294,6 +454,7 @@ def chart_brent(brent, wti, start, last, view, show_wti) -> go.Figure:
     fig.add_hline(y=0 if as_pct else PREWAR_PRICE, line=dict(color="#6b7785", dash="dash", width=1),
                   annotation_text="pre-war level", annotation_position="bottom right")
     add_war_and_events(fig, start, last)
+
     if not brent.empty:
         change = pct(PREWAR_PRICE, brent.iloc[-1])
         title = f"Brent is {abs(change):.0f}% {'above' if change >= 0 else 'below'} its pre-war price"
@@ -302,6 +463,7 @@ def chart_brent(brent, wti, start, last, view, show_wti) -> go.Figure:
     return style(fig, 420, title, xaxis=dict(range=[start, last]),
                  yaxis=dict(title="% vs pre-war" if as_pct else "USD per barrel",
                             ticksuffix="%" if as_pct else ""))
+
 
 def chart_second(mode, monthly, selected, daily, brent, start, last) -> go.Figure:
     """The second chart: monthly bars, tanker share, traffic and Brent, or Brent daily change."""
@@ -318,6 +480,7 @@ def chart_second(mode, monthly, selected, daily, brent, start, last) -> go.Figur
         return style(fig, 380, "Average daily transits each month (the selected month is orange)",
                      hovermode="closest", xaxis=dict(tickformat="%b %y"),
                      yaxis=dict(title="Average per day"))
+
     if mode == SECOND_CHARTS[1]:
         d = daily.loc[(daily.index >= start) & (daily.index <= last)]
         fig = go.Figure(go.Scatter(x=d.index, y=d["share_avg7"], mode="lines", fill="tozeroy",
@@ -328,6 +491,7 @@ def chart_second(mode, monthly, selected, daily, brent, start, last) -> go.Figur
         return style(fig, 380, "Tankers as a share of all ships (7-day average)",
                      xaxis=dict(range=[start, last]), yaxis=dict(title="% of all ships", ticksuffix="%"),
                      showlegend=False)
+
     if mode == SECOND_CHARTS[2]:
         d = daily.loc[(daily.index >= start) & (daily.index <= last)]
         fig = go.Figure()
@@ -353,9 +517,15 @@ def chart_second(mode, monthly, selected, daily, brent, start, last) -> go.Figur
                  yaxis=dict(title="% change on the previous day", ticksuffix="%"), showlegend=False)
 # LAYOUT
 
+
+# =============================================================================
+# 5. LAYOUT
+# =============================================================================
+
 def last_value(prices):
     """Latest price in a Series, or None if it is empty."""
     return None if prices.empty else float(prices.iloc[-1])
+
 
 def section_1_now(shipping_df, daily, base, brent, wti) -> None:
     """Section 1: where do traffic and prices stand now?"""
@@ -363,6 +533,9 @@ def section_1_now(shipping_df, daily, base, brent, wti) -> None:
 
     # 1-latest observations
     traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
+    # Row 1: the latest observations
+    traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
+
     if shipping_df is not None:
         latest = shipping_df.iloc[-1]
         previous = shipping_df.iloc[-2] if len(shipping_df) >= 2 else None
@@ -395,6 +568,7 @@ def section_1_now(shipping_df, daily, base, brent, wti) -> None:
             column.caption(f"USD/barrel · {prices.index[-1]:%d %b %Y}")
 
     # 2- before the war
+    # Row 2: compared with before the war
     c1, c2, c3, c4 = st.columns(4)
     average = daily["n_total_avg7"].dropna() if daily is not None else pd.Series(dtype=float)
     if base is not None and not average.empty:
@@ -411,6 +585,7 @@ def section_1_now(shipping_df, daily, base, brent, wti) -> None:
     c4.metric("Brent–WTI gap", f"${b - w:.2f}" if b and w else "n/a", help="Latest futures prices.")
     st.caption("Market percentage changes compare the last two available observations.")
 
+
 def section_2_over_time(shipping_df, daily, base, brent, wti):
     """Section 2: traffic and Brent over time. Returns the time window the charts use."""
     st.subheader("2 · Traffic and prices over time")
@@ -423,6 +598,7 @@ def section_2_over_time(shipping_df, daily, base, brent, wti):
         show_avg = st.toggle("Show 7-day averages", value=True, key="hs_avg")
         show_wti = st.toggle("Compare Brent with WTI", value=False, key="hs_wti", disabled=view == VIEWS[1],
                              help="Only in the absolute view.")
+
     ends = []
     if shipping_df is not None:
         ends.append(shipping_df["date"].max())
