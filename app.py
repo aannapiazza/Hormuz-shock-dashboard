@@ -30,7 +30,7 @@ PANELS = [
     ("Inflation & households", "panels/inflation.py", "Eleena Golchin"),
 ]
 
-TITLE = "Hormuz Shock: four ways the Strait's closure hits the world"
+TITLE = "Hormuz Shock: four ways the Strait's closure hits the worldg"
 SUBTITLE = "MIS20080 Introduction to Programming · Group project · UCD 2026"
 
 ROOT = Path(__file__).resolve().parent
