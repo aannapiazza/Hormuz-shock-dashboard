@@ -245,7 +245,7 @@ def apply_click(key):
     st.session_state[key + "_last"] = clicked
 
 def show_chart(fig, key):
-    st.plotly_chart(fig, use_container_width=True, key=key, on_select="rerun",
+    st.plotly_chart(fig, key=key, on_select="rerun",
                     selection_mode="points", config={"displayModeBar": False})
 
 def step_month(delta):
@@ -295,8 +295,8 @@ def render():
     with right.container(border=True):
         st.markdown(detail_html(sel), unsafe_allow_html=True)
         b1, b2 = st.columns(2)
-        b1.button("◀ Previous", "ho_prev", on_click=step_month, args=(-1,), use_container_width=True, disabled=sel == 0)
-        b2.button("Next ▶", "ho_next", on_click=step_month, args=(1,), use_container_width=True, disabled=sel == N - 1)
+        b1.button("◀ Previous", "ho_prev", on_click=step_month, args=(-1,), disabled=sel == 0)
+        b2.button("Next ▶", "ho_next", on_click=step_month, args=(1,), disabled=sel == N - 1)
         st.caption("Or click a point on either chart.")
     st.caption(f"Data: {SOURCE} ({HOW}). The latest price is the daily spot price on {nice_date(LATEST_DATE)}, "
                f"and the pre-war reference is the {nice_date(PREWAR_DATE)} price (${PREWAR_PRICE:.2f}).".replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
