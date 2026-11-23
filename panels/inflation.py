@@ -46,7 +46,7 @@ TARGET = 2.0                              # central banks' inflation target, %
 PHASES = [   # the phases of the war, shaded on the Section 1 charts: (name, start, end, colour)
     ("War & closure", "2026-02-28", "2026-04-08", "#d23f3f"),
     ("Ceasefire", "2026-04-08", "2026-07-07", "#2e6fd8"),
-    ("Strikes resume", "2026-07-07", "2026-10-31", "#7c5cd6"),
+    ("Conflict resumes", "2026-07-07", "2026-10-31", "#7c5cd6"),
 ]
 
 # The time slider at the top of the panel links both sections: Section 1 shows
@@ -344,10 +344,9 @@ def chosen_period() -> tuple[pd.Timestamp, pd.Timestamp]:
     monthly (each month is dated on the 1st).
     """
     st.session_state.setdefault("infl_period", DEFAULT_PERIOD)      # first visit: Jan 2025 to Oct 2026
-    start, end = st.slider("📅 Time period (links both sections)", min_value=date(START.year + 1, 1, 1),
-                           max_value=END.date(), format="MMM YYYY", key="infl_period",
-                           help="Section 1 shows only these months. Section 2 starts its scenario from the "
-                                "last month you pick, so you can see what the outlook was at any point.")
+    start, end = st.slider("Period", min_value=date(START.year + 1, 1, 1), max_value=END.date(),
+                           format="MMM YYYY", key="infl_period",
+                           help="The chart shows these months. The numbers and the bill use the last one.")
     return pd.Timestamp(start).to_period("M").to_timestamp(), pd.Timestamp(end)
 
 
@@ -449,12 +448,25 @@ def story_numbers(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Ti
     if traffic is not None and not traffic.loc[:end].empty:
         t = traffic.loc[:end]
         delta = f"{t.iloc[-1] - traffic.loc[feb]:+.0f} pts since Feb 2026" if t.index[-1] > feb else None
-        cards.append(dict(label=f"Hormuz tankers, {t.index[-1]:%b %Y}", value=f"{t.iloc[-1]:.1f}% of normal",
+        cards.append(dict(label=f"Tankers through Hormuz, {t.index[-1]:%b %Y}", value=f"{t.iloc[-1]:.1f}%",
                           delta=delta, delta_color="normal",
                           note=f"Oil tankers through the strait, against the {NORMAL_YEAR} average (IMF PortWatch)."))
     return cards
 
-
+def key_takeaway(inflation: pd.DataFrame, end: pd.Timestamp = END) -> str:
+    """The panel's main point in two sentences, as of the end of the period, counting every country."""
+    if end < WAR_START:
+        return "This period ends before the war started. Drag the end past February 2026 to see what changed."
+    rises = [r[1] for r in (change_since_war(series_for(inflation, c, "Energy").loc[:end]) for c in all_countries()) if r]
+    energy = change_since_war(series_for(inflation, "Euro area", "Energy").loc[:end])
+    headline = change_since_war(series_for(inflation, "Euro area", "Headline").loc[:end])
+    if not rises or not energy or not headline:
+        return ""
+    up = sum(r > 0 for r in rises)
+    which = "all" if up == len(rises) else f"{up} of the"
+    return (f"Energy prices have risen faster since the war started in {which} {len(rises)} countries that publish "
+            f"them. In the euro area, energy inflation is up {energy[1]:.0f} points, but overall inflation is up "
+            f"only {headline[1]:.1f}.")
 
 
 def months_word(n: int) -> str:
@@ -538,15 +550,16 @@ def month_axis(start: pd.Timestamp, end: pd.Timestamp) -> dict:
 # =============================================================================
 
 def story_card(col, card: dict) -> None:
-    """One headline number in a box. Its note, if it has one, shows when you hover over the (?) icon."""
+    """One small number above the chart. Its note shows when you hover over the (?) icon."""
     note = card.get("note")
-    col.container(border=True).metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"),
+    col.metric(card["label"], card["value"], card.get("delta"), delta_color=card.get("delta_color", "normal"),
                help=note.replace("$", "\\$") if note else None)      # \\$ stops Streamlit reading $...$ as maths
-
+        
+    
 
 def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestamp) -> None:
     """The small 'Your energy bill' box: pick a country, an oil price and today's bill."""
-    st.markdown("**Your energy bill**")
+    st.markdown("**Your energy bill**")   
     st.caption("What a new oil price would mean for you")
     options = [c for c in all_countries() if currency_of(c) in oil and not series_for(inflation, c, "Energy").empty]
     country = st.selectbox("Country", options, key="infl_hh_country",
@@ -568,41 +581,13 @@ def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestam
                f"{result['energy']:.1f}%. Bills usually follow oil about {months_word(model['lag'])} later.")
 
 
-def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
-                        start: pd.Timestamp, end: pd.Timestamp) -> None:
-    """Section 1: how far has inflation moved since the war began? Shows only start to end."""
-    st.subheader("1 · Inflation since the war")
-    all_traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
-    for col, card in zip(st.columns(3), story_numbers(inflation, all_traffic, end)):
-        story_card(col, card)
-    with st.container(border=True):              # the controls and the charts they change, in one box
-        c1, c2 = st.columns([3, 1.5])
-        countries = c1.multiselect("Countries", all_countries(), key="infl_countries",
-                                   default=["Euro area", "United Kingdom", "United States"])
-        measure = c2.selectbox("Measure", MEASURES, key="infl_measure")
-        if not countries:
-            st.info("Pick at least one country.")
-            return
-        traffic = traffic_vs_normal(hormuz) if hormuz is not None else None
-        if traffic is not None:
-            traffic = traffic[traffic.index <= end]      # the chart itself cuts it to start-end
-        have = [c for c in countries if not series_for(inflation, c, measure).empty]
-        missing = [c for c in countries if c not in have]
-
-        st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
-                        width="stretch", theme=None, key="infl_chart")
-        if missing:
-            st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
-
-
-
 # =============================================================================
 # PANEL
 # =============================================================================
 
 def render() -> None:
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
-    st.header("🧾 Inflation & households: the bill arrives")
+    st.header("Inflation and households")
     data = load_data()
     problems = {k: v for k, v in data["status"].items() if not v.startswith(("saved", "live"))}
     if problems:
@@ -610,29 +595,51 @@ def render() -> None:
     if data["inflation"] is None:
         st.error("No inflation data. Check the inflation_*.csv files in the data folder.")
         return
-    start, end = chosen_period()
-    section_1_inflation(data["inflation"], data["hormuz"], start, end)
-    if data["oil"] is not None:
-        bill_calculator(data["inflation"], data["oil"], end)
-    about_the_data(data["status"])
+    inflation, oil = data["inflation"], data["oil"]
+    traffic = traffic_vs_normal(data["hormuz"]) if data["hormuz"] is not None else None
+    takeaway = st.empty()                            # filled in once the period is known
+
+    c1, c2, c3 = st.columns([2, 2, 1])
+    with c1:
+        start, end = chosen_period()
+    countries = c2.multiselect("Countries", all_countries(), key="infl_countries",
+                               default=["Euro area", "United Kingdom", "United States"])
+    measure = c3.selectbox("Measure", MEASURES, index=1, key="infl_measure")
+    takeaway.success("**Key takeaway**  \n" + key_takeaway(inflation, end))
+
+    st.subheader("Inflation since the war")
+    chart_col, calc_col = st.columns([3, 1], gap="medium")
+    with chart_col.container(border=True):
+        for col, card in zip(st.columns(3), story_numbers(inflation, traffic, end)):
+            story_card(col, card)
+        have = [c for c in countries if not series_for(inflation, c, measure).empty]
+        if have:
+            st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
+                            width="stretch", theme=None, key="infl_chart")
+        else:
+            st.info("Pick at least one country that publishes this measure.")
+    if oil is not None:
+        with calc_col.container(border=True):
+            bill_calculator(inflation, oil, end)
+    method_and_sources(data["status"])
 
 
-def about_the_data(status: dict) -> None:
-    """A closed box at the bottom with the full source notes, so they don't crowd the charts."""
-    with st.expander("About the data"):
+def method_and_sources(status: dict) -> None:
+    """A closed box at the bottom with the method and the sources."""
+    with st.expander("Method and sources"):
         st.markdown(
-            f"- **Inflation:** annual change in consumer prices, monthly, to {END:%B %Y}. Euro countries: Eurostat "
-            "HICP. UK, South Korea, China, India: OECD CPI. USA: Bureau of Labor Statistics CPI (to September 2026; "
-            "October 2025 was never published because of the US government shutdown). Non-euro figures are "
-            "national measures, close to but not exactly comparable with the euro-area HICP. China publishes no "
-            "energy or services figures, and India only headline.\n"
-            "- **Oil:** Brent crude futures and exchange rates, monthly averages, from Yahoo Finance (yfinance).\n"
-            f"- **Tankers:** daily oil-tanker capacity through the Strait of Hormuz from IMF PortWatch, as a monthly "
-            f"% of the {NORMAL_YEAR} average.\n"
-            "- **Energy weights:** Eurostat HICP item weights; other countries use an approximate weight.\n"
-            "- **Loaded from:** " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
-
-
+            "**The bill calculator** looks at how energy prices have followed oil prices since 2016. It tries delays "
+            f"of 0 to {MAX_LAG_MONTHS} months, keeps the one that fits best, and draws a straight line through the "
+            "result. Your bill is read off that line. It ignores wages and exchange-rate changes, so treat it as a "
+            "rough estimate.\n\n"
+            "**Data**, monthly to October 2026: Eurostat HICP for the euro countries; OECD CPI for the UK, South "
+            "Korea, China and India; the US Bureau of Labor Statistics for the USA (to September 2026, and October "
+            "2025 was never published because of the government shutdown); Brent and exchange rates from Yahoo "
+            "Finance; oil tankers through Hormuz from IMF PortWatch, against the 2025 average. China has no energy "
+            "figures and India only headline.\n\n"
+            "Loaded from: " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
+        
+        
 if __name__ == "__main__":
     # Runs when you start this file directly, and when app.py runs it inside its tab.
     st.set_page_config(page_title="Inflation & households", layout="wide")
