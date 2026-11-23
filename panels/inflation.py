@@ -509,30 +509,27 @@ def add_war_and_events(fig: go.Figure, start: pd.Timestamp, end: pd.Timestamp = 
     return fig
 
 
-def chart_inflation(inflation, countries, measure, start, end) -> go.Figure:
-    """Section 1 chart: one line per country, each phase of the war shaded."""
+def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> go.Figure:
+    """The panel's one chart: inflation by country, with the war's phases shaded and
+    tanker traffic through Hormuz as a light grey area on the right-hand axis."""
     fig = go.Figure()
-    changes = {}
+    if traffic is not None:
+        t = in_period(traffic, start, end)
+        fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Tankers through Hormuz (% of normal, right axis)",
+                                 yaxis="y2", mode="lines", fill="tozeroy", line=dict(color="rgba(27,42,65,0.35)", width=1),
+                                 fillcolor="rgba(27,42,65,0.07)", hovertemplate="Tankers: %{y:.0f}% of normal<extra></extra>"))
     for colour, country in zip(COLOURS, countries):
-        s = series_for(inflation, country, measure)
-        result = change_since_war(s[s.index <= end])       # Feb 2026 counts even if the period starts later
-        s = in_period(s, start, end)
+        s = in_period(series_for(inflation, country, measure), start, end)
         fig.add_trace(go.Scatter(x=s.index, y=s.values, name=country, mode="lines",
                                  line=dict(color=colour, width=3 if country == countries[0] else 2),
                                  hovertemplate=f"{country}: %{{y:.1f}}%<extra></extra>"))
-        if result:
-            changes[country] = result[1]
-    fig.add_hline(y=TARGET, line=dict(color="#6b7785", dash="dash", width=1),
-                  annotation_text="2% target", annotation_position="bottom right")
+    fig.add_hline(y=TARGET, line=dict(color="#98a2b3", dash="dash", width=1),
+                  annotation_text="2% target", annotation_position="bottom left")
     add_war_and_events(fig, start, end)
-    if changes:   # a title that states the finding (Session 9)
-        top = max(changes, key=lambda c: abs(changes[c]))
-        title = (f"{measure} inflation in {place(top)} is {'up' if changes[top] >= 0 else 'down'} "
-                 f"{abs(changes[top]):.1f} points since the war began")
-    else:
-        title = f"{measure} inflation"
-    return style(fig, 420, title, margin=dict(l=75, r=20, t=50, b=40),      # same left edge as the tanker chart
-                 yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%", automargin=False),
+    return style(fig, 450, f"{measure} inflation since the war started", margin=dict(l=10, r=50, t=50, b=40),
+                 yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"),
+                 yaxis2=dict(overlaying="y", side="right", range=[0, 300], tickvals=[0, 50, 100], ticksuffix="%",
+                             showgrid=False, tickfont=dict(size=10, color="#98a2b3")),
                  xaxis=month_axis(start, end))
 
 
@@ -541,25 +538,6 @@ def month_axis(start: pd.Timestamp, end: pd.Timestamp) -> dict:
     months = (end.year - start.year) * 12 + end.month - start.month
     step = 1 if months <= 12 else 2 if months <= 24 else 3 if months <= 48 else 6 if months <= 96 else 12
     return dict(range=[start, end], tick0=end.to_period("M").to_timestamp(), dtick=f"M{step}", tickformat="%b %Y")
-
-
-def chart_hormuz(traffic: pd.Series, start: pd.Timestamp, end: pd.Timestamp) -> go.Figure:
-    """Slim chart under the main one: tanker capacity through Hormuz, % of normal.
-
-    It uses the same months as the main chart, so the supply cut lines up with
-    the jump in inflation above it. The dashed line at 100% is normal.
-    """
-    t = in_period(traffic, start, end)
-    fig = go.Figure(go.Scatter(x=t.index, y=t.values, mode="lines", fill="tozeroy", name="Hormuz tankers",
-                               line=dict(color="#1b2a41", width=2), fillcolor="rgba(27,42,65,0.08)",
-                               hovertemplate="Tankers: %{y:.1f}% of normal<extra></extra>"))
-    fig.add_hline(y=100, line=dict(color="#6b7785", dash="dash", width=1),
-                  annotation_text=f"normal ({NORMAL_YEAR})", annotation_position="top right")
-    add_war_and_events(fig, start, end, label=False)               # the label is already on the chart above
-    return style(fig, 220, f"Oil-tanker capacity through Hormuz, % of the {NORMAL_YEAR} average", title_size=13,
-                 showlegend=False, margin=dict(l=75, r=20, t=40, b=30),
-                 yaxis=dict(range=[0, 145], ticksuffix="%", tickmode="linear", tick0=0, dtick=50, automargin=False),
-                 xaxis=month_axis(start, end))
 
 
 def chart_passthrough(model, scenario, country, currency, start=None, end=None) -> go.Figure:
@@ -641,10 +619,8 @@ def section_1_inflation(inflation: pd.DataFrame, hormuz: pd.DataFrame | None,
         have = [c for c in countries if not series_for(inflation, c, measure).empty]
         missing = [c for c in countries if c not in have]
 
-        st.plotly_chart(chart_inflation(inflation, have, measure, start, end),
+        st.plotly_chart(chart_inflation(inflation, have, measure, start, end, traffic),
                         width="stretch", theme=None, key="infl_chart")
-        if traffic is not None:
-            st.plotly_chart(chart_hormuz(traffic, start, end), width="stretch", theme=None, key="infl_hormuz_chart")
         if missing:
             st.caption(f"No {measure.lower()} figures published for: {', '.join(missing)}.")
 
