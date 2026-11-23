@@ -550,6 +550,25 @@ def render():
 # set_page_config is for testing on its own (streamlit run panels/oil.py); inside
 # the group app the main app has already set it, so a second call is ignored.
 # -----------------------------------------------------------------------------
+def card_figure():
+    """Small Brent chart for the home-page card, with the key dates marked."""
+    fig = go.Figure(go.Scatter(x=DATES, y=OIL["Brent"], mode="lines+markers", marker=dict(size=4),
+                               line=dict(color=COLORS["navy"], width=2.5),
+                               hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
+    fig.add_hline(y=PREWAR_PRICE, line=dict(dash="dash", color="#9aa5b1", width=1),
+                  annotation_text="pre-war", annotation_position="bottom right")
+    fig.add_vrect(x0=EVENTS["War & closure"][0], x1=END.strftime("%Y-%m-%d"), fillcolor="#d64545",
+                  opacity=0.06, line_width=0, layer="below")
+    marks = [("War begins", "War & closure", 1), ("Ceasefire", "Ceasefire", 0.9), ("Strikes resume", "Conflict resumes", 1)]
+    for label, phase, y in marks:
+        fig.add_vline(x=EVENTS[phase][0], line=dict(dash="dot", color="#9aa5b1", width=1))
+        fig.add_annotation(x=EVENTS[phase][0], y=y, yref="paper", text=label, showarrow=False, xanchor="left",
+                           font=dict(size=11, color=COLORS["muted"]))
+    fig.update_layout(template="plotly_white", height=300, margin=dict(l=45, r=10, t=25, b=30),
+                      showlegend=False, yaxis=dict(title="$ per barrel"), xaxis=dict(type="date"))
+    return fig
+
+
 def render_card():
     """Small summary for the home page (app.py calls this)."""
     a, b = st.columns(2)
@@ -557,6 +576,7 @@ def render_card():
              f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}% since pre-war", delta_color="inverse")
     b.metric("Brent–WTI gap, Oct", f"${OIL['Spread'].iloc[-1]:.2f}",
              f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs Sep 2025", delta_color="inverse")
+    st.plotly_chart(card_figure(), key="ho_card_chart", config={"displayModeBar": False})
 
 
 if __name__ == "__main__":
