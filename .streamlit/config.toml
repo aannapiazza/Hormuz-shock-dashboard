@@ -1,0 +1,12 @@
+# Streamlit theme for the Hormuz Shock dashboard.
+# Save this file as .streamlit/config.toml in the repo's main folder (next to app.py).
+# It makes the whole app light, so the charts' dark text is readable on every computer.
+
+[theme]
+base = "light"
+primaryColor = "#c2410c"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f6f9"
+textColor = "#17202e"
+font = "sans serif"
+
