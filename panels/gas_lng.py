@@ -99,11 +99,13 @@ def download_daily() -> pd.DataFrame:
     return daily.rename_axis("date").reset_index()
 
 
-@st.cache_data
+@st.cache_data(ttl="1h")
 def load_data(live: bool = LIVE) -> tuple:
     """Read every CSV in FILES. Returns (dict of DataFrames, where the daily prices came from).
 
-    LIVE: try a fresh download and save it to data/; if that fails, use the saved copy.
+    live=True: download fresh daily prices from Yahoo Finance; if that fails (no internet,
+    site down), use the saved copy and say so. The download is only saved over data/ when
+    LIVE = True at the top, so the switch on the page never changes the repo's files.
     Prices after END are dropped, so every panel stops on the same day.
     """
     folder = data_folder()
@@ -111,11 +113,14 @@ def load_data(live: bool = LIVE) -> tuple:
     how = "saved copy in data/"
     if live:
         try:
-            data["daily"] = download_daily()
-            data["daily"].to_csv(folder / FILES["daily"], index=False)
-            how = "downloaded from Yahoo Finance"
+            fresh = download_daily()
+            data["daily"] = fresh
+            how = (f"downloaded from Yahoo Finance just now ({len(fresh)} trading days, latest "
+                   f"{fresh['date'].max():%d %b %Y}; shown up to the {END:%d %b} cut-off)")
+            if LIVE:
+                fresh.to_csv(folder / FILES["daily"], index=False)
         except Exception:
-            pass   # no internet or read-only folder: keep the saved copy
+            how = "Yahoo Finance could not be reached, so the saved copy in data/ is used"
     data["daily"]["date"] = pd.to_datetime(data["daily"]["date"])
     data["daily"] = data["daily"][data["daily"]["date"] <= END].reset_index(drop=True)
     data["storage"]["date"] = pd.to_datetime(data["storage"]["date"])
@@ -527,7 +532,7 @@ def render_card():
 
 def render():
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
-    data, how = load_data()
+    data, how = load_data(st.session_state.get("gas_live", LIVE))   # the switch is drawn at the bottom
     table = monthly_table(data)
     months, n = table["month"].tolist(), len(table)
     st.session_state["gas_sel"] = min(st.session_state.get("gas_sel", n - 1), n - 1)
@@ -593,6 +598,9 @@ def render():
     st.success("**Takeaway:** Europe's gas price is up " + f"{last['vs_prewar']:.0f}% since before the war and LNG "
                f"traffic through Hormuz is only {tk['tanker_pct']:.0f}% of normal. Europe enters winter with storage "
                f"{abs(now['gap']):.0f} points below normal, so a cold snap could push prices higher still.")
+    st.toggle("Download the latest prices from Yahoo Finance", key="gas_live", value=LIVE,
+              help="Off: the saved copy in data/ (same numbers every time). On: a fresh download of TTF, "
+                   "Henry Hub and EUR/USD. Falls back to the saved copy if Yahoo Finance can't be reached.")
     st.caption(f"Data: {SOURCE}. Daily prices: {how}. Prices to {END:%d %B %Y}; EU storage to "
                f"{now['date']:%d %B %Y}. Sources are listed row by row in data/gas_*.csv.".replace("$", "\\$"))
 
