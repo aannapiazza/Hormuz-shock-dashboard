@@ -236,6 +236,18 @@ def cursor(fig, date):
 
 
 # --------------------------------- charts ---------------------------------
+def label_positions(values) -> list:
+    """Put a point's label under it when the point is a dip (lower than both neighbours),
+    so the line climbing out of the dip doesn't run through the label."""
+    v = list(values)
+    out = []
+    for i, x in enumerate(v):
+        before = v[i - 1] if i > 0 else np.inf
+        after = v[i + 1] if i < len(v) - 1 else np.inf
+        out.append("bottom center" if x < before and x < after else "top center")
+    return out
+
+
 def main_figure(table, phase, view, show_us, sel):
     """Main chart: European gas, monthly average, with price labels and optional US gas."""
     as_pct = view == VIEWS[1]
@@ -247,7 +259,7 @@ def main_figure(table, phase, view, show_us, sel):
     n, y = len(table), tf(table["ttf"], prewar["ttf"])
     fig = go.Figure(go.Scatter(
         x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text",
-        text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition="top center",
+        text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition=label_positions(y),
         textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
         marker=dict(size=[13 if i == sel else 7 for i in range(n)], line=dict(color="#fff", width=1.5),
                     color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(n)]),
@@ -330,9 +342,17 @@ def second_figure(mode, table, data, sel, phase, view):
             fig.add_scatter(x=[ttf[i], jkm[i]], y=[row, row], mode="lines", hoverinfo="skip", showlegend=False,
                             line=dict(color=phase_colour(table.iloc[sel]["phase"]) if focus else "#dfe3e8",
                                       width=9 if focus else 6))
-        fig.add_scatter(x=ttf, y=rows, mode="markers", name="Europe (TTF)", selected=KEEP, unselected=KEEP,
+        # labels: where the two dots overlap (within 3% of the axis), one "both ≈" label instead of two
+        span = max(ttf.max(), jkm.max()) - min(ttf.min(), jkm.min(), 0)
+        close = (ttf - jkm).abs() < 0.03 * span
+        show = (lambda v: f"{v:+.0f}%") if as_pct else (lambda v: f"${v:.1f}")
+        europe_text = [f"both ≈ {show((a + b) / 2)}" if c else show(a) for a, b, c in zip(ttf, jkm, close)]
+        asia_text = ["" if c else show(b) for b, c in zip(jkm, close)]
+        fig.add_scatter(x=ttf, y=rows, mode="markers+text", name="Europe (TTF)", selected=KEEP, unselected=KEEP,
+                        text=europe_text, textposition="top center", textfont=dict(size=11, color=COLORS["navy"]),
                         marker=dict(size=15, color=COLORS["navy"]), hovertemplate=f"Europe: {fmt}<extra></extra>")
-        fig.add_scatter(x=jkm, y=rows, mode="markers", name="Asia (JKM)", selected=KEEP, unselected=KEEP,
+        fig.add_scatter(x=jkm, y=rows, mode="markers+text", name="Asia (JKM)", selected=KEEP, unselected=KEEP,
+                        text=asia_text, textposition="bottom center", textfont=dict(size=11, color=COLORS["purple"]),
                         marker=dict(size=15, color=COLORS["purple"], symbol="diamond"),
                         hovertemplate=f"Asia: {fmt}<extra></extra>")
         fig.update_layout(**layout(330, legend=dict(orientation="h", y=1.12, x=0),
