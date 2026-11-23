@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
-# SETTINGS
+# ---------- 1. SETTINGS: change dates, symbols and notes here, nowhere else ----------
 END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole dashboard (None = all data)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
@@ -53,7 +53,7 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
            "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
 
 
-# DATA 
+# ---------- 2. DATA ----------
 def load_shipping_data():
     csv_path = Path(__file__).resolve().parent / "Daily_Chokepoints_Data.csv"
     df = pd.read_csv(csv_path)
@@ -108,7 +108,7 @@ def safe_market_data(symbol):
         return pd.Series(dtype=float)
 
 
-# ANALYSIS 
+# ---------- 3. ANALYSIS ----------
 def percentage_change(prices):
     """Percentage change between the last two observations."""
     if len(prices) < 2:
@@ -169,7 +169,7 @@ def build_monthly(shipping_df, brent, base):
     return m
 
 
-# CHARTS
+# ---------- 4. CHARTS (Plotly) ----------
 def style(fig, height, title, **layout):
     """The look shared by all charts: white background, dark text, title on the left.
     Charts are drawn with theme=None, so they stay white in dark mode."""
@@ -254,6 +254,7 @@ def chart_brent(brent, wti, start, last, view, show_wti):
     return finish(fig, 420, title, start, last, (0 if as_pct else PREWAR_PRICE, "pre-war level"),
                   yaxis=dict(title="% vs pre-war" if as_pct else "USD per barrel", ticksuffix="%" if as_pct else ""))
 
+
 def chart_second(mode, monthly, selected, daily, brent, start, last):
     """The second chart: monthly bars, tanker share, traffic and Brent, or Brent daily change."""
     d, b = between(daily, start, last), between(brent, start, last)
@@ -286,7 +287,8 @@ def chart_second(mode, monthly, selected, daily, brent, start, last):
     return finish(fig, 380, "Brent daily change (red = rise, green = fall)", start, last, showlegend=False,
                   yaxis=dict(title="% change on the previous day", ticksuffix="%"))
 
-# LAYOUT 
+
+# ---------- 5. LAYOUT ----------
 def market_metric(column, label, prices, prefix="", caption="{date}"):
     """A metric with the latest price and its change on the previous observation."""
     if prices.empty:
@@ -404,6 +406,7 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
                             width="stretch", theme=None, key="hs_second_chart")
         st.caption("These charts show traffic and prices side by side; they do not establish a causal relationship.")
 
+
 def render():
     st.header("Hormuz | Shipping & Markets")
     st.caption("Shipping: daily IMF PortWatch data from a local CSV. "
@@ -463,6 +466,25 @@ def render():
                "and run when the app executes. Shipping and market observations may have different dates. "
                f"The pre-war Brent reference is the {nice_date(PREWAR_DATE)} price (USD {PREWAR_PRICE:.2f})."
                + base_note)
+
+
+def render_card():
+    """The small version for the overview grid: two numbers and one chart. The full panel is render()."""
+    try:
+        shipping_df = load_shipping_data()
+    except Exception as error:
+        return st.error(f"Shipping data unavailable: {error}")
+    daily, base = build_daily(shipping_df), prewar_baseline(shipping_df)
+    latest, average = shipping_df.iloc[-1], daily["n_total_avg7"].dropna()
+    a, b = st.columns(2)
+    a.metric("Ship transits", f"{int(latest['n_total']):,}", help=f"On {nice_date(latest['date'])}.")
+    b.metric("Traffic vs pre-war", f"{signed(pct(base['n_total'], average.iloc[-1]))}%"
+             if base is not None and not average.empty else "n/a", help="7-day average of ships a day.")
+    last = latest["date"]
+    fig = chart_traffic(daily, last - pd.Timedelta(days=364), last, VIEWS[0], False, True, base)
+    fig.update_layout(height=260, showlegend=False)
+    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_chart")
+
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
