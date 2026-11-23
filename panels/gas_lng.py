@@ -548,6 +548,9 @@ def render():
         b2.button("Next ▶", "gas_next", on_click=step_month, args=(1, n), disabled=sel == n - 1)
         st.caption("Or click a point on either chart.")
 
+    st.success("**Takeaway:** Europe's gas price is up " + f"{last['vs_prewar']:.0f}% since before the war and LNG "
+               f"traffic through Hormuz is only {tk['tanker_pct']:.0f}% of normal. Europe enters winter with storage "
+               f"{abs(now['gap']):.0f} points below normal, so a cold snap could push prices higher still.")
     st.caption(f"Data: {SOURCE}. Daily prices: {how}. Prices to {END:%d %B %Y}; EU storage to "
                f"{now['date']:%d %B %Y}. Sources are listed row by row in data/gas_*.csv.".replace("$", "\\$"))
 
