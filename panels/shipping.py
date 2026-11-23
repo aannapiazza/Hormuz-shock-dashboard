@@ -22,7 +22,7 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
-# ---------- 1. SETTINGS: change dates, symbols and notes here, nowhere else ----------
+# SETTINGS: 
 END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole dashboard (None = all data)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
@@ -52,7 +52,7 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
            "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
 
 
-# ---------- 2. DATA ----------
+# DATA 
 def load_shipping_data():
     folder = Path(__file__).resolve().parent
     candidates = [folder / "Daily_Chokepoints_Data.csv",
@@ -112,7 +112,7 @@ def safe_market_data(symbol):
         return pd.Series(dtype=float)
 
 
-# ---------- 3. ANALYSIS ----------
+# ANALYSIS
 def percentage_change(prices):
     """Percentage change between the last two observations."""
     if len(prices) < 2:
@@ -181,7 +181,7 @@ def build_monthly(shipping_df, brent, base):
     return m
 
 
-# ---------- 4. CHARTS (Plotly) ----------
+# CHARTS 
 def style(fig, height, title, **layout):
     """The look shared by all charts: white background, dark text, title on the left.
     Charts are drawn with theme=None, so they stay white in dark mode."""
@@ -347,7 +347,7 @@ def chart_second(mode, monthly, selected, daily, brent, start, last):
                   yaxis=dict(title="% change on the previous day", ticksuffix="%"))
 
 
-# ---------- 5. LAYOUT ----------
+# LAYOUT
 def market_metric(column, label, prices, prefix="", caption="{date}"):
     """A metric with the latest price and its change on the previous observation."""
     if prices.empty:
@@ -484,7 +484,6 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
 
 
 def render():
-    st.header("Hormuz | Shipping & Markets")
     st.caption("Shipping: daily IMF PortWatch data from a local CSV. "
                "Markets: daily observations from Yahoo Finance; quotes may be delayed."
                + (f" Data shown to {nice_date(END)}." if END is not None else ""))
