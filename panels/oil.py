@@ -550,10 +550,19 @@ def render():
 # testing on its own (streamlit run panels/oil.py). Inside the group app the
 # main app has already set it, so any error from a second call is ignored.
 # -----------------------------------------------------------------------------
+def render_card():
+    """Small summary for the home page (app.py calls this)."""
+    a, b = st.columns(2)
+    a.metric("Brent crude, 30 Oct", f"${LATEST_PRICE:.2f}",
+             f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}% since pre-war", delta_color="inverse")
+    b.metric("Brent–WTI gap, Oct", f"${OIL['Spread'].iloc[-1]:.2f}",
+             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs Sep 2025", delta_color="inverse")
+
+
 if __name__ == "__main__":
+    # Run this panel on its own:  python3 -m streamlit run panels/oil.py
     try:
         st.set_page_config(page_title=TITLE, layout="wide")
     except Exception:
         pass
-
-render()
+    render()
