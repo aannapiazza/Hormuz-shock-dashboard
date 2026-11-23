@@ -402,6 +402,58 @@ def method_and_sources(status: dict) -> None:
             "Loaded from: " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
         
         
+def render_card() -> None:
+    """Chart shown in the overview card on the dashboard's home page."""
+    data = load_data()
+
+    inflation = data["inflation"]
+    if inflation is None:
+        st.error("No inflation data available.")
+        return
+
+    traffic = (
+        traffic_vs_normal(data["hormuz"])
+        if data["hormuz"] is not None
+        else None
+    )
+
+    countries = ["Euro area", "United Kingdom", "United States"]
+    measure = MEASURES[1]
+    start = pd.Timestamp(DEFAULT_PERIOD[0])
+    end = pd.Timestamp(DEFAULT_PERIOD[1])
+
+    have = [
+        country for country in countries
+        if not series_for(inflation, country, measure).empty
+    ]
+
+    if not have:
+        st.info("No inflation data available for the selected countries.")
+        return
+
+    fig = chart_inflation(
+        inflation=inflation,
+        countries=have,
+        measure=measure,
+        start=start,
+        end=end,
+        traffic=traffic,
+    )
+
+    fig.update_layout(
+        height=400,
+        title_text="",
+        margin=dict(l=10, r=50, t=10, b=90),
+    )
+
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        theme=None,
+        key="infl_card_chart",
+    )
+    
+    
 if __name__ == "__main__":
     # Runs when you start this file directly, and when app.py runs it inside its tab.
     st.set_page_config(page_title="Inflation & households", layout="wide")
