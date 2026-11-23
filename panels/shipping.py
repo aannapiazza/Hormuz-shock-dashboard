@@ -457,9 +457,29 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         b.metric("Tankers a day", f"{row['Tankers']:.1f}")
         a.metric("Tanker share", f"{row['Share']:.1f}%")
         b.metric("vs pre-war traffic", "n/a" if pd.isna(row["vsPrewar"]) else f"{signed(row['vsPrewar'])}%")
-        brent_txt = "n/a" if pd.isna(row["Brent"]) else f"${row['Brent']:.2f}"
-        st.caption(f"Brent monthly average: {brent_txt} · days with data: "
-                   f"{int(row['Days'])} of {int(row['DaysInMonth'])}".replace("$", "\\$"))
+        month_start = pd.Timestamp(selected + "-01")
+month_end = month_start + pd.offsets.MonthEnd(0)
+
+month_prices = brent.loc[
+    (brent.index >= month_start)
+    & (brent.index <= month_end)
+].dropna()
+
+if month_prices.empty:
+    st.caption("Brent futures monthly average: unavailable")
+else:
+    average = month_prices.mean()
+    observations = month_prices.count()
+
+    st.caption(
+        f"Brent futures monthly average: USD {average:.2f}/barrel"
+        f" · {observations} trading observations"
+    )
+
+st.caption(
+    f"Shipping data: {int(row['Days'])}"
+    f" of {int(row['DaysInMonth'])} calendar days"
+)
         if row["Days"] < row["DaysInMonth"] and selected == months[-1]:
             st.caption(f"Partial month: data to {nice_date(shipping_last)}.")
         if selected in MONTH_NOTES:
