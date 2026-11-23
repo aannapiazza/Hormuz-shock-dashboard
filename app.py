@@ -115,3 +115,4 @@ else:                                          # overview: two cards on top, two
         with slot, st.container(border=True):
             st.button(f"{name}  →", key=f"open_{file}", on_click=open_panel, args=(name,))   # click to open
             show_card(file)
+            
