@@ -360,7 +360,7 @@ def market_metric(column, label, prices, prefix="", caption="{date}"):
 
 def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 1: where do traffic and prices stand now?"""
-    st.subheader("1 · Where things stand")
+    st.subheader("Where things stand")
     traffic_col, tanker_col, brent_col, wti_col = st.columns(4)     # latest observations
     if shipping_df is not None:
         latest = shipping_df.iloc[-1]
@@ -403,7 +403,7 @@ def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
 
 def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 2: traffic and Brent over time. Returns the time window the charts use."""
-    st.subheader("2 · Traffic and prices over time")
+    st.subheader("Traffic and prices over time")
     c1, c2, c3 = st.columns([1.2, 1.2, 2])
     period = c1.selectbox("Time range", list(TIME_RANGES), index=list(TIME_RANGES).index(DEFAULT_RANGE),
                           key="hs_range")
@@ -445,7 +445,7 @@ def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None)
 
 def section_3_month(monthly, daily, brent, start, last, shipping_last):
     """Section 3: a closer look, and one month in focus."""
-    st.subheader("3 · A closer look")
+    st.subheader("Closer look")
     left, right = st.columns([2, 1], gap="large")
     with right:                     # drawn first, because the chart needs the chosen month
         months = monthly["Month"].tolist()
