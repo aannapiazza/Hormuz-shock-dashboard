@@ -1,25 +1,5 @@
-"""
-panels/oil.py — Oil prices panel (Erin)
-Hormuz Oil Shock Dashboard (Streamlit)
-
-How the 2026 Iran war and the near-closure of the Strait of Hormuz moved the
-price of crude oil.
-
-HOW TO USE
-  • In the group app: listed in PANELS as ("🛢️ Oil prices", "panels/oil.py", "Erin").
-    The main app runs this file, and the dashboard draws itself.
-  • On its own, for testing:   streamlit run panels/oil.py
-
-HOW TO CHANGE IT
-  Everything you're likely to edit is in the "EDIT HERE" section just below.
-  The KPI cards, charts, labels and dates all update from it automatically,
-  so you shouldn't need to touch anything further down.
-
-Requires: streamlit (1.35+ for clickable charts, 1.40+ for pill buttons), plotly,
-pandas, numpy. Older Streamlit versions still work, with radio buttons instead.
-All widget keys start with "ho_" so they can't clash with the other panels.
-"""
-
+"""panels/oil.py — Hormuz Oil Shock Dashboard (Erin). Run on its own: python3 -m streamlit run panels/oil.py
+Everything you're likely to change is in the EDIT HERE section. Widget keys start with "ho_"."""
 from pathlib import Path
 
 import numpy as np
@@ -27,75 +7,38 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-
 # =============================================================================
 # ✏️  EDIT HERE
 # =============================================================================
-
-# 0) DATA SETTINGS
 END = pd.Timestamp("2026-10-31")     # cut-off: nothing after this date is used anywhere
 START = pd.Timestamp("2025-09-01")   # first month shown on the charts
 LIVE = False                         # False = use the saved copies in data/ (default)
                                      # True  = download fresh data from FRED, cut it at END, save it to data/
-BRENT_SERIES = "MCOILBRENTEU"        # FRED series: Crude Oil Prices: Brent - Europe (monthly)
-WTI_SERIES = "MCOILWTICO"            # FRED series: Crude Oil Prices: WTI - Cushing, Oklahoma (monthly)
-#    The saved copies are data/MCOILBRENTEU.csv and data/MCOILWTICO.csv.
+# Data files: (FRED series ID, file name in data/)
+BRENT_MONTHLY = ("MCOILBRENTEU", "oil_monthly_brent_data.csv")   # Brent - Europe, monthly average
+WTI_MONTHLY = ("MCOILWTICO", "oil_monthly_wti_data.csv")         # WTI - Cushing, Oklahoma, monthly average
+BRENT_DAILY = ("DCOILBRENTEU", "oil_daily_brent_data.csv")       # Brent - Europe, daily
+PREWAR_DATE = "2026-02-27"           # last trading day before the war. The latest and pre-war prices are both
+                                     # read from the daily file (the last price on or before END / PREWAR_DATE).
+# Sources for the events and notes below: S&P Global (28 Feb 2026, "Iran claims Hormuz is shut down"),
+# ING Think (8 Apr 2026, "Oil slumps below $100 after US, Iran agree to two-week ceasefire"),
+# Al Jazeera (30 Oct 2026, "Oil flows are up as Iran war turmoil eases. Why do prices keep rising?").
 
-# 1) BACKUP MONTHLY PRICES — only used if the saved copies in data/ can't be read.
-#    One line per month: ("YYYY-MM", Brent, WTI), matching the FRED files.
-MONTHLY_PRICES = [
-    ("2025-09", 67.99, 63.96),
-    ("2025-10", 64.54, 60.89),
-    ("2025-11", 63.80, 60.06),
-    ("2025-12", 62.54, 57.97),
-    ("2026-01", 66.60, 60.04),
-    ("2026-02", 70.89, 64.51),
-    ("2026-03", 103.13, 91.38),
-    ("2026-04", 117.29, 100.32),
-    ("2026-05", 107.14, 102.13),
-    ("2026-06", 85.40, 84.81),
-    ("2026-07", 83.76, 80.46),
-    ("2026-08", 91.08, 83.90),
-    ("2026-09", 114.16, 97.31),
-    ("2026-10", 123.93, 102.07),
-]
-
-# 2) LATEST PRICE
-#    The latest daily Brent price (first KPI card, and the dotted line at the end of the chart).
-#    30 Oct 2026 was the last trading day of October (31 Oct was a Saturday).
-LATEST_DATE = "2026-10-30"
-LATEST_PRICE = 117.64                # front-month (December contract) settlement on its expiry day
-LATEST_LABEL = "Settlement"          # e.g. "Settlement" or "Spot"
-
-# 3) PRE-WAR REFERENCE — the price everything is compared against
-PREWAR_DATE = "2026-02-27"
-PREWAR_PRICE = 71.32
-
-# 4) ESTIMATED FIGURES — months marked with * on the page.
-#    Delete a line once you have the real figure.
-ESTIMATED_MONTHS = {
-    # "YYYY-MM": "note explaining the estimate",
-}
-
-# 5) EVENTS — the phase buttons that shade the chart.
-#    "Button name": ("start YYYY-MM-DD", "end YYYY-MM-DD", "colour", "description")
+# Phase buttons that shade the chart: "Name": ("start", "end", "colour", "description")
 EVENTS = {
     "Build-up": ("2026-01-01", "2026-02-28", "#e0a800",
                  "Prices drift up as markets price in the risk of war with Iran."),
     "War & closure": ("2026-02-28", "2026-04-08", "#d64545",
-                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. "
-                      "The IEA calls it the largest supply disruption in history, and Brent "
-                      "peaks near $138 on 7 Apr."),
+                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. The IEA calls it "
+                      "the largest supply disruption in history, and Brent peaks near $138 on 7 Apr."),
     "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
-                  "Brent drops about 16% on the 8 Apr ceasefire and falls again after the "
-                  "17 Jun US–Iran MOU, but tanker traffic barely recovers."),
+                  "Brent drops about 16% on the 8 Apr ceasefire and falls again after the 17 Jun US–Iran "
+                  "MOU, but tanker traffic barely recovers."),
     "Conflict resumes": ("2026-07-07", "2026-10-31", "#8e44ad",
-                         "Strikes resume on 7 Jul. With inventories falling, Brent rises for "
-                         "three months to a $124 average in October, the highest since mid-2022."),
+                         "Strikes resume on 7 Jul. With inventories falling, Brent rises for three months "
+                         "to a $124 average in October, the highest since mid-2022."),
 }
-
-# 6) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
-#    Months without a note show their event's description instead.
+# Notes for the "Month in focus" panel. Months without a note show their phase's description.
 MONTH_NOTES = {
     "2026-03": "War begins on 28 Feb. This is the biggest one-month jump in the series.",
     "2026-04": "The peak month. Brent hit $138 on 7 Apr, before the next day's ceasefire.",
@@ -103,481 +46,262 @@ MONTH_NOTES = {
     "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
     "2026-07": "Strikes resume on 7 Jul, and Iran declares the strait closed on 12 Jul.",
     "2026-09": "Prices rebound as global inventories keep falling.",
-    "2026-10": "The highest monthly average since July 2022, and 37 ships attacked in the month.",
+    "2026-10": "The highest monthly average since July 2022, and the worst month yet for attacks on ships.",
 }
-BEFORE_EVENTS_NOTE = ("Before the war.",
-                      "Prices sit in the low-to-mid $60s on oversupply, the lowest levels since 2021.")
+BEFORE_EVENTS_NOTE = ("Before the war.", "Prices sit in the low-to-mid $60s on oversupply, the lowest since 2021.")
 
-# 7) TEXT
 TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
-SOURCE_FRED = ("U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU) and "
-               "Cushing WTI (MCOILWTICO) spot prices, monthly averages")
-LATEST_NOTE = "The latest price is the Brent futures settlement on 30 Oct 2026, the last trading day of October."
-
-# 8) COLOURS
-COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
-          "red": "#d64545", "green": "#27ae60", "blue": "#2e86de",
-          "purple": "#8e44ad", "grey": "#7f8c8d"}
-
+SOURCE = ("U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU, DCOILBRENTEU) and "
+          "Cushing WTI (MCOILWTICO) spot prices")
+COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545",
+          "green": "#27ae60", "blue": "#2e86de", "purple": "#8e44ad", "grey": "#7f8c8d"}
 # =============================================================================
 # (You shouldn't need to change anything below this line.)
 # =============================================================================
 
-
-# ----------------------------- data preparation -----------------------------
+# ---------------------------------- data ----------------------------------
 def data_folder():
-    """The repo's data/ folder (this file lives in panels/, one level down)."""
     here = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
     for folder in (here.parent / "data", here / "data", Path.cwd() / "data"):
         if folder.is_dir():
             return folder
     return here.parent / "data"
 
-
 def up_to_end(series):
     """Throw away anything after the END cut-off date."""
     return series[series.index <= END]
 
-
-def read_fred_csv(source):
-    """Read a FRED CSV (file or URL) into a monthly Series. Handles both FRED layouts
-    and '.' or blank for missing values."""
+def read_fred_csv(source, monthly=True):
+    """Read a FRED CSV (file or URL) into a Series (one value per month if monthly=True)."""
     raw = pd.read_csv(source)
-    values = pd.to_numeric(raw.iloc[:, 1], errors="coerce").values
-    series = pd.Series(values, index=pd.to_datetime(raw.iloc[:, 0], errors="coerce"))
-    series = series[series.index.notna()].dropna()
-    series.index = series.index.to_period("M").to_timestamp()   # first of the month
+    series = pd.Series(pd.to_numeric(raw.iloc[:, 1], errors="coerce").values,
+                       index=pd.to_datetime(raw.iloc[:, 0], errors="coerce")).dropna()
+    if not monthly:
+        return series.sort_index()
+    series.index = series.index.to_period("M").to_timestamp()
     return series.groupby(level=0).mean().sort_index()
 
-
-def download(series_id):
-    """Fresh copy from FRED, cut at END, then saved over the copy in data/."""
-    series = up_to_end(read_fred_csv(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"))
-    try:
-        series.rename(series_id).rename_axis("observation_date").to_csv(data_folder() / f"{series_id}.csv")
-    except OSError:
-        pass   # e.g. a read-only server: still use the download, just don't save it
-    return series
-
-
-def load_series(series_id):
-    """LIVE = True: download (falling back to the saved copy if that fails).
-    LIVE = False: the saved copy. Either way it's cut at END again, just in case."""
+def load_series(series, monthly=True):
+    """LIVE: download from FRED, cut at END and save to data/. Otherwise read the saved copy."""
+    series_id, file_name = series
+    path = data_folder() / file_name
     if LIVE:
         try:
-            return up_to_end(download(series_id)), "downloaded from FRED"
+            series = up_to_end(read_fred_csv(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}", monthly))
+            series.rename(series_id).rename_axis("observation_date").to_csv(path)
+            return series, "downloaded from FRED"
         except Exception:
-            pass
-    return up_to_end(read_fred_csv(data_folder() / f"{series_id}.csv")), "saved copy in data/"
+            pass   # no internet or read-only folder: fall back to the saved copy
+    return up_to_end(read_fred_csv(path, monthly)), "saved copy in data/"
 
+brent, HOW = load_series(BRENT_MONTHLY)
+daily = load_series(BRENT_DAILY, monthly=False)[0]
+LATEST_DATE, LATEST_PRICE = daily.index[-1].strftime("%Y-%m-%d"), daily.iloc[-1]
+PREWAR_DATE, PREWAR_PRICE = daily[:PREWAR_DATE].index[-1].strftime("%Y-%m-%d"), daily[:PREWAR_DATE].iloc[-1]
+OIL = pd.DataFrame({"Brent": brent, "WTI": load_series(WTI_MONTHLY)[0]}).rename_axis("Date").reset_index()
+OIL["MoM"] = OIL["Brent"].pct_change() * 100
+OIL["Volatility"] = OIL["MoM"].rolling(3).std() * np.sqrt(12)
+OIL["Spread"] = OIL["Brent"] - OIL["WTI"]
+OIL["YoY"] = OIL["Brent"].pct_change(12) * 100      # worked out on the full history, then trimmed
+OIL["vsPrewar"] = (OIL["Brent"] / PREWAR_PRICE - 1) * 100
+OIL = OIL[(OIL["Date"] >= START) & (OIL["Date"] <= END)].reset_index(drop=True)
+OIL["Month"], OIL["DateStr"] = OIL["Date"].dt.strftime("%Y-%m"), OIL["Date"].dt.strftime("%Y-%m-%d")
 
-def add_metrics(df):
-    df = df.sort_values("Date").reset_index(drop=True)
-    df["Month"] = df["Date"].dt.strftime("%Y-%m")
-    df["MoM"] = (df["Brent"] / df["Brent"].shift(1) - 1) * 100
-    df["Volatility"] = df["MoM"].rolling(window=3).std() * np.sqrt(12)
-    df["Spread"] = df["Brent"] - df["WTI"]
-    df["YoY"] = (df["Brent"] / df["Brent"].shift(12) - 1) * 100
-    df["vsPrewar"] = (df["Brent"] / PREWAR_PRICE - 1) * 100
-    df["DateStr"] = df["Date"].dt.strftime("%Y-%m-%d")
-    return df
+N, DATES = len(OIL), OIL["DateStr"].tolist()
+PHASES = {name: dict(start=s, end=e, color=c, text=t) for name, (s, e, c, t) in EVENTS.items()}
+VIEWS = ["$ per barrel", "% vs pre-war"]
+SECOND = ["Monthly change", "3-month volatility", "Brent–WTI gap"]
+KEEP = dict(marker=dict(opacity=1))   # stops Plotly fading the other points after a click
 
-
-def build_data():
-    """Returns (data, source description, warning or None)."""
-    try:
-        brent, how = load_series(BRENT_SERIES)
-        try:
-            wti, _ = load_series(WTI_SERIES)
-        except Exception:
-            wti = pd.Series(dtype=float)
-        df = pd.DataFrame({"Brent": brent})
-        df["WTI"] = wti.reindex(df.index)
-        df = add_metrics(df.rename_axis("Date").reset_index())   # full history, so YoY works
-        source, warning = f"{SOURCE_FRED} ({how})", None
-    except Exception as e:
-        df = pd.DataFrame(MONTHLY_PRICES, columns=["Month", "Brent", "WTI"])
-        df["Date"] = pd.to_datetime(df["Month"] + "-01")
-        df["WTI"] = pd.to_numeric(df["WTI"], errors="coerce")
-        df = add_metrics(df[["Date", "Brent", "WTI"]])
-        source = f"{SOURCE_FRED} (backup figures in the code)"
-        warning = f"Couldn't read the oil price files in data/ ({type(e).__name__}), so this shows the backup figures."
-    df = df[(df["Date"] >= START) & (df["Date"] <= END)].reset_index(drop=True)
-    return df, source, warning
-
-
-OIL, DATA_SOURCE, DATA_WARNING = build_data()
-N = len(OIL)
-DATES = OIL["DateStr"].tolist()
-PHASES = {name: {"start": s, "end": e, "color": c, "text": t} for name, (s, e, c, t) in EVENTS.items()}
-
-VIEW_OPTIONS = ["$ per barrel", "% vs pre-war"]
-SECOND_OPTIONS = ["Monthly change", "3-month volatility", "Brent–WTI gap"]
-
-
-def shift_days(date_str, days):
+def shift(date_str, days):
     return (pd.Timestamp(date_str) + pd.Timedelta(days=days)).strftime("%Y-%m-%d")
-
-
-CHART_START = shift_days(DATES[0], -17)
-MAIN_CHART_END = shift_days(max(LATEST_DATE, DATES[-1]), 11)
-SECOND_CHART_END = shift_days(DATES[-1], 19)
-
-
 def pct(old, new):
     return (new / old - 1) * 100
+def signed(v):
+    return f"{'+' if v > 0 else ''}{v:.1f}"
+def month_label(d):
+    return pd.Timestamp(d).strftime("%B %Y")
+def nice_date(d):
+    return f"{pd.Timestamp(d).day} {pd.Timestamp(d).strftime('%b %Y')}"
 
+def layout(height, **kwargs):
+    return dict(template="plotly_white", height=height, font=dict(size=12, color="#1f2933"),
+                margin=dict(l=55, r=20, t=20, b=40), **kwargs)
 
-def signed(v, decimals=1):
-    return f"{'+' if v > 0 else ''}{v:.{decimals}f}"
-
-
-def month_label(date_str):
-    return pd.Timestamp(date_str).strftime("%B %Y")
-
-
-def nice_date(date_str):
-    ts = pd.Timestamp(date_str)
-    return f"{ts.day} {ts.strftime('%b %Y')}"
-
-
-# --------------------------------- figures ----------------------------------
-def base_layout(**kwargs):
-    layout = dict(template="plotly_white", font=dict(size=12, color="#1f2933"),
-                  margin=dict(l=55, r=20, t=20, b=40))
-    layout.update(kwargs)
-    return layout
-
-
-def build_main_figure(phase, view, show_wti, sel):
-    as_pct = view == VIEW_OPTIONS[1]
-
-    def transform(values):
-        values = np.array(values, dtype=float)
-        return pct(PREWAR_PRICE, values) if as_pct else values
-
-    unit = "% vs pre-war" if as_pct else "$/bbl"
+# --------------------------------- charts ---------------------------------
+def main_figure(phase, view, show_wti, sel):
+    as_pct = view == VIEWS[1]
+    tf = (lambda v: pct(PREWAR_PRICE, np.array(v, dtype=float))) if as_pct else (lambda v: v)
     fmt = "%{y:+.1f}%" if as_pct else "$%{y:.2f}"
-    keep_visible = dict(marker=dict(opacity=1))   # stops Plotly fading points after a click
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=DATES, y=transform(OIL["Brent"]), name="Brent", mode="lines+markers",
-        line=dict(color=COLORS["navy"], width=3),
-        marker=dict(size=[13 if i == sel else 7 for i in range(N)],
-                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(N)],
-                    line=dict(color="#ffffff", width=1.5)),
-        selected=keep_visible, unselected=keep_visible,
-        hovertemplate=f"Brent: {fmt}<extra></extra>",
-    ))
-    if LATEST_DATE > DATES[-1]:   # dotted extension to the latest daily price
-        fig.add_trace(go.Scatter(
-            x=[DATES[-1], LATEST_DATE], y=transform([OIL["Brent"].iloc[-1], LATEST_PRICE]),
-            name="Latest", mode="lines+markers", showlegend=False,
-            line=dict(color=COLORS["navy"], width=2, dash="dot"),
-            marker=dict(size=[0, 9], symbol="diamond", color=COLORS["orange"]),
-            selected=keep_visible, unselected=keep_visible,
-            hovertemplate=f"{nice_date(LATEST_DATE)} {LATEST_LABEL.lower()}: {fmt}<extra></extra>",
-        ))
+    fig = go.Figure(go.Scatter(
+        x=DATES, y=tf(OIL["Brent"]), name="Brent", mode="lines+markers",
+        line=dict(color=COLORS["navy"], width=3), selected=KEEP, unselected=KEEP,
+        marker=dict(size=[13 if i == sel else 7 for i in range(N)], line=dict(color="#fff", width=1.5),
+                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(N)]),
+        hovertemplate=f"Brent: {fmt}<extra></extra>"))
+    if LATEST_DATE > DATES[-1]:   # dotted line out to the latest daily price
+        fig.add_scatter(x=[DATES[-1], LATEST_DATE], y=tf([OIL["Brent"].iloc[-1], LATEST_PRICE]),
+                        mode="lines+markers", showlegend=False, selected=KEEP, unselected=KEEP,
+                        line=dict(color=COLORS["navy"], width=2, dash="dot"),
+                        marker=dict(size=[0, 9], symbol="diamond", color=COLORS["orange"]),
+                        hovertemplate=f"{nice_date(LATEST_DATE)} spot: {fmt}<extra></extra>")
     if show_wti:
-        fig.add_trace(go.Scatter(
-            x=DATES, y=transform(OIL["WTI"]), name="WTI", mode="lines+markers",
-            line=dict(color=COLORS["grey"], width=2), marker=dict(size=5),
-            selected=keep_visible, unselected=keep_visible,
-            connectgaps=False, hovertemplate=f"WTI: {fmt}<extra></extra>",
-        ))
-
+        fig.add_scatter(x=DATES, y=tf(OIL["WTI"]), name="WTI", mode="lines+markers", marker=dict(size=5),
+                        line=dict(color=COLORS["grey"], width=2), selected=KEEP, unselected=KEEP,
+                        hovertemplate=f"WTI: {fmt}<extra></extra>")
     ref = 0 if as_pct else PREWAR_PRICE
-    shapes = [dict(type="line", xref="paper", x0=0, x1=1, y0=ref, y1=ref,
-                   line=dict(dash="dash", color="#9aa5b1", width=1))]
-    annotations = [dict(xref="paper", x=0.005, y=ref, xanchor="left", yshift=10,
-                        showarrow=False, font=dict(size=11, color=COLORS["muted"]),
-                        text="Pre-war level" if as_pct else f"Pre-war ${PREWAR_PRICE:.2f}")]
-
-    if phase and phase in PHASES:
+    fig.add_hline(y=ref, line=dict(dash="dash", color="#9aa5b1", width=1),
+                  annotation_text="Pre-war level" if as_pct else f"Pre-war ${PREWAR_PRICE:.2f}",
+                  annotation_position="top left", annotation_font=dict(size=11, color=COLORS["muted"]))
+    if phase in PHASES:
         p = PHASES[phase]
-        shapes.append(dict(type="rect", xref="x", yref="paper", x0=p["start"], x1=p["end"],
-                           y0=0, y1=1, fillcolor=p["color"], opacity=0.15,
-                           layer="below", line=dict(width=0)))
-        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
-        annotations.append(dict(x=mid.strftime("%Y-%m-%d"), yref="paper", y=1, yanchor="bottom",
-                                showarrow=False, text=f"<b>{phase}</b>",
-                                font=dict(color=p["color"], size=12)))
-
-    fig.update_layout(**base_layout(
-        height=430, hovermode="x unified", showlegend=bool(show_wti),
-        legend=dict(orientation="h", x=1, xanchor="right", y=1.12),
-        margin=dict(l=55, r=20, t=40, b=40),
-        yaxis=dict(title=unit, gridcolor="#edf0f3", zeroline=False),
-        xaxis=dict(type="date", range=[CHART_START, MAIN_CHART_END],
-                   rangeselector=dict(
-                       x=0, y=1.1, bgcolor="#f2f4f7", activecolor="#d6dde6",
-                       buttons=[dict(count=3, label="3M", step="month", stepmode="backward"),
-                                dict(count=6, label="6M", step="month", stepmode="backward"),
-                                dict(step="all", label="All")])),
-        shapes=shapes, annotations=annotations,
-    ))
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.15, layer="below",
+                      line_width=0, annotation_text=f"<b>{phase}</b>", annotation_position="top",
+                      annotation_font=dict(color=p["color"], size=12))
+    zoom = [dict(count=3, label="3M", step="month", stepmode="backward"),
+            dict(count=6, label="6M", step="month", stepmode="backward"), dict(step="all", label="All")]
+    fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_wti,
+                               legend=dict(orientation="h", x=1, xanchor="right", y=1.12),
+                               yaxis=dict(title="% vs pre-war" if as_pct else "$/bbl", gridcolor="#edf0f3",
+                                          zeroline=False),
+                               xaxis=dict(type="date", range=[shift(DATES[0], -17), shift(LATEST_DATE, 11)],
+                                          rangeselector=dict(x=0, y=1.1, buttons=zoom, bgcolor="#f2f4f7",
+                                                             activecolor="#d6dde6"))))
+    fig.update_layout(margin_t=40)
     return fig
 
-
-def build_second_figure(mode, sel):
-    def highlight(i, normal):
+def second_figure(mode, sel):
+    def colour(i, normal):
         return COLORS["orange"] if i == sel else normal
-
-    keep_visible = dict(marker=dict(opacity=1))
-
-    if mode == SECOND_OPTIONS[1]:
-        title = "Rolling 3-month volatility"
-        sub = "Annualised standard deviation of monthly % changes. Higher means a more erratic market."
-        fig = go.Figure(go.Scatter(
-            x=DATES, y=OIL["Volatility"], mode="lines+markers", fill="tozeroy",
-            fillcolor="rgba(142,68,173,.12)",
-            line=dict(color=COLORS["purple"], width=2.5, shape="spline"),
-            marker=dict(size=[11 if i == sel else 6 for i in range(N)],
-                        color=[highlight(i, COLORS["purple"]) for i in range(N)]),
-            selected=keep_visible, unselected=keep_visible,
-            hovertemplate="%{x|%b %Y}: %{y:.1f}<extra></extra>",
-        ))
-        yaxis = dict(gridcolor="#edf0f3")
-    elif mode == SECOND_OPTIONS[2]:
-        title = "Brent–WTI price gap"
-        sub = "$ per barrel. The gap widens when Middle East supply is cut and the US is relatively insulated."
-        spread = OIL["Spread"]
-        fig = go.Figure(go.Bar(
-            x=DATES, y=spread,
-            marker_color=[highlight(i, COLORS["blue"]) for i in range(N)],
-            text=["" if pd.isna(v) else f"${v:.1f}" for v in spread],
-            textposition="outside", cliponaxis=False,
-            selected=keep_visible, unselected=keep_visible,
-            hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>",
-        ))
-        yaxis = dict(gridcolor="#edf0f3", tickprefix="$")
+    if mode == SECOND[1]:
+        title, sub = ("Rolling 3-month volatility", "Annualised standard deviation of monthly % changes. "
+                      "Higher means a more erratic market.")
+        trace = go.Scatter(y=OIL["Volatility"], mode="lines+markers", fill="tozeroy",
+                           fillcolor="rgba(142,68,173,.12)",
+                           line=dict(color=COLORS["purple"], width=2.5, shape="spline"),
+                           marker=dict(size=[11 if i == sel else 6 for i in range(N)],
+                                       color=[colour(i, COLORS["purple"]) for i in range(N)]),
+                           hovertemplate="%{x|%b %Y}: %{y:.1f}<extra></extra>")
+        yaxis = {}
+    elif mode == SECOND[2]:
+        title, sub = ("Brent–WTI price gap", "$ per barrel. The gap widens when Middle East supply is cut "
+                      "and the US is relatively insulated.")
+        trace = go.Bar(y=OIL["Spread"], marker_color=[colour(i, COLORS["blue"]) for i in range(N)],
+                       text=["" if pd.isna(v) else f"${v:.1f}" for v in OIL["Spread"]],
+                       hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>")
+        yaxis = dict(tickprefix="$")
     else:
-        title = "Month-on-month change"
-        sub = "% change in the monthly average. Red bars are rises and green bars are falls."
+        title, sub = "Month-on-month change", "% change in the monthly average. Red bars are rises and green are falls."
         mom = OIL["MoM"]
-        colors = ["#cccccc" if pd.isna(v) else highlight(i, COLORS["red"] if v > 0 else COLORS["green"])
-                  for i, v in enumerate(mom)]
-        fig = go.Figure(go.Bar(
-            x=DATES, y=mom, marker_color=colors,
-            text=["" if pd.isna(v) else f"{signed(v)}%" for v in mom],
-            textposition="outside", cliponaxis=False,
-            selected=keep_visible, unselected=keep_visible,
-            hovertemplate="%{x|%b %Y}: %{y:+.1f}%<extra></extra>",
-        ))
-        yaxis = dict(gridcolor="#edf0f3", ticksuffix="%", zeroline=True, zerolinecolor="#9aa5b1")
-
-    fig.update_layout(**base_layout(
-        height=330, showlegend=False, yaxis=yaxis,
-        xaxis=dict(type="date", tickformat="%b %y", range=[CHART_START, SECOND_CHART_END]),
-    ))
+        trace = go.Bar(y=mom, marker_color=["#ccc" if pd.isna(v) else colour(i, COLORS["red"] if v > 0
+                                            else COLORS["green"]) for i, v in enumerate(mom)],
+                       text=["" if pd.isna(v) else f"{signed(v)}%" for v in mom],
+                       hovertemplate="%{x|%b %Y}: %{y:+.1f}%<extra></extra>")
+        yaxis = dict(ticksuffix="%", zeroline=True, zerolinecolor="#9aa5b1")
+    fig = go.Figure(trace.update(x=DATES, selected=KEEP, unselected=KEEP))
+    fig.update_traces(textposition="outside", cliponaxis=False, selector=dict(type="bar"))
+    fig.update_layout(**layout(330, showlegend=False, yaxis=dict(gridcolor="#edf0f3", **yaxis),
+                               xaxis=dict(type="date", tickformat="%b %y",
+                                          range=[shift(DATES[0], -17), shift(DATES[-1], 19)])))
     return fig, title, sub
 
-
-def phase_for(date_str):
-    for name, p in PHASES.items():
-        start_month = p["start"][:8] + "01"
-        if start_month <= date_str <= p["end"]:
-            return name
-    return None
-
-
-# ------------------------------- HTML snippets -------------------------------
-def header_html():
-    return f"""
-<div style="background:{COLORS['navy']};color:#fff;padding:18px 24px;border-radius:8px;
-            display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">
-  <div>
-    <div style="font-size:22px;font-weight:700">{TITLE}</div>
-    <div style="color:#b8c4d3;font-size:13px;margin-top:3px">{SUBTITLE}</div>
-  </div>
-  <span style="background:{COLORS['orange']};color:#fff;font-weight:700;font-size:12px;padding:6px 10px;
-               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(END).upper()}</span>
-</div>"""
-
-
-def kpi_html(title, value, description, color):
-    return f"""
-<div style="background:#fff;border-radius:6px;padding:14px 16px;border-top:4px solid {color};
-            box-shadow:0 1px 3px rgba(16,24,40,.12);height:100%">
-  <div style="font-size:12px;color:{COLORS['muted']};font-weight:500;text-transform:uppercase;letter-spacing:.5px">{title}</div>
-  <div style="font-size:27px;font-weight:700;color:{COLORS['navy']};margin:6px 0 2px">{value}</div>
-  <div style="font-size:12px;color:{COLORS['muted']}">{description}</div>
-</div>"""
-
+# ------------------------------ page pieces -------------------------------
+def kpi_html(title, value, desc, color):
+    return (f'<div style="background:#fff;border-radius:6px;padding:14px 16px;border-top:4px solid {color};'
+            f'box-shadow:0 1px 3px rgba(16,24,40,.12)"><div style="font-size:12px;color:{COLORS["muted"]};'
+            f'text-transform:uppercase;letter-spacing:.5px">{title}</div><div style="font-size:27px;'
+            f'font-weight:700;color:{COLORS["navy"]};margin:6px 0 2px">{value}</div>'
+            f'<div style="font-size:12px;color:{COLORS["muted"]}">{desc}</div></div>')
 
 def detail_html(sel):
     row = OIL.iloc[sel]
-    d, month = row["DateStr"], row["Month"]
-
     def coloured(v):
-        if pd.isna(v):
-            return "n/a"
-        colour = "#c0392b" if v > 0 else "#1e8449"
-        return f'<span style="color:{colour}">{signed(v)}%</span>'
-
-    estimated = month in ESTIMATED_MONTHS
-    brent_txt = f"${row['Brent']:.2f}" + ("*" if estimated else "")
-    wti_txt = "n/a" if pd.isna(row["WTI"]) else f"${row['WTI']:.2f}"
-    rows = [("Brent average", brent_txt), ("WTI average", wti_txt),
-            ("vs previous month", coloured(row["MoM"])),
-            ("vs same month last year", coloured(row["YoY"])),
+        return "n/a" if pd.isna(v) else f'<span style="color:{"#c0392b" if v > 0 else "#1e8449"}">{signed(v)}%</span>'
+    rows = [("Brent average", f"${row['Brent']:.2f}"),
+            ("WTI average", "n/a" if pd.isna(row["WTI"]) else f"${row['WTI']:.2f}"),
+            ("vs previous month", coloured(row["MoM"])), ("vs same month last year", coloured(row["YoY"])),
             ("vs pre-war price", coloured(row["vsPrewar"]))]
-    table = "".join(
-        f'<tr><td style="padding:7px 0;border-bottom:1px solid #eef0f3">{label}</td>'
-        f'<td style="padding:7px 0;border-bottom:1px solid #eef0f3;text-align:right;font-weight:700">{value}</td></tr>'
-        for label, value in rows)
+    cell = "padding:7px 0;border-bottom:1px solid #eef0f3"
+    table = "".join(f'<tr><td style="{cell}">{a}</td><td style="{cell};text-align:right;font-weight:700">{b}</td></tr>'
+                    for a, b in rows)
+    phase = next((n for n, p in PHASES.items() if p["start"][:8] + "01" <= row["DateStr"] <= p["end"]), None)
+    heading = f'<b style="color:{PHASES[phase]["color"]}">{phase}.</b>' if phase else f"<b>{BEFORE_EVENTS_NOTE[0]}</b>"
+    text = MONTH_NOTES.get(row["Month"], PHASES[phase]["text"] if phase else BEFORE_EVENTS_NOTE[1])
+    return (f'<div style="font-size:16px;font-weight:700;color:{COLORS["navy"]}">Month in focus</div>'
+            f'<div style="font-size:22px;font-weight:700;color:{COLORS["navy"]}">{month_label(row["Date"])}</div>'
+            f'<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:14px">{table}</table>'
+            f'<div style="background:#f7f9fb;border-left:3px solid {COLORS["orange"]};padding:10px 12px;'
+            f'font-size:13px;line-height:1.5">{heading} {text}</div>')
 
-    phase = phase_for(d)
-    if phase:
-        heading = f'<b style="color:{PHASES[phase]["color"]}">{phase}.</b> '
-        text = MONTH_NOTES.get(month, PHASES[phase]["text"])
-    else:
-        heading = f"<b>{BEFORE_EVENTS_NOTE[0]}</b> "
-        text = MONTH_NOTES.get(month, BEFORE_EVENTS_NOTE[1])
-    if estimated:
-        text += f" <i>*{ESTIMATED_MONTHS[month]}</i>"
-
-    return f"""
-<div style="font-size:16px;font-weight:700;color:{COLORS['navy']}">Month in focus</div>
-<div style="font-size:22px;font-weight:700;color:{COLORS['navy']}">{month_label(d)}</div>
-<table style="width:100%;border-collapse:collapse;margin:10px 0;font-size:14px">{table}</table>
-<div style="background:#f7f9fb;border-left:3px solid {COLORS['orange']};padding:10px 12px;font-size:13px;
-            line-height:1.5;border-radius:0 4px 4px 0">{heading}{text}</div>"""
-
-
-# ----------------------------- Streamlit helpers -----------------------------
-def choice(label, options, default, key, style="segmented"):
-    """Pills / segmented control on Streamlit 1.40+, radio buttons on older versions."""
-    widget = getattr(st, "pills" if style == "pills" else "segmented_control", None)
-    if widget is not None:
-        value = widget(label, options, default=default, key=key)
-        if value is None and style != "pills":   # a segmented control can be clicked off
-            return default
-        return value
-    radio_options = options if style != "pills" else ["None"] + options
-    index = radio_options.index(default) if default in radio_options else 0
-    value = st.radio(label, radio_options, index=index, horizontal=True, key=key)
-    return None if value == "None" else value
-
-
-def apply_chart_click(chart_key):
-    """If the user clicked a new point on a chart, select that month."""
-    state = st.session_state.get(chart_key)
-    if not state:
-        return
+def apply_click(key):
+    """If a new point was clicked on a chart, select that month."""
     try:
-        points = state["selection"]["points"]
+        clicked = tuple(str(p["x"])[:7] + "-01" for p in st.session_state[key]["selection"]["points"])
     except (KeyError, TypeError):
         return
-    signature = tuple(str(p.get("x", ""))[:10] for p in points)
-    last_key = f"{chart_key}_last"
-    if signature and signature != st.session_state.get(last_key):
-        x = signature[0][:7] + "-01"
-        if x in DATES:
-            st.session_state["ho_sel"] = DATES.index(x)
-    st.session_state[last_key] = signature
-
+    if clicked and clicked != st.session_state.get(key + "_last") and clicked[0] in DATES:
+        st.session_state["ho_sel"] = DATES.index(clicked[0])
+    st.session_state[key + "_last"] = clicked
 
 def show_chart(fig, key):
-    """Clickable chart on Streamlit 1.35+, normal chart on older versions."""
-    try:
-        st.plotly_chart(fig, use_container_width=True, key=key,
-                        on_select="rerun", selection_mode="points",
-                        config={"displayModeBar": False})
-    except TypeError:
-        st.plotly_chart(fig, use_container_width=True, key=key,
-                        config={"displayModeBar": False})
-
+    st.plotly_chart(fig, use_container_width=True, key=key, on_select="rerun",
+                    selection_mode="points", config={"displayModeBar": False})
 
 def step_month(delta):
     st.session_state["ho_sel"] = max(0, min(N - 1, st.session_state["ho_sel"] + delta))
 
+def subtitle(title, text):
+    st.markdown(f"**{title}**  \n<span style='font-size:12.5px;color:{COLORS['muted']}'>{text}</span>",
+                unsafe_allow_html=True)
 
-# ----------------------------------- page ------------------------------------
+# ---------------------------------- page ----------------------------------
 def render():
-    """Draw the oil prices panel."""
-    st.session_state.setdefault("ho_sel", N - 1)
-    st.session_state["ho_sel"] = min(st.session_state["ho_sel"], N - 1)
-    apply_chart_click("ho_main_chart")
-    apply_chart_click("ho_second_chart")
+    st.session_state["ho_sel"] = min(st.session_state.get("ho_sel", N - 1), N - 1)
+    apply_click("ho_main_chart")
+    apply_click("ho_second_chart")
     sel = st.session_state["ho_sel"]
-
-    st.markdown(header_html(), unsafe_allow_html=True)
-    if DATA_WARNING:
-        st.warning(DATA_WARNING, icon="⚠️")
-
-    # KPI row
-    peak_idx = OIL["Brent"].idxmax()
-    spread_rows = OIL.dropna(subset=["Spread"])
-    kpis = [
-        ("Latest Brent price", f"${LATEST_PRICE:.2f}", f"{LATEST_LABEL}, {nice_date(LATEST_DATE)}", COLORS["blue"]),
-        ("Change since pre-war", f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}%",
-         f"vs ${PREWAR_PRICE:.2f} on {nice_date(PREWAR_DATE)}", COLORS["red"]),
-        ("Highest monthly average", f"${OIL.loc[peak_idx, 'Brent']:.2f}",
-         month_label(OIL.loc[peak_idx, "DateStr"]), COLORS["orange"]),
-        ("Brent–WTI gap",
-         f"${spread_rows['Spread'].iloc[-1]:.2f}" if not spread_rows.empty else "n/a",
-         f"{month_label(spread_rows['DateStr'].iloc[-1])} average" if not spread_rows.empty else "",
-         COLORS["purple"]),
-    ]
+    st.markdown(f'<div style="background:{COLORS["navy"]};color:#fff;padding:18px 24px;border-radius:8px;'
+                f'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
+                f'<div><div style="font-size:22px;font-weight:700">{TITLE}</div><div style="color:#b8c4d3;'
+                f'font-size:13px">{SUBTITLE}</div></div><span style="background:{COLORS["orange"]};font-weight:700;'
+                f'font-size:12px;padding:6px 10px;border-radius:4px">BRENT · DATA TO {nice_date(END).upper()}</span>'
+                f'</div>', unsafe_allow_html=True)
+    peak, gap = OIL["Brent"].idxmax(), OIL.dropna(subset=["Spread"]).iloc[-1]
+    kpis = [("Latest Brent price", f"${LATEST_PRICE:.2f}", f"Daily spot, {nice_date(LATEST_DATE)}", "blue"),
+            ("Change since pre-war", f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}%",
+             f"vs ${PREWAR_PRICE:.2f} on {nice_date(PREWAR_DATE)}", "red"),
+            ("Highest monthly average", f"${OIL.loc[peak, 'Brent']:.2f}", month_label(OIL.loc[peak, "Date"]), "orange"),
+            ("Brent–WTI gap", f"${gap['Spread']:.2f}", f"{month_label(gap['Date'])} average", "purple")]
     for col, (title, value, desc, colour) in zip(st.columns(4), kpis):
-        col.markdown(kpi_html(title, value, desc, colour), unsafe_allow_html=True)
+        col.markdown(kpi_html(title, value, desc, COLORS[colour]), unsafe_allow_html=True)
     st.write("")
-
-    # controls
     with st.container(border=True):
         c1, c2, c3 = st.columns([3, 1.4, 1.4])
-        with c1:
-            phase = choice("Highlight a phase of the crisis", list(PHASES), None,
-                           key="ho_phase", style="pills")
-        with c2:
-            view = choice("Price view", VIEW_OPTIONS, VIEW_OPTIONS[0], key="ho_view")
-        with c3:
-            st.write("")
-            show_wti = st.checkbox("Compare with WTI (US benchmark)", key="ho_wti")
-
-    # main chart
+        phase = c1.pills("Highlight a phase of the crisis", list(PHASES), key="ho_phase")
+        view = c2.segmented_control("Price view", VIEWS, default=VIEWS[0], key="ho_view") or VIEWS[0]
+        c3.write("")
+        show_wti = c3.checkbox("Compare with WTI (US benchmark)", key="ho_wti")
     with st.container(border=True):
-        st.markdown(f"**Brent crude, monthly average**  \n"
-                    f"<span style='font-size:12.5px;color:{COLORS['muted']}'>Click any month to see its "
-                    f"details below. Use the buttons on the chart to zoom to the last 3 or 6 months.</span>",
-                    unsafe_allow_html=True)
-        show_chart(build_main_figure(phase, view, show_wti, sel), key="ho_main_chart")
-
-    # second chart + month in focus
+        subtitle("Brent crude, monthly average", "Click any month to see its details below. "
+                 "Use the buttons on the chart to zoom to the last 3 or 6 months.")
+        show_chart(main_figure(phase, view, show_wti, sel), "ho_main_chart")
     left, right = st.columns([2, 1])
-    with left:
-        with st.container(border=True):
-            mode = choice("Second chart", SECOND_OPTIONS, SECOND_OPTIONS[0], key="ho_second")
-            fig, title, sub = build_second_figure(mode, sel)
-            st.markdown(f"**{title}**  \n<span style='font-size:12.5px;color:{COLORS['muted']}'>{sub}</span>",
-                        unsafe_allow_html=True)
-            show_chart(fig, key="ho_second_chart")
-    with right:
-        with st.container(border=True):
-            st.markdown(detail_html(sel), unsafe_allow_html=True)
-            b1, b2 = st.columns(2)
-            b1.button("◀ Previous", key="ho_prev", on_click=step_month, args=(-1,),
-                      use_container_width=True, disabled=sel == 0)
-            b2.button("Next ▶", key="ho_next", on_click=step_month, args=(1,),
-                      use_container_width=True, disabled=sel == N - 1)
-            st.caption("Or click a point on either chart.")
+    with left.container(border=True):
+        mode = st.segmented_control("Second chart", SECOND, default=SECOND[0], key="ho_second") or SECOND[0]
+        fig, title, sub = second_figure(mode, sel)
+        subtitle(title, sub)
+        show_chart(fig, "ho_second_chart")
+    with right.container(border=True):
+        st.markdown(detail_html(sel), unsafe_allow_html=True)
+        b1, b2 = st.columns(2)
+        b1.button("◀ Previous", "ho_prev", on_click=step_month, args=(-1,), use_container_width=True, disabled=sel == 0)
+        b2.button("Next ▶", "ho_next", on_click=step_month, args=(1,), use_container_width=True, disabled=sel == N - 1)
+        st.caption("Or click a point on either chart.")
+    st.caption(f"Data: {SOURCE} ({HOW}). The latest price is the daily spot price on {nice_date(LATEST_DATE)}, "
+               f"and the pre-war reference is the {nice_date(PREWAR_DATE)} price (${PREWAR_PRICE:.2f}).".replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
 
-    notes = " ".join(f"*{text}" for text in ESTIMATED_MONTHS.values())
-    footer = (f"Data: {DATA_SOURCE}. {LATEST_NOTE} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
-              f"(${PREWAR_PRICE:.2f}).")
-    st.caption(footer.replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
-
-
-# -----------------------------------------------------------------------------
-# The group app runs this file directly (see PANELS in the main app), so the
-# dashboard draws as soon as the file is run. set_page_config is only for
-# testing on its own (streamlit run panels/oil.py). Inside the group app the
-# main app has already set it, so any error from a second call is ignored.
-# -----------------------------------------------------------------------------
-if __name__ == "__main__":
+if __name__ == "__main__":   # only when run on its own; inside the group app this is already set
     try:
         st.set_page_config(page_title=TITLE, layout="wide")
     except Exception:
