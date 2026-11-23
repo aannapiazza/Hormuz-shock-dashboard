@@ -570,25 +570,42 @@ def render():
 
 
 def render_card():
-    """Traffic/Brent scatter for the overview card."""
+    """Timeline shown in the overview card."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
         return
-    brent = safe_market_data(MARKET_SYMBOLS["BRENT"])
-    if brent.empty:
-        st.info("Brent prices are temporarily unavailable.")
-        return
-    daily = build_daily(shipping_df)
-    last = min(shipping_df["date"].max(), brent.index.max())
-    start = last - pd.Timedelta(days=364)
-    fig = chart_second(SECOND_CHARTS[2], None, last.strftime("%Y-%m"), daily, brent, start, last)
-    fig.update_layout(height=400, title_text="", showlegend=False,
-                      margin=dict(l=10, r=15, t=15, b=50))
-    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_scatter")
-    st.caption("Traffic (7-day average) vs Brent futures · One point per matched date · Colours identify months.")
 
+    daily = build_daily(shipping_df)
+    base = prewar_baseline(shipping_df)
+
+    last = shipping_df["date"].max()
+    start = last - pd.Timedelta(days=364)
+
+    fig = chart_traffic(
+        daily,
+        start,
+        last,
+        view=VIEWS[0],
+        show_tankers=False,
+        show_avg=True,
+        base=base,
+    )
+
+    fig.update_layout(
+        height=400,
+        showlegend=False,
+        title_text="",
+        margin=dict(l=10, r=20, t=10, b=40),
+    )
+
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        theme=None,
+        key="hs_card_timeline",
+    )
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
