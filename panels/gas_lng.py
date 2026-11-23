@@ -18,7 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 # =============================================================================
-# ✏️  EDIT HERE
+# EDIT HERE
 # =============================================================================
 END = pd.Timestamp("2026-10-31")     # cut-off: no price after this date is used (same as the other panels)
 LIVE = False                         # False = use the saved copies in data/ (default)
@@ -203,6 +203,28 @@ def shade(fig, phase, faint=False):
                                font=dict(color=p["color"], size=12 if chosen else 11))
 
 
+def shade_months(fig, table, phase):
+    """Shade a phase on a monthly chart, covering whole months so it lines up with the bars and points.
+
+    Each month belongs to the phase its middle falls in (the same rule as the Month in focus card),
+    e.g. Ceasefire = April to June and Conflict resumes = July to October.
+    """
+    if phase not in PHASES:
+        return
+    months = table.loc[table["phase"] == phase, "month"]
+    if months.empty:
+        return
+    start = pd.Timestamp(months.iloc[0] + "-01")
+    end = pd.Timestamp(months.iloc[-1] + "-01") + pd.offsets.MonthBegin(1)
+    colour = PHASES[phase]["color"]
+    fig.add_vrect(x0=start, x1=end, fillcolor=colour, opacity=0.15, layer="below", line_width=0,
+                  annotation_text=f"<b>{phase}</b>", annotation_position="top",
+                  annotation_font=dict(color=colour, size=12))
+
+
+MONTH_AXIS = dict(type="date", dtick="M1", tickformat="%b %y", ticklabelmode="period")   # label in the middle of each month
+
+
 def phase_colour(phase) -> str:
     """The colour of a phase (grey before the war), so every chart uses the same colours."""
     return PHASES[phase]["color"] if phase in PHASES else COLORS["grey"]
@@ -238,12 +260,12 @@ def main_figure(table, phase, view, show_us, sel):
     fig.add_hline(y=ref, line=dict(dash="dash", color="#9aa5b1", width=1),
                   annotation_text="Pre-war level" if as_pct else f"Pre-war (Feb avg) ${prewar['ttf']:.2f}",
                   annotation_position="bottom right", annotation_font=dict(size=11, color=COLORS["muted"]))
-    shade(fig, phase)
+    shade_months(fig, table, phase)
     fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_us,
                                legend=dict(orientation="h", x=1, xanchor="right", y=1.1),
                                yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#edf0f3",
                                           zeroline=False, ticksuffix="%" if as_pct else ""),
-                               xaxis=dict(type="date", tickformat="%b %y",
+                               xaxis=dict(**MONTH_AXIS,
                                           range=[table["date"].iloc[0] - pd.Timedelta(days=20),
                                                  table["date"].iloc[-1] + pd.Timedelta(days=20)])))
     fig.update_layout(margin_t=40)
@@ -338,11 +360,11 @@ def second_figure(mode, table, data, sel, phase, view):
     top = 100 if as_pct else tk.loc[tk["month"] == PREWAR_MONTH, "tankers"].iloc[0]
     fig.add_hline(y=top, line=dict(color=COLORS["teal"], dash="dash", width=1.5), annotation_text="Pre-war level",
                   annotation_font_color=COLORS["teal"], annotation_position="top right")
-    shade(fig, phase)
+    shade_months(fig, table, phase)
     fig.update_layout(**layout(330, showlegend=False,
                                yaxis=dict(title="% of pre-war" if as_pct else "LNG tankers a month",
                                           gridcolor="#edf0f3", range=[0, top * 1.25], ticksuffix="%" if as_pct else ""),
-                               xaxis=dict(type="date", tickformat="%b %y")))
+                               xaxis=MONTH_AXIS))
     return (fig, "LNG tankers through Hormuz each month",
             "Bars are coloured by phase; the outlined bar is the month in focus. Counts from S&P Global and "
             "Kpler (hover a bar to see which). Click a bar to see that month.")
