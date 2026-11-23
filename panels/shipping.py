@@ -525,17 +525,53 @@ def render():
 
 
 def render_card():
-    """The small version for the overview grid: just one chart, no title. The full panel is render()."""
+    """Scatter plot shown in the overview card."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
-        return st.error(f"Shipping data unavailable: {error}")
-    daily, base = build_daily(shipping_df), prewar_baseline(shipping_df)
-    last = shipping_df["date"].max()
-    fig = chart_traffic(daily, last - pd.Timedelta(days=364), last, VIEWS[0], False, True, base)
-    fig.update_layout(height=400, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=40))
-    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_chart")
+        st.error(f"Shipping data unavailable: {error}")
+        return
 
+    brent = safe_market_data(MARKET_SYMBOLS["BRENT"])
+
+    if brent.empty:
+        st.info("Brent prices are temporarily unavailable.")
+        return
+
+    daily = build_daily(shipping_df)
+
+    # Use the latest date covered by both sources.
+    last = min(shipping_df["date"].max(), brent.index.max())
+    start = last - pd.Timedelta(days=364)
+
+    fig = chart_second(
+        mode=SECOND_CHARTS[2],
+        monthly=None,
+        selected=last.strftime("%Y-%m"),
+        daily=daily,
+        brent=brent,
+        start=start,
+        last=last,
+    )
+
+    fig.update_layout(
+        height=400,
+        title_text="",
+        showlegend=False,
+        margin=dict(l=10, r=15, t=15, b=50),
+    )
+
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        theme=None,
+        key="hs_card_scatter",
+    )
+
+    st.caption(
+        "Traffic (7-day average) vs Brent futures · "
+        "Each point represents one date · Colours identify months."
+    )
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
