@@ -5,7 +5,7 @@ This panel shows what closing the strait has done to European gas prices, LNG sh
 and Europe's winter storage.
 
 Same layout as panels/oil.py: KPI cards, one main chart you can click, a second chart you
-can switch, and a "Month in focus" card.
+can switch, and a "Month in focus" card. render_card() is the small version for the home page.
 Everything you're likely to change is in the EDIT HERE section. Widget keys start with "gas_".
 """
 from pathlib import Path
@@ -295,6 +295,18 @@ def second_figure(mode, table, data, sel):
             "Click a bar to see that month.")
 
 
+def card_figure(table):
+    """Small chart for the home page card: the monthly price with every phase shaded."""
+    fig = go.Figure(go.Scatter(x=table["date"], y=table["ttf"], mode="lines+markers",
+                               line=dict(color=COLORS["navy"], width=3), marker=dict(size=6),
+                               hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
+    for p in PHASES.values():
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.12, layer="below", line_width=0)
+    fig.update_layout(**layout(260, showlegend=False, yaxis=dict(title="$ per MMBtu", gridcolor="#edf0f3"),
+                               xaxis=dict(type="date", tickformat="%b")))
+    return fig
+
+
 # ------------------------------ page pieces -------------------------------
 def kpi_html(title, value, desc, color):
     """A KPI card, same style as panels/oil.py."""
@@ -352,6 +364,19 @@ def subtitle(title, text):
 
 
 # ---------------------------------- page ----------------------------------
+def render_card():
+    """The small version for the home page: two numbers and one chart."""
+    data, _ = load_data()
+    table = monthly_table(data)
+    last, tk = table.iloc[-1], table.dropna(subset=["tankers"]).iloc[-1]
+    c1, c2 = st.columns(2)
+    c1.metric(f"European gas, {last['date']:%b}", f"${last['ttf']:.2f}", f"{signed(last['vs_prewar'], 0)}% since pre-war",
+              delta_color="inverse")
+    c2.metric(f"LNG tankers via Hormuz, {tk['date']:%b}", f"{tk['tankers']:.0f}",
+              f"{tk['tanker_pct'] - 100:.0f}% vs pre-war")
+    st.plotly_chart(card_figure(table), key="gas_card_chart", config={"displayModeBar": False})
+
+
 def render():
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
     data, how = load_data()
