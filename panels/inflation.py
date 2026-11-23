@@ -1,18 +1,10 @@
 """
-Panel 4 - Inflation & households
+Inflation and households - panel 4 of the Hormuz Shock dashboard
 Author: Eleena Golchin
 
-Story: the Hormuz oil shock is reaching consumer prices. Section 1 shows how
-far inflation has moved since the war began, in Europe, the UK, the USA and
-three of Asia's biggest oil importers. Section 2 lets you pick a future oil price
-and see what it would mean for inflation and for your own energy bill.
-
-How this file is organised:
-    1. SETTINGS  - every data source and number you might want to change
-    2. DATA      - saved copies in data/, with code to download them again
-    3. ANALYSIS  - the maths, as small functions with docstrings
-    4. CHARTS    - Plotly figures
-    5. LAYOUT    - the two sections and their controls (Streamlit)
+How far has the Hormuz oil shock pushed up consumer prices, and what would a
+new oil price mean for a household's energy bill? One time slider controls
+the whole panel: the chart, the three numbers and the bill calculator.
 
 Run on its own:   python3 -m streamlit run panels/inflation.py
 Refresh the data: python3 -c "from panels.inflation import save_all; save_all()"
@@ -76,8 +68,6 @@ BLS_CODES = {"Headline": "CUUR0000SA0", "Energy": "CUUR0000SA0E",
 # Shipping: IMF PortWatch daily chokepoint transits (satellite ship-tracking data).
 # The full file downloaded from portwatch.imf.org is kept in data/ as the raw source.
 PORTWATCH_RAW = DATA_DIR / "portwatch_daily_chokepoints.csv"
-PORTWATCH_API = ("https://services9.arcgis.com/weJ1QsnbMYJlCHdG/arcgis/rest/services/"
-                 "Daily_Chokepoints_Data/FeatureServer/0/query")
 CHOKEPOINT = "Strait of Hormuz"
 NORMAL_YEAR = "2025"                       # "normal" traffic = the 2025 average
 
@@ -91,7 +81,6 @@ CURRENCY = {"United Kingdom": "GBP", "United States": "USD", "South Korea": "KRW
 SYMBOL = {"EUR": "€", "GBP": "£", "USD": "$", "KRW": "₩", "CNY": "¥", "INR": "₹"}
 TYPICAL_BILL = {"EUR": 200, "GBP": 170, "USD": 220, "KRW": 150000, "CNY": 600, "INR": 3000}
 
-DEFAULT_ENERGY_WEIGHT = 7.0    # % of the basket, when no official weight is available
 MAX_LAG_MONTHS = 6             # longest oil -> bills delay tested
 TIMEOUT_SECONDS = 60           # give up on a slow website after this
 HEADERS = {"User-Agent": "Mozilla/5.0 (UCD student dashboard)"}
@@ -181,17 +170,6 @@ def download_eurostat() -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
-def download_weights() -> pd.DataFrame:
-    """Latest share of energy in each euro country's shopping basket, as %."""
-    params = [("coicop18", EUROSTAT_CODES["Energy"]), ("sinceTimePeriod", "2024")]
-    params += [("geo", g) for g in EUROSTAT_COUNTRIES.values()]
-    df = eurostat("prc_hicp_iw", params).sort_values("time")
-    names = {code: name for name, code in EUROSTAT_COUNTRIES.items()}
-    latest = df.groupby("geo")["value"].last()
-    return pd.DataFrame({"date": END, "country": latest.index.map(names),
-                         "weight": latest.values / 10})          # per 1000 -> %
-
-
 def download_oecd() -> pd.DataFrame:
     """CPI annual inflation for the UK, South Korea, China and India from the OECD."""
     url = OECD_URL.format(countries="+".join(OECD_COUNTRIES.values()),
@@ -248,38 +226,20 @@ def download_oil() -> pd.DataFrame:
 
 
 def download_hormuz() -> pd.DataFrame:
-    """Daily oil-tanker traffic through the Strait of Hormuz (IMF PortWatch).
+    """Daily oil-tanker traffic through Hormuz, from the IMF PortWatch file in data/.
 
-    Reads the raw PortWatch file in data/ if it is there; otherwise asks the
-    PortWatch API for the Hormuz rows directly. Keeps only Hormuz and the
-    columns this panel uses.
+    To update it, download Daily_Chokepoints_Data.csv from portwatch.imf.org and
+    save it as data/portwatch_daily_chokepoints.csv.
     """
-    if PORTWATCH_RAW.exists():
-        df = pd.read_csv(PORTWATCH_RAW)
-    else:
-        rows, offset = [], 0
-        while True:
-            reply = requests.get(PORTWATCH_API, timeout=TIMEOUT_SECONDS, params={
-                "where": f"portname='{CHOKEPOINT}'", "outFields": "*", "f": "json",
-                "orderByFields": "date", "resultOffset": offset, "resultRecordCount": 2000}).json()
-            batch = [f["attributes"] for f in reply.get("features", [])]
-            rows += batch
-            if len(batch) < 2000:
-                break
-            offset += 2000
-        df = pd.DataFrame(rows)
-        if pd.api.types.is_numeric_dtype(df["date"]):       # the API sends dates in milliseconds
-            df["date"] = pd.to_datetime(df["date"], unit="ms")
+    df = pd.read_csv(PORTWATCH_RAW)
     df = df[df["portname"] == CHOKEPOINT]
     df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None).dt.normalize()
     return df[["date", "n_tanker", "n_total", "capacity_tanker"]].sort_values("date")
-
 
 SOURCES = {   # file name in data/: (label shown on screen, download function)
     "eurostat": ("Eurostat (Europe)", download_eurostat),
     "oecd": ("OECD (UK and Asia)", download_oecd),
     "bls": ("BLS (USA)", download_bls),
-    "weights": ("Eurostat basket weights", download_weights),
     "oil": ("Brent and exchange rates (yfinance)", download_oil),
     "hormuz": ("IMF PortWatch (Hormuz tankers)", download_hormuz),
 }
@@ -302,9 +262,6 @@ def load_data() -> dict:
         inflation["date"] = pd.to_datetime(inflation["date"])
         inflation["value"] = pd.to_numeric(inflation["value"], errors="coerce")
         inflation = inflation.dropna()
-    weights = {}
-    if tables["weights"] is not None:
-        weights = dict(zip(tables["weights"]["country"], tables["weights"]["weight"]))
     oil = None
     if tables["oil"] is not None:
         oil = tables["oil"].assign(date=pd.to_datetime(tables["oil"]["date"])).set_index("date")
@@ -312,7 +269,7 @@ def load_data() -> dict:
     if tables["hormuz"] is not None:
         daily = tables["hormuz"].assign(date=pd.to_datetime(tables["hormuz"]["date"])).set_index("date")
         hormuz = daily.sort_index().resample("MS").mean()        # daily -> monthly averages
-    return {"inflation": inflation, "weights": weights, "oil": oil, "hormuz": hormuz, "status": status}
+    return {"inflation": inflation, "oil": oil, "hormuz": hormuz, "status": status}
 
 
 def save_all() -> None:
@@ -348,11 +305,6 @@ def chosen_period() -> tuple[pd.Timestamp, pd.Timestamp]:
                            format="MMM YYYY", key="infl_period",
                            help="The chart shows these months. The numbers and the bill use the last one.")
     return pd.Timestamp(start).to_period("M").to_timestamp(), pd.Timestamp(end)
-
-
-def value_at(s: pd.Series | pd.DataFrame, end: pd.Timestamp):
-    """The last value on or before `end` (the latest month the period reaches)."""
-    return s[s.index <= end].iloc[-1]
 
 
 def in_period(s: pd.Series | pd.DataFrame, start: pd.Timestamp, end: pd.Timestamp):
