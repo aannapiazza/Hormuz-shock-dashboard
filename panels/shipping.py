@@ -14,6 +14,7 @@ How this file is organised:
 
 Run on its own:   python3 -m streamlit run hormuz_dashboard.py
 """
+from pathlib import Path
 
 from pathlib import Path
 
@@ -23,6 +24,27 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
+# 1. SETTINGS - change dates, symbols and notes here, nowhere else
+
+END = pd.Timestamp("2026-10-31")
+# war started
+WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
+EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
+          ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
+# Pre-war reference
+PREWAR_DATE = pd.Timestamp("2026-02-27")
+PREWAR_PRICE = 71.32                       # Brent settlement on PREWAR_DATE, USD per barrel
+BASELINE_START = pd.Timestamp("2026-01-01")   # normal traffic = average daily transits
+BASELINE_END = pd.Timestamp("2026-02-27") 
+# Market prices:
+MARKET_SYMBOLS = {"BRENT": "BZ=F", "WTI": "CL=F", "VIX": "^VIX", "DOLLAR INDEX": "DX-Y.NYB"}
+MARKET_HISTORY = "2y" 
+TIME_RANGES = {"Last 30 days": 30, "Last 90 days": 90, "Last 180 days": 180,
+               "Last year": 365, "All data": None}
+DEFAULT_RANGE = "Last year"
+MONTHS_SHOWN = 18                    
+VIEWS = ["Absolute", "% vs pre-war"]
+SECOND_CHARTS = ["Monthly traffic", "Tanker share", "Traffic and Brent", "Brent daily change"]
 # =============================================================================
 # 1. SETTINGS - change dates, symbols and notes here, nowhere else
 # =============================================================================
@@ -65,6 +87,15 @@ MONTH_NOTES = {
     "2026-09": "Prices rebound as global inventories keep falling.",
     "2026-10": "37 ships attacked in the month.",
 }
+COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": "#7c5cd6",
+           "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
+# DATA
+
+def load_shipping_data():
+    csv_path = Path(__file__).resolve().parent / "Daily_Chokepoints_Data.csv"
+
+    df = pd.read_csv(csv_path)
+    df.columns = df.columns.str.strip() #end reading file
 
 COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": "#7c5cd6",
            "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
@@ -104,6 +135,7 @@ def load_shipping_data():
         "n_total",
         "n_tanker",
     }
+    missing_columns = required_columns - set(df.columns)
 
     missing_columns = required_columns - set(df.columns)
 
@@ -111,12 +143,14 @@ def load_shipping_data():
         raise ValueError(
             "Missing CSV columns: "
             + ", ".join(sorted(missing_columns))
+        ) #check columns
         )
 
     df = df.loc[
         df["portname"]
         .astype("string")
         .str.contains("Hormuz", case=False, na=False)
+    ].copy() # Hormuz datas
     ].copy()
 
     if df.empty:
@@ -128,6 +162,7 @@ def load_shipping_data():
         df["date"],
         errors="coerce",
         utc=True,
+    ).dt.tz_convert(None).dt.normalize() #convertion in dates and tz:convert remove jet lag
     ).dt.tz_convert(None).dt.normalize()
 
     for column in ["n_total", "n_tanker"]:
@@ -141,6 +176,8 @@ def load_shipping_data():
         .sort_values("date")
         .reset_index(drop=True)
     )
+    if END is not None:
+        df = df[df["date"] <= END].reset_index(drop=True)
 
     # Keep only the days up to END, so every run shows the same period.
     if END is not None:
@@ -174,6 +211,17 @@ def load_shipping_data():
 
     return df
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_market_data(symbol, period=MARKET_HISTORY):
+    history = yf.Ticker(symbol).history(period=period)
+    if history.empty or "Close" not in history.columns:
+        return pd.Series(dtype=float)
+    prices = pd.to_numeric(
+        history["Close"],
+        errors="coerce",
+    ).dropna() #keeps valid prices
+    prices = prices.loc[np.isfinite(prices.to_numpy())]
+  # data adjustments
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_market_data(symbol, period=MARKET_HISTORY):
@@ -199,6 +247,8 @@ def load_market_data(symbol, period=MARKET_HISTORY):
     if END is not None:
         prices = prices[prices.index <= END]
     return prices
+    
+# ANALYSIS
 
 
 # =============================================================================
@@ -209,6 +259,15 @@ def percentage_change(prices):
     """Percentage change between the last two observations."""
     if len(prices) < 2:
         return None
+    values = prices.iloc[-2:].to_numpy(dtype=float)
+    if not np.all(np.isfinite(values)) or values[0] <= 0:
+        return None
+    return float(np.diff(values)[0] / values[0] * 100)
+    
+def pct(old, new) -> float:
+    """Percentage change from old to new."""
+    return (new / old - 1) * 100
+    
 
     values = prices.iloc[-2:].to_numpy(dtype=float)
 
@@ -233,6 +292,9 @@ def nice_date(ts) -> str:
     ts = pd.Timestamp(ts)
     return f"{ts.day} {ts.strftime('%b %Y')}"
 
+def build_daily(shipping_df: pd.DataFrame) -> pd.DataFrame:
+    """One row per calendar day, with 7-day averages.
+    Missing days stay empty, and a 7-day average needs seven consecutive observations."""
 
 def build_daily(shipping_df: pd.DataFrame) -> pd.DataFrame:
     """One row per calendar day, with 7-day averages.
@@ -269,6 +331,10 @@ def build_monthly(shipping_df: pd.DataFrame, brent: pd.Series, base) -> pd.DataF
     m["Month"] = m["Start"].dt.strftime("%Y-%m")
     return m
 
+# CHARTS
+
+def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
+    """The look shared by all charts: white background, dark text, title on the left. Charts are drawn with theme=None."""
 
 # =============================================================================
 # 4. CHARTS - Plotly
@@ -284,6 +350,14 @@ def style(fig: go.Figure, height: int, title: str, **layout) -> go.Figure:
                     paper_bgcolor="white", plot_bgcolor="white", font=dict(color="#17202e"),
                     title=dict(text=f"<b>{title}</b>", x=0, xanchor="left", font=dict(size=16)),
                     margin=dict(l=10, r=20, t=50, b=40), legend=dict(orientation="h", y=-0.15, x=0))
+    settings.update(layout)          
+    fig.update_layout(**settings)
+    return fig
+
+def add_war_and_events(fig: go.Figure, start: pd.Timestamp, last: pd.Timestamp) -> go.Figure:
+"""Shade the war period and mark each key event with a dotted line.
+Labels appear for all events only when the chart covers about a year or less(to not overlap)"""
+
     settings.update(layout)          # anything passed in replaces the default
     fig.update_layout(**settings)
     return fig
@@ -312,6 +386,10 @@ def add_war_and_events(fig: go.Figure, start: pd.Timestamp, last: pd.Timestamp) 
 
 
 def chart_traffic(daily, start, last, view, show_tankers, show_avg, base) -> go.Figure:
+    """Daily ships through Hormuz, with 7-day averages."""
+    as_pct = view == VIEWS[1] and base is not None
+    d = daily.loc[(daily.index >= start) & (daily.index <= last)]
+    fig = go.Figure()
     """Daily ships (and tankers) through Hormuz, with 7-day averages."""
     as_pct = view == VIEWS[1] and base is not None
     d = daily.loc[(daily.index >= start) & (daily.index <= last)]
@@ -354,6 +432,7 @@ def chart_traffic(daily, start, last, view, show_tankers, show_avg, base) -> go.
     return style(fig, 420, title, xaxis=dict(range=[start, last]),
                  yaxis=dict(title="% vs pre-war average" if as_pct else "Vessels per day",
                             ticksuffix="%" if as_pct else ""))
+    
 
 
 def chart_brent(brent, wti, start, last, view, show_wti) -> go.Figure:
@@ -436,6 +515,7 @@ def chart_second(mode, monthly, selected, daily, brent, start, last) -> go.Figur
     add_war_and_events(fig, start, last)
     return style(fig, 380, "Brent daily change (red = rise, green = fall)", xaxis=dict(range=[start, last]),
                  yaxis=dict(title="% change on the previous day", ticksuffix="%"), showlegend=False)
+# LAYOUT
 
 
 # =============================================================================
@@ -451,6 +531,8 @@ def section_1_now(shipping_df, daily, base, brent, wti) -> None:
     """Section 1: where do traffic and prices stand now?"""
     st.subheader("1 · Where things stand")
 
+    # 1-latest observations
+    traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
     # Row 1: the latest observations
     traffic_col, tanker_col, brent_col, wti_col = st.columns(4)
 
@@ -485,6 +567,7 @@ def section_1_now(shipping_df, daily, base, brent, wti) -> None:
                           delta=f"{change:+.2f}%" if change is not None else None, delta_color="off")
             column.caption(f"USD/barrel · {prices.index[-1]:%d %b %Y}")
 
+    # 2- before the war
     # Row 2: compared with before the war
     c1, c2, c3, c4 = st.columns(4)
     average = daily["n_total_avg7"].dropna() if daily is not None else pd.Series(dtype=float)
@@ -547,8 +630,7 @@ def section_2_over_time(shipping_df, daily, base, brent, wti):
             st.caption("Daily closes of Brent futures · Yahoo Finance. Quotes may be delayed. "
                        f"Shaded: since {nice_date(WAR_START)}.")
     return start, last
-
-
+    
 def section_3_month(monthly, daily, brent, start, last, shipping_last) -> None:
     """Section 3: a closer look, and one month in focus."""
     st.subheader("3 · A closer look")
@@ -584,30 +666,22 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last) -> None:
         st.caption("These charts show traffic and prices side by side; "
                    "they do not establish a causal relationship.")
 
-
-# =============================================================================
 # PANEL
-# =============================================================================
-
 def render():
-    st.header("🚢 Hormuz | Shipping & Markets")
+    st.header("Hormuz | Shipping & Markets")
 
     st.caption(
         "Shipping: daily IMF PortWatch data from a local CSV. "
         "Markets: daily observations from Yahoo Finance; quotes may be delayed."
         + (f" Data shown to {nice_date(END)}." if END is not None else "")
     )
-
     shipping_df = None
-
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
-
     market_data = {}
     market_errors = []
-
     with st.spinner("Loading market data..."):
         for label, symbol in MARKET_SYMBOLS.items():
             try:
@@ -617,20 +691,16 @@ def render():
 
             if market_data[label].empty:
                 market_errors.append(label)
-
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
-
     brent, wti = market_data["BRENT"], market_data["WTI"]
     daily = base = monthly = None
     if shipping_df is not None:
         daily = build_daily(shipping_df)
         base = prewar_baseline(shipping_df)
         monthly = build_monthly(shipping_df, brent, base)
-
     if shipping_df is None and brent.empty:
         st.stop()
-
     st.divider()
     section_1_now(shipping_df, daily, base, brent, wti)
     st.divider()
@@ -638,9 +708,7 @@ def render():
     if shipping_df is not None:
         st.divider()
         section_3_month(monthly, daily, brent, start, last, shipping_df["date"].max())
-
-    # ADDITIONAL MARKET INDICATORS
-
+# market indicators
     with st.expander("More market indicators"):
         vix_col, dollar_col = st.columns(2)
 
@@ -679,7 +747,6 @@ def render():
         )
 
     # DATA AND SOURCES
-
     with st.expander("Shipping data and download"):
         if shipping_df is None:
             st.info("No shipping data available.")
@@ -716,9 +783,6 @@ def render():
         + base_note
     )
 
-
-# Allows this file to run independently.
-# When imported by app.py, the main dashboard calls render().
 if __name__ == "__main__":
     st.set_page_config(
         page_title="Hormuz | Shipping & Markets",
