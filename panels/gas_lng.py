@@ -487,13 +487,11 @@ def focus_table_html(row):
     rows = [("European gas (TTF)", f"&#36;{row['ttf']:.2f}"),
             ("vs before the war", coloured(row["vs_prewar"])),
             ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US")]
-    # Streamlit draws a grid round every table cell: switch that off and keep one soft line under
-    # each row, with space on both sides so the text doesn't touch the lines
-    cell = "border:none;border-bottom:1px solid #eef0f3;padding:10px 12px"
-    table = "".join(f'<tr style="border:none"><td style="{cell}">{a}</td>'
-                    f'<td style="{cell};text-align:right;font-weight:700">{b}</td></tr>' for a, b in rows)
-    return (f'<table style="width:100%;border-collapse:collapse;border:none;margin:4px 0 14px;font-size:14px">'
-            f'{table}</table>'
+    # keep the table's grid lines, with space between the text and the lines on every side
+    cell = "padding:10px 14px;border-bottom:1px solid #eef0f3"
+    table = "".join(f'<tr><td style="{cell}">{a}</td><td style="{cell};text-align:right;font-weight:700">{b}</td></tr>'
+                    for a, b in rows)
+    return (f'<table style="width:100%;border-collapse:collapse;margin:0 0 10px;font-size:14px">{table}</table>'
             f'<div style="background:#f7f9fb;border-left:3px solid {phase_colour(row["phase"])};padding:10px 12px;'
             f'font-size:13px;line-height:1.5">{MONTH_NOTES.get(row["month"], "")}</div>')
 
