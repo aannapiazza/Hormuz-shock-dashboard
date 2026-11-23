@@ -1,7 +1,7 @@
 """
 Hormuz | Shipping & Markets
 
-Story: how much traffic goes through the Strait of Hormuz, and what Brent and WTI
+how much traffic goes through the Strait of Hormuz, and what Brent and WTI
 oil futures did at the same time. Section 1 shows where things stand now. Section 2
 compares traffic and Brent over time. Section 3 zooms in on one month.
 
@@ -38,7 +38,7 @@ TIME_RANGES = {"Last 30 days": 30, "Last 90 days": 90, "Last 180 days": 180,
 DEFAULT_RANGE = "Last year"
 MONTHS_SHOWN = 18                             # bars in the monthly chart
 VIEWS = ["Absolute", "% vs pre-war"]
-SECOND_CHARTS = ["Monthly traffic", "Tanker share", "Traffic and Brent", "Brent daily change"]
+SECOND_CHARTS = ["Monthly traffic", "Tanker share", "Traffic vs Brent (scatter)", "Brent daily change"]
 MONTH_NOTES = {
     "2026-02": "The war begins on 28 Feb, the last day of the month.",
     "2026-03": "The first full month of the war.",
@@ -256,7 +256,7 @@ def chart_brent(brent, wti, start, last, view, show_wti):
 
 
 def chart_second(mode, monthly, selected, daily, brent, start, last):
-    """The second chart: monthly bars, tanker share, traffic and Brent, or Brent daily change."""
+    """Monthly bars, tanker share, traffic/Brent scatter, or Brent daily change."""
     d, b = between(daily, start, last), between(brent, start, last)
     if mode == SECOND_CHARTS[0]:
         m = monthly.tail(MONTHS_SHOWN)
@@ -276,11 +276,58 @@ def chart_second(mode, monthly, selected, daily, brent, start, last):
         return finish(fig, 380, "Tankers as a share of all ships (7-day average)", start, last, showlegend=False,
                       yaxis=dict(title="% of all ships", ticksuffix="%"))
     if mode == SECOND_CHARTS[2]:
-        fig = go.Figure(line(d.index, d["n_total_avg7"], "Ships a day (7-day avg, left axis)", COLOURS["navy"], 3,
-                             "Ships: %{y:.1f} a day"))
-        fig.add_trace(line(b.index, b, "Brent (right axis)", COLOURS["green"], 3, "Brent: $%{y:.2f}", yaxis="y2"))
-        return finish(fig, 380, "Traffic and Brent, side by side", start, last, yaxis=dict(title="Ships a day"),
-                      yaxis2=dict(title="USD per barrel", overlaying="y", side="right", showgrid=False))
+        # Match actual observations by date; do not fill missing market prices.
+        points = (
+            d[["n_total_avg7"]]
+            .join(b.rename("Brent"), how="inner")
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna(subset=["n_total_avg7", "Brent"])
+            .copy()
+        )
+        fig = go.Figure()
+        if points.empty:
+            fig.add_annotation(
+                text="No matching traffic and Brent observations in this time range.",
+                x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False,
+            )
+        else:
+            points["Month"] = points.index.strftime("%Y-%m")
+            palette = [
+                "#2e6fd8", "#7c5cd6", "#2e9b57", "#c2410c",
+                "#1b2a41", "#b38a25", "#008b9a", "#c05a93",
+                "#687c32", "#986144", "#5965a8", "#7c8798",
+            ]
+            for month, group in points.groupby("Month", sort=True):
+                month_number = pd.Timestamp(month + "-01").month
+                focused = month == selected
+                fig.add_trace(go.Scatter(
+                    x=group["n_total_avg7"],
+                    y=group["Brent"],
+                    mode="markers",
+                    name=pd.Timestamp(month + "-01").strftime("%b %Y"),
+                    text=group.index.strftime("%d %b %Y"),
+                    marker=dict(
+                        color=palette[month_number - 1],
+                        size=11 if focused else 8,
+                        opacity=0.95 if focused else 0.65,
+                        symbol="diamond" if focused else "circle",
+                        line=dict(color="white", width=0.7),
+                    ),
+                    hovertemplate=(
+                        "<b>%{text}</b><br>"
+                        "Traffic (7-day avg): %{x:.1f} vessels/day<br>"
+                        "Brent futures: $%{y:.2f}/barrel<extra>%{fullData.name}</extra>"
+                    ),
+                ))
+        return style(
+            fig, 440, "Ship traffic vs Brent futures",
+            hovermode="closest",
+            xaxis=dict(title="Vessels per day (7-day average)", rangemode="tozero"),
+            yaxis=dict(title="Brent futures (USD per barrel)", tickprefix="$"),
+            legend=dict(title=dict(text="Month · selected month = diamonds"),
+                        orientation="h", y=-0.25, x=0),
+            margin=dict(l=10, r=20, t=55, b=110),
+        )
     change = between((brent.pct_change() * 100).dropna(), start, last)
     fig = go.Figure(go.Bar(x=change.index, y=change, hovertemplate="%{y:+.2f}%<extra></extra>",
                            marker_color=[COLOURS["red"] if v > 0 else COLOURS["green"] for v in change]))
@@ -398,13 +445,22 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         if selected in MONTH_NOTES:
             st.info(MONTH_NOTES[selected])
     with left:
-        mode = st.radio("Second chart", SECOND_CHARTS, horizontal=True, key="hs_second", label_visibility="collapsed")
+        mode = st.radio("Second chart", SECOND_CHARTS, index=2, horizontal=True, key="hs_second", label_visibility="collapsed")
         if mode == SECOND_CHARTS[2] and brent.empty:
             st.info("Brent prices are temporarily unavailable.")
         else:
             st.plotly_chart(chart_second(mode, monthly, selected, daily, brent, start, last),
                             width="stretch", theme=None, key="hs_second_chart")
-        st.caption("These charts show traffic and prices side by side; they do not establish a causal relationship.")
+        if mode == SECOND_CHARTS[2]:
+            st.caption(
+                "Each point matches a 7-day traffic average and a Brent close on the same date. "
+                "Only dates with both observations are included; missing prices are not filled. "
+                "Colours identify months; diamonds highlight the month in focus. "
+                "The chart uses the time range selected above, in absolute units. "
+                "Association does not establish causation."
+            )
+        else:
+            st.caption("These charts do not establish a causal relationship.")
 
 
 def render():
