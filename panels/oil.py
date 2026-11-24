@@ -557,8 +557,8 @@ def card_figure():
                                hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
     fig.add_hline(y=PREWAR_PRICE, line=dict(dash="dash", color="#9aa5b1", width=1),
                   annotation_text="pre-war", annotation_position="bottom right")
-    fig.add_vrect(x0=EVENTS["War & closure"][0], x1=END.strftime("%Y-%m-%d"), fillcolor="#d64545",
-                  opacity=0.06, line_width=0, layer="below")
+    for start, end, colour, _ in EVENTS.values():    # the four phases, same colours as the other cards
+        fig.add_vrect(x0=start, x1=end, fillcolor=colour, opacity=0.08, line_width=0, layer="below")
     marks = [("War begins", "War & closure", 1), ("Ceasefire", "Ceasefire", 0.9), ("Strikes resume", "Conflict resumes", 1)]
     for label, phase, y in marks:
         fig.add_vline(x=EVENTS[phase][0], line=dict(dash="dot", color="#9aa5b1", width=1))
@@ -575,7 +575,7 @@ def render_card():
     a.metric("Brent crude, 30 Oct", f"${LATEST_PRICE:.2f}",
              f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}% since pre-war", delta_color="inverse")
     b.metric("Brent–WTI gap, Oct", f"${OIL['Spread'].iloc[-1]:.2f}",
-             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs start", delta_color="inverse")
+             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs {START:%b %Y}", delta_color="inverse")
     st.plotly_chart(card_figure(), key="ho_card_chart", config={"displayModeBar": False})
 
 

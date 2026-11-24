@@ -36,8 +36,8 @@ PHASES = [   # the same phases, dates and colours as the oil and gas panels: (na
     ("Conflict resumes", "2026-07-08", "2026-10-31", "#8e44ad"),
 ]
 
-# The time slider at the top of the panel links both sections: Section 1 shows
-# only these months, and Section 2 starts its scenario from the last of them.
+# The time slider at the top of the panel controls the whole panel: the chart shows
+# only these months, and the bill calculator starts its scenario from the last of them.
 DEFAULT_PERIOD = (date(2025, 1, 1), END.date())
 
 PREWAR_MONTHS = ("2026-01-01", "2026-02-01")   # pre-war traffic = Jan-Feb 2026, the same window as the shipping panel
@@ -137,7 +137,7 @@ def new_bill(model: dict, brent_now: float, brent_future: float, bill: float) ->
 
 
 def story_numbers(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Timestamp = END) -> list[dict]:
-    """The three numbers at the top of Section 1, as of the end of the time period, each with a note.
+    """The three numbers at the top of the panel, as of the end of the time period, each with a note.
 
     Each card: label, value, delta (change since February 2026, the last month
     before the war; none if the period ends before then), delta_color, note.
@@ -244,7 +244,7 @@ def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> 
                                  line=dict(color=colour, width=3 if country == countries[0] else 2),
                                  hovertemplate=f"{country}: %{{y:.1f}}%<extra></extra>"))
     fig.add_hline(y=TARGET, line=dict(color="#98a2b3", dash="dash", width=1),
-                  annotation_text="2% target", annotation_position="bottom left")
+                  annotation_text="2% target", annotation_position="bottom right")
     add_war_and_events(fig, start, end)
     return style(fig, 450, f"{measure} inflation since the war started", margin=dict(l=10, r=50, t=50, b=40),
                  yaxis=dict(title=f"{measure} inflation, % a year", ticksuffix="%"),
@@ -417,7 +417,7 @@ def render_card() -> None:
 
     fig = chart_inflation(inflation, ["Euro area", "United Kingdom", "United States"], "Energy",
                           pd.Timestamp("2025-09-01"), END, traffic)
-    fig.update_layout(height=280, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
+    fig.update_layout(height=270, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
     st.plotly_chart(fig, width="stretch", theme=None, key="infl_card_chart", config={"displayModeBar": False})
     
     
