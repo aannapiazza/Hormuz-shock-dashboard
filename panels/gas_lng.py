@@ -35,6 +35,9 @@ TICKERS = {"ttf_eur_mwh": "TTF=F", "hh_usd_mmbtu": "NG=F", "eurusd": "EURUSD=X"}
 DAILY_START = "2025-10-01"           # first day downloaded when LIVE = True
 PREWAR_MONTH = "2026-02"             # last full month before the 28 Feb strikes: the "before the war" reference
 MWH_PER_MMBTU = 0.293071             # 1 MMBtu = 0.293071 MWh (to put European prices in $/MMBtu)
+WAR_START = "2026-02-28"             # the day of the strikes: "before the war" means before this day
+VOL_WINDOW = 21                      # trading days in the rolling volatility window (about one month)
+TRADING_DAYS = 252                   # trading days a year, to turn daily swings into a yearly figure
 
 # Phases that shade the chart: same names, dates and colours as panels/oil.py.
 EVENTS = {
@@ -78,7 +81,7 @@ COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d
 
 PHASES = {name: dict(start=s, end=e, color=c, text=t) for name, (s, e, c, t) in EVENTS.items()}
 VIEWS = ["$ per MMBtu", "% vs pre-war"]
-SECOND = ["LNG tankers", "EU storage", "2026 vs 2022"]
+SECOND = ["LNG tankers", "EU storage", "Price swings", "2026 vs 2022"]
 KEEP = dict(marker=dict(opacity=1))   # stops Plotly fading the other points after a click
 
 
@@ -163,6 +166,8 @@ def monthly_table(data: dict) -> pd.DataFrame:
     month_ends = pd.to_datetime(t["month"]) + pd.offsets.MonthEnd(0)
     t["storage"] = [s26.loc[s26["date"] <= d, "pct_full"].iloc[-1] if (s26["date"] <= d).any() else np.nan
                     for d in month_ends]
+    swings = price_swings(data["daily"]).assign(month=lambda x: x["date"].dt.strftime("%Y-%m"))
+    t["vol"] = t["month"].map(swings.groupby("month")["vol"].mean())          # average volatility that month
     t["phase"] = [phase_for(d) for d in t["date"]]
     return t.reset_index(drop=True)
 
@@ -173,6 +178,27 @@ def phase_for(date) -> str | None:
         if pd.Timestamp(p["start"]) <= date <= pd.Timestamp(p["end"]):
             return name
     return None
+
+
+def price_swings(daily: pd.DataFrame) -> pd.DataFrame:
+    """How much the European gas price moves from day to day.
+
+    ret = the daily change in %, measured as a log return (so a rise and an equal fall cancel out).
+    vol = the rolling standard deviation of those daily changes over VOL_WINDOW trading days, scaled
+          to a yearly figure (x square root of TRADING_DAYS): the usual way to measure volatility.
+    """
+    usd = ttf_in_usd(daily)
+    ret = np.log(usd).diff() * 100
+    vol = ret.rolling(VOL_WINDOW).std() * np.sqrt(TRADING_DAYS)
+    return pd.DataFrame({"date": daily["date"], "usd": usd, "ret": ret, "vol": vol})
+
+
+def swings_summary(swings: pd.DataFrame, top: int = 3) -> dict:
+    """Volatility before and since the war (from all daily changes in each period), and the biggest daily jumps."""
+    before = swings["date"] < pd.Timestamp(WAR_START)
+    yearly = lambda r: r.std() * np.sqrt(TRADING_DAYS)
+    return {"before": yearly(swings.loc[before, "ret"]), "since": yearly(swings.loc[~before, "ret"]),
+            "biggest": swings.nlargest(top, "ret")[["date", "ret"]].reset_index(drop=True)}
 
 
 def storage_now(storage: pd.DataFrame) -> dict:
@@ -338,7 +364,33 @@ def second_figure(mode, table, data, sel, phase, view):
                 f"On {now['date']:%d %b} storage was {now['pct']:.0f}% full, {abs(now['gap']):.0f} points below the "
                 "5-year average. The dotted line is the month in focus.")
 
-    if mode == SECOND[2]:                    # 2026 vs 2022
+    if mode == SECOND[2]:                    # Price swings (already in %, so the price view doesn't change it)
+        sw = price_swings(data["daily"])
+        summary = swings_summary(sw)
+        fig = go.Figure(go.Scatter(x=sw["date"], y=sw["vol"], mode="lines", name="30-day volatility",
+                                   line=dict(color=COLORS["navy"], width=2), fill="tozeroy",
+                                   fillcolor="rgba(27,42,65,0.07)",
+                                   hovertemplate="%{x|%d %b %Y}: %{y:.0f}% a year<extra></extra>"))
+        fig.add_hline(y=summary["before"], line=dict(color=COLORS["teal"], dash="dash", width=1.5),
+                      annotation_text=f"Before the war: {summary['before']:.0f}%", annotation_position="top left",
+                      annotation_font_color=COLORS["teal"])
+        for _, jump in summary["biggest"].iterrows():          # label the biggest daily jumps
+            y = sw.loc[sw["date"] == jump["date"], "vol"].iloc[0]
+            fig.add_annotation(x=jump["date"], y=y, text=f"{jump['date']:%d %b}: {jump['ret']:+.0f}% in a day",
+                               showarrow=True, arrowhead=0, ax=60, ay=-25, font=dict(size=11, color=COLORS["red"]),
+                               bgcolor="rgba(255,255,255,0.85)")
+        shade(fig, phase)
+        cursor(fig, table.iloc[sel]["date"])
+        fig.update_layout(**layout(330, showlegend=False,
+                                   yaxis=dict(title="Volatility (% a year)", gridcolor="#edf0f3", ticksuffix="%",
+                                              rangemode="tozero"),
+                                   xaxis=dict(type="date", tickformat="%b %y")))
+        return (fig, "Price swings: how jumpy the gas market got",
+                f"Volatility of the daily European gas price over the last {VOL_WINDOW} trading days, as a yearly "
+                f"figure. {summary['before']:.0f}% before the war, {summary['since']:.0f}% since. "
+                "The dotted line is the month in focus.")
+
+    if mode == SECOND[3]:                    # 2026 vs 2022
         b = data["benchmarks"]
         rows = list(b["period"])
         ttf, jkm = b["ttf_usd_per_mmbtu"], b["jkm_usd_per_mmbtu"]
@@ -490,7 +542,8 @@ def focus_table_html(row):
         return "n/a" if pd.isna(v) else f'<span style="color:{"#c0392b" if v > 0 else "#1e8449"}">{signed(v)}%</span>'
     rows = [("European gas (TTF)", f"&#36;{row['ttf']:.2f}"),
             ("vs before the war", coloured(row["vs_prewar"])),
-            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US")]
+            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US"),
+            ("Price swings (volatility)", "n/a" if pd.isna(row["vol"]) else f"{row['vol']:.0f}% a year")]
     # keep the table's grid lines, with space between the text and the lines on every side
     cell = "padding:10px 14px;border-bottom:1px solid #eef0f3"
     table = "".join(f'<tr><td style="{cell}">{a}</td><td style="{cell};text-align:right;font-weight:700">{b}</td></tr>'
