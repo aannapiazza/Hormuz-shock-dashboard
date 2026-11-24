@@ -110,9 +110,8 @@ if current in details:                         # one panel in full
     st.caption(f"Panel by {author} · {file}")
 else:                                          # overview: two cards on top, two below
     st.markdown(CARD_TITLE_CSS, unsafe_allow_html=True)
-    top, bottom = st.columns(2, gap="large"), st.columns(2, gap="large")
+    top, bottom = st.columns(2, gap="small"), st.columns(2, gap="small")
     for slot, (name, file, author) in zip(top + bottom, PANELS):
         with slot, st.container(border=True):
             st.button(f"{name}  →", key=f"open_{file}", on_click=open_panel, args=(name,))   # click to open
             show_card(file)
-            

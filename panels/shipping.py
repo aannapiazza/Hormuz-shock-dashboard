@@ -606,7 +606,7 @@ def render():
                + brent_reference_note
                + base_note)
 def render_card():
-    """The small version for the home page: two numbers and one chart, like the other panels' cards."""
+  """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
@@ -631,6 +631,35 @@ def render_card():
     st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline", config={"displayModeBar": False})
 
 
+    daily = build_daily(shipping_df)
+    base = prewar_baseline(shipping_df)
+
+    last = shipping_df["date"].max()
+    start = last - pd.Timedelta(days=364)
+
+    fig = chart_traffic(
+        daily,
+        start,
+        last,
+        view=VIEWS[0],
+        show_tankers=False,
+        show_avg=True,
+        base=base,
+    )
+
+    fig.update_layout(
+        height=400,
+        showlegend=False,
+        title_text="",
+        margin=dict(l=10, r=20, t=10, b=40),
+    )
+
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        theme=None,
+        key="hs_card_timeline",
+    )
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
