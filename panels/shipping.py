@@ -1,17 +1,15 @@
 """
 Hormuz | Shipping & Markets
-
 Story: how much traffic goes through the Strait of Hormuz, and what Brent and WTI
 oil futures did at the same time. Section 1 shows where things stand now. Section 2
 compares traffic and Brent over time. Section 3 zooms in on one month.
-
 How this file is organised:
     1. SETTINGS  - every date, source and number you might want to change
     2. DATA      - the shipping CSV (IMF PortWatch) and the market prices (Yahoo Finance)
     3. ANALYSIS  - the maths, as small functions with docstrings
     4. CHARTS    - Plotly figures
     5. LAYOUT    - the sections and their controls (Streamlit)
-
+    
 Run on its own:   python3 -m streamlit run hormuz_dashboard.py
 """
 from pathlib import Path
@@ -57,7 +55,7 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
 
 # DATA 
 def load_shipping_data():
-    csv_path = DATA_DIR / "portwatch_daily_chokepoints.csv"     # the same PortWatch file the inflation panel uses
+    csv_path = DATA_DIR / "portwatch_daily_chokepoints.csv" 
     if not csv_path.is_file():
         raise FileNotFoundError("data/portwatch_daily_chokepoints.csv is missing (download it from portwatch.imf.org).")
     df = pd.read_csv(csv_path)
@@ -105,11 +103,7 @@ def load_market_data(symbol, period=MARKET_HISTORY):
 
 
 def load_markets(live=LIVE):
-    """All four market series: the saved copy in data/, or a fresh Yahoo download that is then saved.
-
-    If the download fails, the saved copy is used (the Session 11 pattern), so the
-    numbers stay the same on every run and the panel works offline.
-    """
+    """All four market series: the saved copy in data/, or a fresh Yahoo download that is then saved."""
     if live or not MARKET_FILE.exists():
         try:
             prices = pd.DataFrame({label: load_market_data(symbol) for label, symbol in MARKET_SYMBOLS.items()})
@@ -122,14 +116,12 @@ def load_markets(live=LIVE):
     saved = pd.read_csv(MARKET_FILE, parse_dates=["date"], index_col="date")
     return {label: saved[label].dropna() if label in saved else pd.Series(dtype=float) for label in MARKET_SYMBOLS}
 
-
 def safe_market_data(symbol):
     """load_market_data, but an empty Series instead of an error if Yahoo fails."""
     try:
         return load_market_data(symbol)
     except Exception:
         return pd.Series(dtype=float)
-
 
 # ANALYSIS
 def percentage_change(prices):
@@ -141,9 +133,8 @@ def percentage_change(prices):
         return None
     return float(np.diff(values)[0] / values[0] * 100)
 
-
 def get_prewar_price(brent):
-    """Exact reference-date close from the same BZ=F series; no spot fallback."""
+    """Exact reference-date close from the same BZ=F series."""
     if PREWAR_DATE not in brent.index:
         return None
     value = float(brent.loc[PREWAR_DATE])
@@ -158,7 +149,6 @@ def pct(old, new) -> float:
 def signed(v, decimals=1) -> str:
     """A number with a + sign when positive."""
     return f"{'+' if v > 0 else ''}{v:.{decimals}f}"
-
 
 def nice_date(ts) -> str:
     """'19 Nov 2026'."""
@@ -376,7 +366,6 @@ def market_metric(column, label, prices, prefix="", caption="{date}"):
                   delta=f"{change:+.2f}%" if change is not None else None, delta_color="off")
     column.caption(caption.format(date=f"{prices.index[-1]:%d %b %Y}"))
 
-
 def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 1: where do traffic and prices stand now?"""
     st.subheader("Where things stand")
@@ -418,7 +407,6 @@ def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
               help=reference_help)
     c4.metric("Brent–WTI gap", f"${b - w:.2f}" if b and w else "n/a", help="Latest futures prices.")
     st.caption("Market percentage changes compare the last two available observations.")
-
 
 def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 2: traffic and Brent over time. Returns the time window the charts use."""
