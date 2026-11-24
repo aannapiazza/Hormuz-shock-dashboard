@@ -97,8 +97,8 @@ def test_hormuz_traffic_as_percent_of_normal():
     months = pd.date_range("2025-01-01", "2026-10-01", freq="MS")
     hormuz = pd.DataFrame({"capacity_tanker": [200.0] * 12 + [100.0] * 10}, index=months)
     t = inf.traffic_vs_normal(hormuz)
-    assert t.loc["2025-06-01"] == pytest.approx(100)      # 2025 is "normal"
-    assert t.loc["2026-10-01"] == pytest.approx(50)
+    assert t.loc["2025-06-01"] == pytest.approx(200)      # Jan-Feb 2026 is "pre-war" = 100
+    assert t.loc["2026-10-01"] == pytest.approx(100)
 
 
 def test_download_hormuz_keeps_only_hormuz(tmp_path, monkeypatch):
@@ -130,7 +130,7 @@ def test_story_numbers_follow_the_end_of_the_period():
     traffic = pd.Series([90.0, 0.6], index=pd.to_datetime(["2026-02-01", "2026-10-01"]))
     cards = inf.story_numbers(inflation, traffic)
     assert len(cards) == 3
-    assert cards[0]["delta"] == "+2.5 pts since Feb 2026"
+    assert cards[0]["delta"] == "+2.5 pts since pre-war"
     assert cards[2]["value"] == "0.6%"
     before = inf.story_numbers(inflation, traffic, pd.Timestamp("2026-02-28"))
     assert before[0]["value"] == "2.0%" and before[0]["delta"] is None   # nothing to compare with yet
