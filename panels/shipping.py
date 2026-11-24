@@ -26,12 +26,15 @@ import yfinance as yf
 END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole dashboard (None = all data)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
-          ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
+          ("2026-06-17", "US–Iran MOU"), ("2026-07-08", "Strikes resume")]
 PREWAR_DATE = pd.Timestamp("2026-02-27")      # pre-war reference
 BASELINE_START = pd.Timestamp("2026-01-01")   # normal traffic = average daily transits
 BASELINE_END = pd.Timestamp("2026-02-27")     # in this window (needs at least 14 days of data)
 MARKET_SYMBOLS = {"BRENT": "BZ=F", "WTI": "CL=F", "VIX": "^VIX", "DOLLAR INDEX": "DX-Y.NYB"}
 MARKET_HISTORY = "2y"                         # how much price history to download
+LIVE = False                                  # False = read the saved copy in data/; True = download from Yahoo
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+MARKET_FILE = DATA_DIR / "shipping_markets.csv"   # saved copy of the four market series
 TIME_RANGES = {"Last 30 days": 30, "Last 90 days": 90, "Last 180 days": 180,
                "Last year": 365, "All data": None}    # label: days (None = everything)
 DEFAULT_RANGE = "Last year"
@@ -44,7 +47,7 @@ MONTH_NOTES = {
     "2026-04": "Brent hit 138 USD on 7 Apr, before the next day's ceasefire.",
     "2026-05": "Talks stall and the strait stays effectively shut.",
     "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
-    "2026-07": "Strikes resume on 7 Jul, and Iran declares the strait closed on 12 Jul.",
+    "2026-07": "Strikes resume on 8 Jul, and Iran declares the strait closed on 12 Jul.",
     "2026-09": "Prices rebound as global inventories keep falling.",
     "2026-10": "37 ships attacked in the month.",
 }
@@ -54,12 +57,9 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
 
 # DATA 
 def load_shipping_data():
-    folder = Path(__file__).resolve().parent
-    candidates = [folder / "Daily_Chokepoints_Data.csv",
-                  folder.parent / "Daily_Chokepoints_Data.csv"]
-    csv_path = next((path for path in candidates if path.is_file()), None)
-    if csv_path is None:
-        raise FileNotFoundError("Place Daily_Chokepoints_Data.csv in panels/ or the project root.")
+    csv_path = DATA_DIR / "portwatch_daily_chokepoints.csv"     # the same PortWatch file the inflation panel uses
+    if not csv_path.is_file():
+        raise FileNotFoundError("data/portwatch_daily_chokepoints.csv is missing (download it from portwatch.imf.org).")
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip()
 
@@ -102,6 +102,25 @@ def load_market_data(symbol, period=MARKET_HISTORY):
     prices.index = (index.tz_localize(None) if index.tz is not None else index).normalize()
     prices = prices.sort_index()
     return prices if END is None else prices[prices.index <= END]
+
+
+def load_markets(live=LIVE):
+    """All four market series: the saved copy in data/, or a fresh Yahoo download that is then saved.
+
+    If the download fails, the saved copy is used (the Session 11 pattern), so the
+    numbers stay the same on every run and the panel works offline.
+    """
+    if live or not MARKET_FILE.exists():
+        try:
+            prices = pd.DataFrame({label: load_market_data(symbol) for label, symbol in MARKET_SYMBOLS.items()})
+            prices.index.name = "date"
+            prices.to_csv(MARKET_FILE)
+        except Exception:
+            pass
+    if not MARKET_FILE.exists():
+        return {label: pd.Series(dtype=float) for label in MARKET_SYMBOLS}
+    saved = pd.read_csv(MARKET_FILE, parse_dates=["date"], index_col="date")
+    return {label: saved[label].dropna() if label in saved else pd.Series(dtype=float) for label in MARKET_SYMBOLS}
 
 
 def safe_market_data(symbol):
@@ -513,7 +532,7 @@ def render():
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
     with st.spinner("Loading market data..."):
-        market_data = {label: safe_market_data(symbol) for label, symbol in MARKET_SYMBOLS.items()}
+         market_data = load_markets()
     market_errors = [label for label, prices in market_data.items() if prices.empty]
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
@@ -586,15 +605,31 @@ def render():
                "and run when the app executes. Shipping and market observations may have different dates. "
                + brent_reference_note
                + base_note)
-
-
 def render_card():
-    """Timeline shown in the overview card."""
+  """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
         return
+
+    daily = build_daily(shipping_df)
+    base = prewar_baseline(shipping_df)
+    last = shipping_df["date"].max()
+
+    month = shipping_df[shipping_df["date"] >= last.replace(day=1)]
+    c1, c2 = st.columns(2)
+    for col, column, label in [(c1, "n_total", "Ships a day through Hormuz"), (c2, "n_tanker", "Tankers a day")]:
+        now = month[column].mean()
+        col.metric(f"{label}, {last:%b}", f"{now:.1f}",
+                   f"{pct(base[column], now):+.0f}% vs pre-war" if base else None)
+
+    fig = chart_traffic(daily, pd.Timestamp("2025-09-01"), last, view=VIEWS[0],
+                        show_tankers=False, show_avg=True, base=base)
+    fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)", selector=dict(name="All ships (7-day avg)"))
+    fig.update_layout(height=280, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=30))
+    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline", config={"displayModeBar": False})
+
 
     daily = build_daily(shipping_df)
     base = prewar_baseline(shipping_df)
