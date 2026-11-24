@@ -1,7 +1,5 @@
 # Hormuz shock dashboard
 
-*Group project for "Build Your Wealth Dashboard".*
-
 An interactive dashboard that follows one question: **what happened to energy markets, shipping and household prices after the Strait of Hormuz closed in 2026?** About a fifth of the world's oil and LNG normally passes through the strait. Each panel looks at the shock from a different angle, using the same timeline and the same cut-off date.
 
 ## The panels
