@@ -595,7 +595,7 @@ def focus_table_html(row):
                     for a, b in rows)
     return (f'<table style="width:100%;border-collapse:collapse;margin:0 0 10px;font-size:14px">{table}</table>'
             f'<div style="background:#f7f9fb;border-left:3px solid {phase_colour(row["phase"])};padding:10px 12px;'
-            f'font-size:13px;line-height:1.5">{MONTH_NOTES.get(row["month"], "")}</div>')
+            f'font-size:13px;line-height:1.5;margin-bottom:16px">{MONTH_NOTES.get(row["month"], "")}</div>')   # space above the buttons
 
 
 def apply_click(key, months):
