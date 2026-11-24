@@ -216,7 +216,8 @@ def finish(fig, height, title, start, last, reference=None, **layout):
     for p_start, p_end, colour in PHASES:          # the four phases, same colours as the other panels
         p_start, p_end = max(pd.Timestamp(p_start), start), min(pd.Timestamp(p_end), last)
         if p_start < p_end:
-            fig.add_vrect(x0=p_start, x1=p_end, fillcolor=colour, opacity=0.08, line_width=0, layer="below")    zoomed_in = (last - start).days <= 400
+            fig.add_vrect(x0=p_start, x1=p_end, fillcolor=colour, opacity=0.08, line_width=0, layer="below")
+    zoomed_in = (last - start).days <= 400
     for i, (date, label) in enumerate(EVENTS):
         when = pd.Timestamp(date)
         if not (start <= when <= last):
