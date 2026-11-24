@@ -24,7 +24,7 @@ import streamlit as st
 
 # SETTINGS - tab name, file, author
 PANELS = [
-    ("Oil prices",            "panels/oil.py",       "Erin"),
+    ("Oil prices",            "panels/oil.py",       "Erin Dolly"),
     ("Shipping & Markets",  "panels/shipping.py",   "Anna Piazza"),
     ("Gas & LNG",             "panels/gas_lng.py",          "Eabha Kelly"),
     ("Inflation & households", "panels/inflation.py", "Eleena Golchin"),
@@ -80,7 +80,7 @@ def open_panel(name) -> None:
     st.session_state["open_panel"] = name
 
 
-st.set_page_config(page_title="Group dashboard", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Hormuz Shock dashboard", layout="wide")
 # Some panels call st.set_page_config themselves; Streamlit only allows it
 # once per page, so after this point it is switched off for the panels.
 st.set_page_config = lambda *args, **kwargs: None
@@ -91,10 +91,11 @@ st.markdown("<style>.block-container{max-width:100%;padding-left:2rem;padding-ri
 # On the overview, the panel's name is the card's title and also the click target:
 # the button is drawn like a plain heading (no border), and gets a hover colour so it looks clickable.
 CARD_TITLE_CSS = ("<style>div[data-testid='stButton'] > button{width:100%;justify-content:flex-start;"
-                  "font-size:2.3rem;font-weight:700;line-height:1.2;padding:0.2rem 0 0.6rem;border:none;background:transparent;"
+                  "font-size:2.1rem;font-weight:700;line-height:1.2;padding:0.2rem 0 0.4rem;border:none;background:transparent;"
                   "box-shadow:none}"
-                  "div[data-testid='stButton'] > button p{font-size:2.3rem;font-weight:700;line-height:1.2}"
+                  "div[data-testid='stButton'] > button p{font-size:2.1rem;font-weight:700;line-height:1.2}"
                   "div[data-testid='stButton'] > button:hover{background:transparent;color:#2e6fd8}</style>")
+
 
 st.title(TITLE)
 st.caption(SUBTITLE)

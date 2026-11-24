@@ -396,7 +396,7 @@ def method_and_sources(status: dict) -> None:
             "rough estimate.\n\n"
             "**Data**, monthly to October 2026: Eurostat HICP for the euro countries; OECD CPI for the UK, South "
             "Korea, China and India; the US Bureau of Labor Statistics for the USA (to September 2026, and October "
-            "2025 was never published because of the government shutdown); Brent and exchange rates from Yahoo "
+            "2025 was never published because of the government shutdown); Brent from the U.S. EIA and exchange rates from Yahoo "
             "Finance; oil tankers through Hormuz from IMF PortWatch, against Jan-Feb 2026. China has no energy "
             "figures and India only headline.\n\n"
             "Loaded from: " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
