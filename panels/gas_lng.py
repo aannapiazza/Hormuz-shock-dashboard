@@ -67,6 +67,9 @@ TITLE = "Gas & LNG: Qatar's exports cut off"
 SUBTITLE = "About a fifth of the world's LNG passes through Hormuz, almost all of it from Qatar"
 SOURCE = ("World Bank Pink Sheet (monthly TTF), Yahoo Finance (daily TTF, Henry Hub, EUR/USD), S&P Global and "
           "Kpler (LNG tankers), GIE AGSI (EU storage), EIA and IEA (Asian LNG)")
+DATA_NOTE = ("The LNG tanker counts combine S&P Global and Kpler figures as reported in the news; the two count "
+             "ships slightly differently, so treat month-to-month changes as approximate. gas_tankers.csv, "
+             "gas_storage.csv and gas_benchmarks.csv were compiled by hand from the reports linked in each file.")
 COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "green": "#27ae60",
           "blue": "#2e86de", "purple": "#8e44ad", "teal": "#0f9b8e", "amber": "#d48806", "grey": "#7f8c8d"}
 # =============================================================================
@@ -620,6 +623,7 @@ def render():
                    "Henry Hub and EUR/USD. Falls back to the saved copy if Yahoo Finance can't be reached.")
     st.caption(f"Data: {SOURCE}. Daily prices: {how}. Prices to {END:%d %B %Y}; EU storage to "
                f"{now['date']:%d %B %Y}. Sources are listed row by row in data/gas_*.csv.".replace("$", "\\$"))
+    st.caption(DATA_NOTE)
 
 
 if __name__ == "__main__":   # only when run on its own; inside the group app this is already set
