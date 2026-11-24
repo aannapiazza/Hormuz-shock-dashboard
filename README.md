@@ -65,7 +65,7 @@ The dashboard describes what happened; it does not forecast. Where two series ar
 
 ---
 
-## 🚢 Shipping & Markets (Anna Piazza) — `panels/shipping.py`
+## Shipping & Markets (Anna Piazza) — `panels/shipping.py`
 
 **Question:** how much traffic goes through the Strait of Hormuz, and what did Brent and WTI oil futures do at the same time?
 
@@ -85,7 +85,7 @@ All data runs to **31 October 2026**. By default the panel reads the saved copie
 
 ---
 
-## 🔥 Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
+## Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
 
 **Question:** about a fifth of the world's LNG passes through the Strait of Hormuz, almost all of it from Qatar. What has closing the strait done to European gas prices, LNG shipping and Europe's winter gas storage?
 
@@ -118,7 +118,7 @@ Run the panel on its own with `python3 -m streamlit run panels/gas_lng.py`. Run 
 
 ---
 
-## 🧾 Inflation & households (Eleena Golchin) — `panels/inflation.py`
+## Inflation & households (Eleena Golchin) — `panels/inflation.py`
 
 **Question:** how much of the Hormuz oil shock is reaching consumer prices, and what would a new oil price mean for a household's energy bill?
 
