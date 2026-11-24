@@ -27,6 +27,10 @@ END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole d
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
           ("2026-06-17", "US–Iran MOU"), ("2026-07-08", "Strikes resume")]
+PHASES = [("2026-01-01", "2026-02-28", "#e0a800"),   # Build-up   (the same phases and colours
+          ("2026-02-28", "2026-04-08", "#d64545"),   # War & closure  as the oil, gas and
+          ("2026-04-08", "2026-07-08", "#2e86de"),   # Ceasefire      inflation panels)
+          ("2026-07-08", "2026-10-31", "#8e44ad")]   # Conflict resumes
 PREWAR_DATE = pd.Timestamp("2026-02-27")      # pre-war reference
 BASELINE_START = pd.Timestamp("2026-01-01")   # normal traffic = average daily transits
 BASELINE_END = pd.Timestamp("2026-02-27")     # in this window (needs at least 14 days of data)
@@ -123,14 +127,6 @@ def load_markets(live=LIVE):
     return {label: saved[label].dropna() if label in saved else pd.Series(dtype=float) for label in MARKET_SYMBOLS}
 
 
-def safe_market_data(symbol):
-    """load_market_data, but an empty Series instead of an error if Yahoo fails."""
-    try:
-        return load_market_data(symbol)
-    except Exception:
-        return pd.Series(dtype=float)
-
-
 # ANALYSIS
 def percentage_change(prices):
     """Percentage change between the last two observations."""
@@ -225,8 +221,10 @@ def finish(fig, height, title, start, last, reference=None, **layout):
     if reference is not None:
         fig.add_hline(y=reference[0], line=dict(color="#6b7785", dash="dash", width=1),
                       annotation_text=reference[1], annotation_position="bottom right")
-    fig.add_vrect(x0=WAR_START, x1=last, fillcolor="#d23f3f", opacity=0.07, line_width=0, layer="below")
-    zoomed_in = (last - start).days <= 400
+    for p_start, p_end, colour in PHASES:          # the four phases, same colours as the other panels
+        p_start, p_end = max(pd.Timestamp(p_start), start), min(pd.Timestamp(p_end), last)
+        if p_start < p_end:
+            fig.add_vrect(x0=p_start, x1=p_end, fillcolor=colour, opacity=0.08, line_width=0, layer="below")    zoomed_in = (last - start).days <= 400
     for i, (date, label) in enumerate(EVENTS):
         when = pd.Timestamp(date)
         if not (start <= when <= last):
