@@ -26,6 +26,23 @@ or set `LIVE = True` at the top of `panels/inflation.py` (it falls back to the s
 
 **Limitations:** the model is descriptive, not a forecast. It assumes exchange rates and non-energy prices stay where they are and ignores second-round effects such as wages. A strong correlation is not proof of cause.
 
+## 🚢 Shipping & Markets (Anna Piazza) — panels/shipping.py
+Question: how much traffic goes through the Strait of Hormuz, and what did Brent and WTI oil futures do at the same time?
+
+**Where things stand:** latest daily ship and tanker transits, the latest Brent and WTI futures prices, and how they compare with before the war (traffic, tanker share, Brent and the Brent–WTI gap).
+
+**Traffic and prices over time:** pick a time range (30 days to all data) and a view (absolute or % vs pre-war). One chart shows daily ships and tankers with 7-day averages, the other shows Brent (and optionally WTI). Both shade the four phases of the conflict (the same colours as the other panels) and mark key events.
+
+**Closer look:** pick one month and see its average ships and tankers a day, tanker share, change vs pre-war traffic and Brent average. A second chart switches between monthly traffic, tanker share, a traffic-vs-Brent scatter and Brent's daily change.
+
+| Data | Source | Saved copy |
+|---|---|---|
+| Daily vessel transits through the Strait of Hormuz (all ships and tankers) | [IMF PortWatch](https://portwatch.imf.org/) daily chokepoint transits | data/portwatch_daily_chokepoints.csv |
+| Brent and WTI futures, VIX, US Dollar Index | Yahoo Finance via yfinance (BZ=F, CL=F, ^VIX, DX-Y.NYB) | data/shipping_markets.csv |
+
+All data runs to 31 October 2026. By default the panel reads the saved copies, so it runs offline and always shows the same numbers. To download fresh market prices, set `LIVE = True` at the top of `panels/shipping.py` (it falls back to the saved copy if Yahoo is down), or delete `data/shipping_markets.csv`. The shipping data updates when the PortWatch CSV is replaced.
+
+Limitations: "normal" traffic is the average of daily transits between 1 January and 27 February 2026, and the pre-war Brent price is the BZ=F close on 27 February. Prices are futures, not spot prices. A 7-day average needs seven consecutive daily observations, and shipping and market data can have different dates. The charts show association, not causation.
 
 
 
