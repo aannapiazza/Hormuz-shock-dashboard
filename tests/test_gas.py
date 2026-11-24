@@ -139,3 +139,11 @@ def test_download_has_clear_column_names_and_one_row_per_month(table):
     out = gas.download_table(table)
     assert len(out) == len(table)
     assert {"month", "european_gas_usd_per_mmbtu", "lng_tankers", "volatility_pct_a_year"} <= set(out.columns)
+
+
+def test_daily_table_is_newest_first_and_converts_to_dollars(data):
+    out = gas.daily_table(data["daily"])
+    assert out["date"].iloc[0] > out["date"].iloc[-1]
+    first = out.iloc[0]
+    assert first["european_gas_usd_per_mmbtu"] == pytest.approx(
+        first["european_gas_eur_per_mwh"] * first["eur_usd"] * gas.MWH_PER_MMBTU, abs=0.01)
