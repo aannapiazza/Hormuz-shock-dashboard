@@ -520,6 +520,27 @@ def download_table(table: pd.DataFrame) -> pd.DataFrame:
     return table[list(cols)].rename(columns=cols).round(2)
 
 
+def daily_table(daily: pd.DataFrame) -> pd.DataFrame:
+    """The daily prices behind the panel, newest first, with clear column names and European gas in $ too."""
+    out = pd.DataFrame({"date": daily["date"].dt.date, "european_gas_eur_per_mwh": daily["ttf_eur_mwh"],
+                        "european_gas_usd_per_mmbtu": ttf_in_usd(daily), "us_gas_usd_per_mmbtu": daily["hh_usd_mmbtu"],
+                        "eur_usd": daily["eurusd"]})
+    return out.sort_values("date", ascending=False).round(3).reset_index(drop=True)
+
+
+SCREEN_NAMES = {"month": "Month", "phase": "Phase", "european_gas_usd_per_mmbtu": "European gas ($/MMBtu)",
+                "change_vs_feb_2026_pct": "vs pre-war (%)", "us_gas_usd_per_mmbtu": "US gas ($/MMBtu)",
+                "europe_vs_us_times": "Europe pays (× US)", "lng_tankers": "LNG tankers",
+                "tankers_pct_of_normal": "Tankers (% of normal)", "tanker_source": "Tanker source",
+                "eu_storage_pct_full": "EU storage (% full)", "volatility_pct_a_year": "Volatility (% a year)",
+                "date": "Date", "european_gas_eur_per_mwh": "European gas (€/MWh)", "eur_usd": "EUR/USD"}
+
+
+def readable(df: pd.DataFrame) -> pd.DataFrame:
+    """The same table with column names for showing on screen (the CSV downloads keep the short names)."""
+    return df.rename(columns=SCREEN_NAMES)
+
+
 # ------------------------------ page pieces -------------------------------
 def kpi_html(title, value, desc, color):
     """A KPI card, same style as panels/oil.py."""
@@ -689,8 +710,18 @@ def render():
     st.success("**Takeaway:** Europe's gas price is up " + f"{last['vs_prewar']:.0f}% since before the war and LNG "
                f"traffic through Hormuz is only {tk['tanker_pct']:.0f}% of normal. Europe enters winter with storage "
                f"{abs(now['gap']):.0f} points below normal, so a cold snap could push prices higher still.")
-    st.download_button("Download this panel's monthly data (CSV)", key="gas_csv", file_name="gas_lng_monthly.csv",
-                       mime="text/csv", data=download_table(table).to_csv(index=False))
+    with st.expander("Gas data and download"):
+        st.markdown("**Monthly summary** (the numbers behind the charts and the Month in focus card)")
+        monthly = download_table(table)
+        st.dataframe(readable(monthly.iloc[::-1]), hide_index=True, width="stretch")
+        st.download_button("Download monthly data (CSV)", key="gas_csv", file_name="gas_lng_monthly.csv",
+                           mime="text/csv", data=monthly.to_csv(index=False))
+        st.markdown(f"**Daily prices** ({len(data['daily'])} trading days, Yahoo Finance; European gas converted "
+                    "to &#36; per MMBtu with that day's exchange rate)", unsafe_allow_html=True)
+        daily = daily_table(data["daily"])
+        st.dataframe(readable(daily), hide_index=True, width="stretch", height=300)
+        st.download_button("Download daily prices (CSV)", key="gas_csv_daily", file_name="gas_lng_daily.csv",
+                           mime="text/csv", data=daily.to_csv(index=False))
     st.toggle("Download the latest prices from Yahoo Finance", key="gas_live", value=LIVE,
               help="Off: the saved copy in data/ (same numbers every time). On: a fresh download of TTF, "
                    "Henry Hub and EUR/USD. Falls back to the saved copy if Yahoo Finance can't be reached.")
