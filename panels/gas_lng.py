@@ -124,6 +124,7 @@ def load_data(live: bool = LIVE) -> tuple:
     data["daily"]["date"] = pd.to_datetime(data["daily"]["date"])
     data["daily"] = data["daily"][data["daily"]["date"] <= END].reset_index(drop=True)
     data["storage"]["date"] = pd.to_datetime(data["storage"]["date"])
+    data["storage"] = data["storage"][data["storage"]["date"] <= END].reset_index(drop=True)
     data["prices"] = data["prices"][pd.to_datetime(data["prices"]["month"]) <= END]
     return data, how
 
@@ -172,10 +173,10 @@ def phase_for(date) -> str | None:
 
 
 def storage_now(storage: pd.DataFrame) -> dict:
-    """Latest EU storage reading, and how far it is from the 5-year average on that date."""
+    """Latest EU storage reading, and how far it is from the latest 5-year average on or before that date."""
     s26 = storage[storage["series"] == "2026"].sort_values("date").iloc[-1]
-    avg = storage[(storage["series"] == "5-year average") & (storage["date"] == s26["date"])]["pct_full"]
-    return {"date": s26["date"], "pct": s26["pct_full"], "gap": s26["pct_full"] - avg.iloc[0] if len(avg) else np.nan}
+    avg = storage[(storage["series"] == "5-year average") & (storage["date"] <= s26["date"])].sort_values("date")["pct_full"]
+    return {"date": s26["date"], "pct": s26["pct_full"], "gap": s26["pct_full"] - avg.iloc[-1] if len(avg) else np.nan}
 
 
 # --------------------------------- helpers ---------------------------------
@@ -328,7 +329,7 @@ def second_figure(mode, table, data, sel, phase, view):
         cursor(fig, table.iloc[sel]["date"])
         fig.update_layout(**layout(330, hovermode="x unified", legend=dict(orientation="h", y=1.12, x=0),
                                    yaxis=dict(title="% full", range=[0, 105], ticksuffix="%", gridcolor="#edf0f3"),
-                                   xaxis=dict(type="date", range=["2026-03-20", "2026-11-20"], tickformat="%b")))
+                                   xaxis=dict(type="date", range=["2026-03-20", "2026-10-31"], tickformat="%b")))
         now = storage_now(st_)
         return (fig, "EU gas storage: refilling fell short",
                 f"On {now['date']:%d %b} storage was {now['pct']:.0f}% full, {abs(now['gap']):.0f} points below the "
