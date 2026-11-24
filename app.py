@@ -24,7 +24,7 @@ import streamlit as st
 
 # SETTINGS - tab name, file, author
 PANELS = [
-    ("Oil prices",            "panels/oil.py",       "Erin"),
+    ("Oil prices",            "panels/oil.py",       "Erin Dolly"),
     ("Shipping & Markets",  "panels/shipping.py",   "Anna Piazza"),
     ("Gas & LNG",             "panels/gas_lng.py",          "Eabha Kelly"),
     ("Inflation & households", "panels/inflation.py", "Eleena Golchin"),
