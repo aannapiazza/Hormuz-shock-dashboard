@@ -619,7 +619,7 @@ def render_card():
                         show_tankers=False, show_avg=True, base=base)
     fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)",
                       selector=dict(name="All ships (7-day avg)"))
-    fig.update_layout(height=320, showlegend=False, title_text="",
+    fig.update_layout(height=470, showlegend=False, title_text="",
                       margin=dict(l=10, r=20, t=10, b=40))
     st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline",
                     config={"displayModeBar": False})
