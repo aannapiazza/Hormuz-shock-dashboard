@@ -6,7 +6,7 @@ An interactive dashboard that follows one question: **what happened to energy ma
 
 | Panel | Author | File | Question |
 |---|---|---|---|
-| Oil | (add name) | `panels/oil.py` | What happened to crude oil prices? |
+| Oil | Erin Dolly| `panels/oil.py` | What happened to crude oil prices? |
 | Shipping & Markets | Anna Piazza | `panels/shipping.py` | How much traffic goes through Hormuz, and what did Brent and WTI do at the same time? |
 | Gas & LNG | Eabha Kelly | `panels/gas_lng.py` | What did the closure do to European gas prices, LNG shipping and winter storage? |
 | Inflation & households | Eleena Golchin | `panels/inflation.py` | How much of the oil shock reaches consumer prices and household energy bills? |
