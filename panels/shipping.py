@@ -606,7 +606,7 @@ def render():
                + brent_reference_note
                + base_note)
 def render_card():
-"""The small version for the home page: two numbers and one chart, like the other panels' cards."""
+    """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
