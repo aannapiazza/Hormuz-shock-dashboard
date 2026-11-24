@@ -1,4 +1,4 @@
-# build-you-wealth-dashboard## 🧾 Inflation & households (Eleena Golchin) — `panels/inflation.py`
+# Hormuz shock dashboard## 🧾 Inflation & households (Eleena Golchin) — `panels/inflation.py`
 
 
 
