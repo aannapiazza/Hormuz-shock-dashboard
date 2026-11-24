@@ -417,7 +417,7 @@ def render_card() -> None:
 
     fig = chart_inflation(inflation, ["Euro area", "United Kingdom", "United States"], "Energy",
                           pd.Timestamp("2025-09-01"), END, traffic)
-    fig.update_layout(height=280, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
+    fig.update_layout(height=270, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
     st.plotly_chart(fig, width="stretch", theme=None, key="infl_card_chart", config={"displayModeBar": False})
     
     
