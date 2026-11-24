@@ -26,7 +26,7 @@ or set `LIVE = True` at the top of `panels/inflation.py` (it falls back to the s
 
 **Limitations:** the model is descriptive, not a forecast. It assumes exchange rates and non-energy prices stay where they are and ignores second-round effects such as wages. A strong correlation is not proof of cause.
 
-## 🚢 Shipping & Markets (Anna Piazza) — panels/shipping.py
+## Shipping & Markets (Anna Piazza) — panels/shipping.py
 Question: how much traffic goes through the Strait of Hormuz, and what did Brent and WTI oil futures do at the same time?
 
 **Where things stand:** latest daily ship and tanker transits, the latest Brent and WTI futures prices, and how they compare with before the war (traffic, tanker share, Brent and the Brent–WTI gap).
