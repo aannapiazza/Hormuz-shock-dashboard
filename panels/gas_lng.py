@@ -383,16 +383,22 @@ def second_figure(mode, table, data, sel, phase, view):
         fig.add_hline(y=summary["before"], line=dict(color=COLORS["teal"], dash="dash", width=1.5),
                       annotation_text=f"Before the war: {summary['before']:.0f}%", annotation_position="top left",
                       annotation_font_color=COLORS["teal"])
-        for _, jump in summary["biggest"].iterrows():          # label the biggest daily jumps
-            y = sw.loc[sw["date"] == jump["date"], "vol"].iloc[0]
-            fig.add_annotation(x=jump["date"], y=y, text=f"{jump['date']:%d %b}: {jump['ret']:+.0f}% in a day",
-                               showarrow=True, arrowhead=0, ax=60, ay=-25, font=dict(size=11, color=COLORS["red"]),
-                               bgcolor="rgba(255,255,255,0.85)")
+        # the biggest one-day jumps: a red dot on the line for each, and one tidy label listing them
+        # (they are only days apart, so separate labels would sit on top of each other)
+        big = summary["biggest"].merge(sw[["date", "vol"]], on="date")
+        fig.add_scatter(x=big["date"], y=big["vol"], mode="markers", name="Biggest one-day jumps",
+                        marker=dict(size=10, color=COLORS["red"], line=dict(color="#fff", width=1.5)),
+                        customdata=big["ret"], hovertemplate="%{x|%d %b %Y}: %{customdata:+.0f}% in one day<extra></extra>")
+        listing = " · ".join(f"{d:%d %b} {r:+.0f}%" for d, r in zip(big["date"], big["ret"]))
+        fig.add_annotation(xref="paper", yref="paper", x=0.99, y=0.97, xanchor="right", yanchor="top",
+                           showarrow=False, align="right", text=f"<b>Biggest one-day jumps</b> (red dots)<br>{listing}",
+                           font=dict(size=11, color=COLORS["red"]), bgcolor="rgba(255,255,255,0.9)",
+                           bordercolor="#f3c6c6", borderwidth=1, borderpad=4)
         shade(fig, phase)
         cursor(fig, table.iloc[sel]["date"])
         fig.update_layout(**layout(330, showlegend=False,
                                    yaxis=dict(title="Volatility (% a year)", gridcolor="#edf0f3", ticksuffix="%",
-                                              rangemode="tozero"),
+                                              range=[0, sw["vol"].max() * 1.25]),     # room above the peak
                                    xaxis=dict(type="date", tickformat="%b %y")))
         return (fig, "Price swings: how jumpy the gas market got",
                 f"Volatility of the daily European gas price over the last {VOL_WINDOW} trading days, as a yearly "
