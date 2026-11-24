@@ -487,13 +487,10 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         if month_prices.empty:
             st.caption("Brent futures monthly average: unavailable")
         else:
-            average = month_prices.mean()
-            observations = month_prices.count()
-
-        st.caption(
-            f"Brent futures monthly average: USD {average:.2f}/barrel"
-            f" · {observations} trading observations"
-        )
+            st.caption(
+                f"Brent futures monthly average: USD {month_prices.mean():.2f}/barrel"
+                f" · {month_prices.count()} trading observations"
+            )
 
         st.caption(
             f"Shipping data: {int(row['Days'])}"
@@ -532,7 +529,7 @@ def render():
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
     with st.spinner("Loading market data..."):
-         market_data = load_markets()
+        market_data = load_markets()
     market_errors = [label for label, prices in market_data.items() if prices.empty]
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")

@@ -29,17 +29,18 @@ except ModuleNotFoundError:                 # when it is run on its own from ins
 # Story dates (the same events as the other three panels)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 TARGET = 2.0                              # central banks' inflation target, %
-PHASES = [   # the phases of the war, shaded on the Section 1 charts: (name, start, end, colour)
-    ("War & closure", "2026-02-28", "2026-04-08", "#d23f3f"),
-    ("Ceasefire", "2026-04-08", "2026-07-07", "#2e6fd8"),
-    ("Conflict resumes", "2026-07-07", "2026-10-31", "#7c5cd6"),
+PHASES = [   # the same phases, dates and colours as the oil and gas panels: (name, start, end, colour)
+    ("Build-up", "2026-01-01", "2026-02-28", "#e0a800"),
+    ("War & closure", "2026-02-28", "2026-04-08", "#d64545"),
+    ("Ceasefire", "2026-04-08", "2026-07-08", "#2e86de"),
+    ("Conflict resumes", "2026-07-08", "2026-10-31", "#8e44ad"),
 ]
 
 # The time slider at the top of the panel links both sections: Section 1 shows
 # only these months, and Section 2 starts its scenario from the last of them.
 DEFAULT_PERIOD = (date(2025, 1, 1), END.date())
 
-NORMAL_YEAR = "2025"                       # "normal" traffic = the 2025 average
+PREWAR_MONTHS = ("2026-01-01", "2026-02-01")   # pre-war traffic = Jan-Feb 2026, the same window as the shipping panel
 CURRENCY = {"United Kingdom": "GBP", "United States": "USD", "South Korea": "KRW",
             "China": "CNY", "India": "INR"}               # everyone else pays in euros
 SYMBOL = {"EUR": "€", "GBP": "£", "USD": "$", "KRW": "₩", "CNY": "¥", "INR": "₹"}
@@ -90,8 +91,8 @@ def change_since_war(s: pd.Series) -> tuple[float, float] | None:
 
 
 def traffic_vs_normal(hormuz: pd.DataFrame, column: str = "capacity_tanker") -> pd.Series:
-    """Monthly Hormuz tanker capacity as a % of the NORMAL_YEAR average (100 = normal)."""
-    normal = hormuz.loc[NORMAL_YEAR, column].mean()
+    """Monthly Hormuz tanker capacity as a % of the pre-war average (100 = pre-war level)."""
+    normal = hormuz.loc[PREWAR_MONTHS[0]:PREWAR_MONTHS[1], column].mean()
     return hormuz[column] / normal * 100
 
 
@@ -161,15 +162,15 @@ def story_numbers(inflation: pd.DataFrame, traffic: pd.Series | None, end: pd.Ti
             continue
         result = change_since_war(s)
         cards.append(dict(label=f"{label}, {s.index[-1]:%b %Y}", value=f"{s.iloc[-1]:.1f}%",
-                          delta=f"{result[1]:+.1f} pts since Feb 2026" if result else None,
+                          delta=f"{result[1]:+.1f} pts since pre-war" if result else None,
                           delta_color="inverse", note=note))
     if traffic is not None and not traffic.loc[:end].empty:
         t = traffic.loc[:end]
-        delta = f"{t.iloc[-1] - traffic.loc[feb]:+.0f} pts since Feb 2026" if t.index[-1] > feb else None
+        delta = f"{t.iloc[-1] - 100:+.0f} pts vs pre-war" if t.index[-1] > feb else None
         cards.append(dict(label=f"Tankers through Hormuz, {t.index[-1]:%b %Y}", value=f"{t.iloc[-1]:.1f}%",
                           delta=delta, delta_color="normal",
-                          note=f"Oil tankers through the strait, against the {NORMAL_YEAR} average (IMF PortWatch)."))
-    return cards
+                          note="Oil-tanker capacity through the strait, as a % of Jan-Feb 2026 (IMF PortWatch)."))
+        return cards
 
 def key_takeaway(inflation: pd.DataFrame, end: pd.Timestamp = END) -> str:
     """The panel's main point in two sentences, as of the end of the period, counting every country."""
@@ -234,9 +235,9 @@ def chart_inflation(inflation, countries, measure, start, end, traffic=None) -> 
     fig = go.Figure()
     if traffic is not None:
         t = in_period(traffic, start, end)
-        fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Tankers through Hormuz (% of normal, right axis)",
+        fig.add_trace(go.Scatter(x=t.index, y=t.values, name="Tankers through Hormuz (% of pre-war, right axis)",
                                  yaxis="y2", mode="lines", fill="tozeroy", line=dict(color="rgba(27,42,65,0.35)", width=1),
-                                 fillcolor="rgba(27,42,65,0.07)", hovertemplate="Tankers: %{y:.0f}% of normal<extra></extra>"))
+                                 fillcolor="rgba(27,42,65,0.07)", hovertemplate="Tankers: %{y:.0f}% of pre-war<extra></extra>"))
     for colour, country in zip(COLOURS, countries):
         s = in_period(series_for(inflation, country, measure), start, end)
         fig.add_trace(go.Scatter(x=s.index, y=s.values, name=country, mode="lines",
@@ -343,7 +344,6 @@ def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestam
 
 def render() -> None:
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
-    st.header("Inflation and households")
     data = load_data()
     problems = {k: v for k, v in data["status"].items() if not v.startswith(("saved", "live"))}
     if problems:
@@ -397,61 +397,28 @@ def method_and_sources(status: dict) -> None:
             "**Data**, monthly to October 2026: Eurostat HICP for the euro countries; OECD CPI for the UK, South "
             "Korea, China and India; the US Bureau of Labor Statistics for the USA (to September 2026, and October "
             "2025 was never published because of the government shutdown); Brent and exchange rates from Yahoo "
-            "Finance; oil tankers through Hormuz from IMF PortWatch, against the 2025 average. China has no energy "
+            "Finance; oil tankers through Hormuz from IMF PortWatch, against Jan-Feb 2026. China has no energy "
             "figures and India only headline.\n\n"
             "Loaded from: " + ", ".join(f"{k}: {v}" for k, v in status.items()) + ".")
         
         
 def render_card() -> None:
-    """Chart shown in the overview card on the dashboard's home page."""
+    """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     data = load_data()
-
     inflation = data["inflation"]
     if inflation is None:
         st.error("No inflation data available.")
         return
+    traffic = traffic_vs_normal(data["hormuz"]) if data["hormuz"] is not None else None
 
-    traffic = (
-        traffic_vs_normal(data["hormuz"])
-        if data["hormuz"] is not None
-        else None
-    )
+    c1, c2 = st.columns(2)
+    for col, card in zip((c1, c2), story_numbers(inflation, traffic, END)[1:]):
+        col.metric(card["label"], card["value"], card["delta"], delta_color=card["delta_color"])
 
-    countries = ["Euro area", "United Kingdom", "United States"]
-    measure = MEASURES[1]
-    start = pd.Timestamp(DEFAULT_PERIOD[0])
-    end = pd.Timestamp(DEFAULT_PERIOD[1])
-
-    have = [
-        country for country in countries
-        if not series_for(inflation, country, measure).empty
-    ]
-
-    if not have:
-        st.info("No inflation data available for the selected countries.")
-        return
-
-    fig = chart_inflation(
-        inflation=inflation,
-        countries=have,
-        measure=measure,
-        start=start,
-        end=end,
-        traffic=traffic,
-    )
-
-    fig.update_layout(
-        height=400,
-        title_text="",
-        margin=dict(l=10, r=50, t=10, b=90),
-    )
-
-    st.plotly_chart(
-        fig,
-        width="stretch",
-        theme=None,
-        key="infl_card_chart",
-    )
+    fig = chart_inflation(inflation, ["Euro area", "United Kingdom", "United States"], "Energy",
+                          pd.Timestamp("2025-09-01"), END, traffic)
+    fig.update_layout(height=280, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
+    st.plotly_chart(fig, width="stretch", theme=None, key="infl_card_chart", config={"displayModeBar": False})
     
     
 if __name__ == "__main__":

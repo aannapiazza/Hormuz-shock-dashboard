@@ -6,7 +6,7 @@ How the 2026 Iran war and the near-closure of the Strait of Hormuz moved the
 price of crude oil.
 
 HOW TO USE
-  • In the group app: listed in PANELS as ("🛢️ Oil prices", "panels/oil.py", "Erin").
+  • In the group app: listed in PANELS as ("Oil prices", "panels/oil.py", "Erin").
     The main app runs this file, and the dashboard draws itself.
   • On its own, for testing:   streamlit run panels/oil.py
 
@@ -29,7 +29,7 @@ import streamlit as st
 
 
 # =============================================================================
-# ✏️  EDIT HERE
+#  EDIT HERE
 # =============================================================================
 
 # 0) DATA SETTINGS
@@ -479,7 +479,7 @@ def render():
 
     st.markdown(header_html(), unsafe_allow_html=True)
     if DATA_WARNING:
-        st.warning(DATA_WARNING, icon="⚠️")
+        st.warning(DATA_WARNING)
 
     # KPI row
     peak_idx = OIL["Brent"].idxmax()
@@ -575,7 +575,7 @@ def render_card():
     a.metric("Brent crude, 30 Oct", f"${LATEST_PRICE:.2f}",
              f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}% since pre-war", delta_color="inverse")
     b.metric("Brent–WTI gap, Oct", f"${OIL['Spread'].iloc[-1]:.2f}",
-             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs Sep 2025", delta_color="inverse")
+             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs start", delta_color="inverse")
     st.plotly_chart(card_figure(), key="ho_card_chart", config={"displayModeBar": False})
 
 
