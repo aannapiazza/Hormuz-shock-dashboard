@@ -603,7 +603,7 @@ def render():
                + brent_reference_note
                + base_note)
 def render_card():
-    """The small version for the home page: one chart."""
+    """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
@@ -615,11 +615,19 @@ def render_card():
     last = shipping_df["date"].max()
     start = last - pd.Timedelta(days=364)
 
+    month = shipping_df[shipping_df["date"] >= last.replace(day=1)]
+    c1, c2 = st.columns(2)
+    for col, column, label in [(c1, "n_total", "Ships a day through Hormuz"),
+                               (c2, "n_tanker", "Tankers a day")]:
+        now = month[column].mean()
+        col.metric(f"{label}, {last:%b}", f"{now:.1f}",
+                   f"{pct(base[column], now):+.0f}% vs pre-war" if base else None)
+
     fig = chart_traffic(daily, start, last, view=VIEWS[0],
                         show_tankers=False, show_avg=True, base=base)
     fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)",
                       selector=dict(name="All ships (7-day avg)"))
-    fig.update_layout(height=420, showlegend=False, title_text="",
+    fig.update_layout(height=380, showlegend=False, title_text="",
                       margin=dict(l=10, r=20, t=10, b=40))
     st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline",
                     config={"displayModeBar": False})
