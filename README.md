@@ -1,52 +1,93 @@
-# Hormutz Shock dashboard## 🧾 Inflation & households (Eleena Golchin) — `panels/inflation.py`
+# Hormuz shock dashboard
 
+*Group project for "Build Your Wealth Dashboard".*
 
+An interactive dashboard that follows one question: **what happened to energy markets, shipping and household prices after the Strait of Hormuz closed in 2026?** About a fifth of the world's oil and LNG normally passes through the strait. Each panel looks at the shock from a different angle, using the same timeline and the same cut-off date.
 
-**Question:** how much of the Hormuz oil shock is reaching consumer prices, and what would a new oil price mean for a household's energy bill?
+## The panels
 
-1. **Inflation since the war:** pick countries (6 European, the UK, the USA, South Korea, China, India), a measure (headline, energy, food or services) and a start year. Cards show each country's change since February 2026; the chart shades the war, marks key events and can overlay oil-tanker capacity through Hormuz on a second axis.
-2. **What it means for your household:** pick a country, a Brent price for a year from now and your monthly energy bill. The panel tests delays of 0–6 months between oil and energy prices, keeps the strongest correlation, fits a least-squares line, and projects energy inflation, headline inflation and your bill.
+| Panel | Author | File | Question |
+|---|---|---|---|
+| Oil | (add name) | `panels/oil.py` | What happened to crude oil prices? |
+| Shipping & Markets | Anna Piazza | `panels/shipping.py` | How much traffic goes through Hormuz, and what did Brent and WTI do at the same time? |
+| Gas & LNG | Eabha Kelly | `panels/gas_lng.py` | What did the closure do to European gas prices, LNG shipping and winter storage? |
+| Inflation & households | Eleena Golchin | `panels/inflation.py` | How much of the oil shock reaches consumer prices and household energy bills? |
 
-| Data | Source | Saved copy |
+The home page shows a small card for each panel. Click a card to open the full panel.
+
+## The timeline
+
+All panels use the same four phases and the same colours:
+
+| Phase | Dates | Colour |
 |---|---|---|
-| HICP inflation, euro countries | [Eurostat](https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_minr/default/table) (ECOICOP ver.2) | `data/inflation_eurostat.csv` |
-| Energy share of the basket | Eurostat `prc_hicp_iw` | `data/inflation_weights.csv` |
-| CPI inflation, UK, South Korea, China, India | [OECD Data Explorer](https://data-explorer.oecd.org) | `data/inflation_oecd.csv` |
-| CPI, USA | [US Bureau of Labor Statistics](https://www.bls.gov/cpi/) | `data/inflation_bls.csv` |
-| Brent crude and exchange rates | Yahoo Finance via `yfinance` | `data/inflation_oil.csv` |
-| Oil tankers through the Strait of Hormuz | [IMF PortWatch](https://portwatch.imf.org) daily chokepoint transits | `data/inflation_hormuz.csv` (from the raw `data/portwatch_daily_chokepoints.csv`) |
+| Build-up | 1 Jan – 28 Feb 2026 | yellow |
+| War & closure | 28 Feb – 8 Apr 2026 | red |
+| Ceasefire | 8 Apr – 8 Jul 2026 | blue |
+| Conflict resumes | 8 Jul – 31 Oct 2026 | purple |
 
-All data runs to **October 2026**. By default the panel reads the saved copies, so it runs offline and always shows the same numbers. To download fresh copies from the sources, run:
+Key events: the war begins on 28 Feb (US-Israel strikes on Iran), ceasefire on 8 Apr, US–Iran MOU on 17 Jun, strikes resume on 8 Jul. All data runs to **31 October 2026**.
+
+## How to run
+
+1. Install the requirements:
 
 ```bash
-python3 -c "from panels.inflation import save_all; save_all()"
+pip install streamlit pandas numpy plotly yfinance
 ```
 
-or set `LIVE = True` at the top of `panels/inflation.py` (it falls back to the saved copies if a website is down).
+2. From the project folder, start the dashboard:
 
-**Limitations:** the model is descriptive, not a forecast. It assumes exchange rates and non-energy prices stay where they are and ignores second-round effects such as wages. A strong correlation is not proof of cause.
+```bash
+python3 -m streamlit run app.py
+```
 
-## Shipping & Markets (Anna Piazza) — panels/shipping.py
-Question: how much traffic goes through the Strait of Hormuz, and what did Brent and WTI oil futures do at the same time?
+3. To run a single panel on its own:
 
-**Where things stand:** latest daily ship and tanker transits, the latest Brent and WTI futures prices, and how they compare with before the war (traffic, tanker share, Brent and the Brent–WTI gap).
+```bash
+python3 -m streamlit run panels/shipping.py
+```
 
-**Traffic and prices over time:** pick a time range (30 days to all data) and a view (absolute or % vs pre-war). One chart shows daily ships and tankers with 7-day averages, the other shows Brent (and optionally WTI). Both shade the four phases of the conflict (the same colours as the other panels) and mark key events.
+## Data and reproducibility
 
-**Closer look:** pick one month and see its average ships and tankers a day, tanker share, change vs pre-war traffic and Brent average. A second chart switches between monthly traffic, tanker share, a traffic-vs-Brent scatter and Brent's daily change.
+Every panel reads **saved copies of its data from `data/`**, so the dashboard runs offline and always shows the same numbers. Each panel has a `LIVE` setting at the top of its file: set it to `True` to download fresh data from the source (it falls back to the saved copy if a website is down). The sources and file names for each panel are listed in its own section below.
+
+## Project structure
+
+```
+app.py          home page with one card per panel
+panels/         one file per panel (oil, shipping, gas_lng, inflation)
+data/           saved copies of all data (CSV)
+tests/          tests for the panels (e.g. tests/test_gas.py)
+```
+
+## Limitations
+
+The dashboard describes what happened; it does not forecast. Where two series are shown together, they show association, not proof of cause. Each panel lists its own limitations below.
+
+---
+
+## 🚢 Shipping & Markets (Anna Piazza) — `panels/shipping.py`
+
+**Question:** how much traffic goes through the Strait of Hormuz, and what did Brent and WTI oil futures do at the same time?
+
+1. **Where things stand:** latest daily ship and tanker transits, the latest Brent and WTI futures prices, and how they compare with before the war (traffic, tanker share, Brent and the Brent–WTI gap).
+2. **Traffic and prices over time:** pick a time range (30 days to all data) and a view (absolute or % vs pre-war). One chart shows daily ships and tankers with 7-day averages, the other shows Brent (and optionally WTI). Both shade the four phases of the conflict (the same colours as the other panels) and mark key events.
+3. **Closer look:** pick one month and see its average ships and tankers a day, tanker share, change vs pre-war traffic and Brent average. A second chart switches between monthly traffic, tanker share, a traffic-vs-Brent scatter and Brent's daily change.
+4. **Home page card:** `render_card()` shows ships and tankers a day for the latest month, compared with before the war, and a small traffic chart.
 
 | Data | Source | Saved copy |
 |---|---|---|
-| Daily vessel transits through the Strait of Hormuz (all ships and tankers) | [IMF PortWatch](https://portwatch.imf.org/) daily chokepoint transits | data/portwatch_daily_chokepoints.csv |
-| Brent and WTI futures, VIX, US Dollar Index | Yahoo Finance via yfinance (BZ=F, CL=F, ^VIX, DX-Y.NYB) | data/shipping_markets.csv |
+| Daily vessel transits through the Strait of Hormuz (all ships and tankers) | [IMF PortWatch](https://portwatch.imf.org) daily chokepoint transits | `data/portwatch_daily_chokepoints.csv` |
+| Brent and WTI futures, VIX, US Dollar Index | Yahoo Finance via `yfinance` (`BZ=F`, `CL=F`, `^VIX`, `DX-Y.NYB`) | `data/shipping_markets.csv` |
 
-All data runs to 31 October 2026. By default the panel reads the saved copies, so it runs offline and always shows the same numbers. To download fresh market prices, set `LIVE = True` at the top of `panels/shipping.py` (it falls back to the saved copy if Yahoo is down), or delete `data/shipping_markets.csv`. The shipping data updates when the PortWatch CSV is replaced.
+All data runs to **31 October 2026**. By default the panel reads the saved copies, so it runs offline and always shows the same numbers. To download fresh market prices, set `LIVE = True` at the top of `panels/shipping.py` (it falls back to the saved copy if Yahoo is down), or delete `data/shipping_markets.csv`. The shipping data updates when the PortWatch CSV is replaced.
 
-Limitations: "normal" traffic is the average of daily transits between 1 January and 27 February 2026, and the pre-war Brent price is the BZ=F close on 27 February. Prices are futures, not spot prices. A 7-day average needs seven consecutive daily observations, and shipping and market data can have different dates. The charts show association, not causation.
+**Limitations:** "normal" traffic is the average of daily transits between 1 January and 27 February 2026, and the pre-war Brent price is the `BZ=F` close on 27 February. Prices are futures, not spot prices. A 7-day average needs seven consecutive daily observations, and shipping and market data can have different dates. The charts show association, not causation.
 
+---
 
-
-## Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
+## 🔥 Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
 
 **Question:** about a fifth of the world's LNG passes through the Strait of Hormuz, almost all of it from Qatar. What has closing the strait done to European gas prices, LNG shipping and Europe's winter gas storage?
 
@@ -76,3 +117,31 @@ Every row of every data file has a `source` or `url` column, so each number can 
 Run the panel on its own with `python3 -m streamlit run panels/gas_lng.py`. Run its tests with `python3 -m pytest -q tests/test_gas.py` (install pytest first with `pip install pytest` if needed).
 
 **Limitations:** tanker counts come from two trackers (S&P Global counts laden tankers leaving, Kpler counts all LNG-carrier crossings), so months from different trackers aren't exactly comparable. Hover over a bar to see which tracker counted it. EU storage readings are on the dates they were reported, not every day. The panel describes what happened and doesn't forecast prices.
+
+---
+
+## 🧾 Inflation & households (Eleena Golchin) — `panels/inflation.py`
+
+**Question:** how much of the Hormuz oil shock is reaching consumer prices, and what would a new oil price mean for a household's energy bill?
+
+1. **Inflation since the war:** pick countries (6 European, the UK, the USA, South Korea, China, India), a measure (headline, energy, food or services) and a start year. Cards show each country's change since February 2026; the chart shades the war, marks key events and can overlay oil-tanker capacity through Hormuz on a second axis.
+2. **What it means for your household:** pick a country, a Brent price for a year from now and your monthly energy bill. The panel tests delays of 0–6 months between oil and energy prices, keeps the strongest correlation, fits a least-squares line, and projects energy inflation, headline inflation and your bill.
+
+| Data | Source | Saved copy |
+|---|---|---|
+| HICP inflation, euro countries | [Eurostat](https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_minr/default/table) (ECOICOP ver.2) | `data/inflation_eurostat.csv` |
+| Energy share of the basket | Eurostat `prc_hicp_iw` | `data/inflation_weights.csv` |
+| CPI inflation, UK, South Korea, China, India | [OECD Data Explorer](https://data-explorer.oecd.org) | `data/inflation_oecd.csv` |
+| CPI, USA | [US Bureau of Labor Statistics](https://www.bls.gov/cpi/) | `data/inflation_bls.csv` |
+| Brent crude and exchange rates | Yahoo Finance via `yfinance` | `data/inflation_oil.csv` |
+| Oil tankers through the Strait of Hormuz | [IMF PortWatch](https://portwatch.imf.org) daily chokepoint transits | `data/inflation_hormuz.csv` (from the raw `data/portwatch_daily_chokepoints.csv`) |
+
+All data runs to **October 2026**. By default the panel reads the saved copies, so it runs offline and always shows the same numbers. To download fresh copies from the sources, run:
+
+```bash
+python3 -c "from panels.inflation import save_all; save_all()"
+```
+
+or set `LIVE = True` at the top of `panels/inflation.py` (it falls back to the saved copies if a website is down).
+
+**Limitations:** the model is descriptive, not a forecast. It assumes exchange rates and non-energy prices stay where they are and ignores second-round effects such as wages. A strong correlation is not proof of cause.
