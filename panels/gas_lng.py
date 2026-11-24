@@ -502,6 +502,15 @@ def card_figure(table, daily):
     return fig
 
 
+def download_table(table: pd.DataFrame) -> pd.DataFrame:
+    """The monthly numbers behind the panel, with clear column names, for the download button."""
+    cols = {"month": "month", "phase": "phase", "ttf": "european_gas_usd_per_mmbtu",
+            "vs_prewar": "change_vs_feb_2026_pct", "hh": "us_gas_usd_per_mmbtu", "ratio": "europe_vs_us_times",
+            "tankers": "lng_tankers", "tanker_pct": "tankers_pct_of_normal", "tracker": "tanker_source",
+            "storage": "eu_storage_pct_full", "vol": "volatility_pct_a_year"}
+    return table[list(cols)].rename(columns=cols).round(2)
+
+
 # ------------------------------ page pieces -------------------------------
 def kpi_html(title, value, desc, color):
     """A KPI card, same style as panels/oil.py."""
@@ -671,6 +680,8 @@ def render():
     st.success("**Takeaway:** Europe's gas price is up " + f"{last['vs_prewar']:.0f}% since before the war and LNG "
                f"traffic through Hormuz is only {tk['tanker_pct']:.0f}% of normal. Europe enters winter with storage "
                f"{abs(now['gap']):.0f} points below normal, so a cold snap could push prices higher still.")
+    st.download_button("Download this panel's monthly data (CSV)", key="gas_csv", file_name="gas_lng_monthly.csv",
+                       mime="text/csv", data=download_table(table).to_csv(index=False))
     st.toggle("Download the latest prices from Yahoo Finance", key="gas_live", value=LIVE,
               help="Off: the saved copy in data/ (same numbers every time). On: a fresh download of TTF, "
                    "Henry Hub and EUR/USD. Falls back to the saved copy if Yahoo Finance can't be reached.")
