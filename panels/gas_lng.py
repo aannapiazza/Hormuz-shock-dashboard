@@ -283,8 +283,12 @@ def label_positions(values) -> list:
     return out
 
 
-def main_figure(table, phase, view, show_us, sel):
-    """Main chart: European gas, monthly average, with price labels and optional US gas."""
+def main_figure(table, phase, view, show_us, sel, daily=None):
+    """Main chart: European gas, monthly average, with price labels and optional US gas.
+
+    If the daily prices are given, they are drawn as a thin grey line behind the monthly average
+    (from October 2025), so you can see the calm before the war and the daily spikes the averages smooth out.
+    """
     as_pct = view == VIEWS[1]
     def tf(values, ref):
         values = np.asarray(values, dtype=float)
@@ -292,7 +296,12 @@ def main_figure(table, phase, view, show_us, sel):
     prewar = table.loc[table["month"] == PREWAR_MONTH].iloc[0]
     fmt = "%{y:+.0f}%" if as_pct else "$%{y:.2f}"
     n, y = len(table), tf(table["ttf"], prewar["ttf"])
-    fig = go.Figure(go.Scatter(
+    fig = go.Figure()
+    if daily is not None:
+        fig.add_scatter(x=daily["date"], y=tf(ttf_in_usd(daily), prewar["ttf"]), name="Europe, daily",
+                        mode="lines", line=dict(color="#b8bfc9", width=1),
+                        hovertemplate=f"Daily: {fmt}<extra></extra>")
+    fig.add_trace(go.Scatter(
         x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text",
         text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition=label_positions(y),
         textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
@@ -308,13 +317,13 @@ def main_figure(table, phase, view, show_us, sel):
                   annotation_text="Pre-war level" if as_pct else f"Pre-war (Feb avg) ${prewar['ttf']:.2f}",
                   annotation_position="bottom right", annotation_font=dict(size=11, color=COLORS["muted"]))
     shade_months(fig, table, phase)
-    fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_us,
+    start = daily["date"].min() if daily is not None else table["date"].iloc[0] - pd.Timedelta(days=20)
+    fig.update_layout(**layout(430, hovermode="x unified", showlegend=True,
                                legend=dict(orientation="h", x=1, xanchor="right", y=1.1),
                                yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#edf0f3",
                                           zeroline=False, ticksuffix="%" if as_pct else ""),
                                xaxis=dict(**MONTH_AXIS,
-                                          range=[table["date"].iloc[0] - pd.Timedelta(days=20),
-                                                 table["date"].iloc[-1] + pd.Timedelta(days=20)])))
+                                          range=[start, table["date"].iloc[-1] + pd.Timedelta(days=20)])))
     fig.update_layout(margin_t=40)
     return fig
 
@@ -651,9 +660,9 @@ def render():
     if phase in PHASES:
         st.markdown(phase_summary(table, data, phase), unsafe_allow_html=True)
     with st.container(border=True):
-        subtitle("European gas, monthly average", "Click any month: the second chart and Month in focus follow it. "
+        subtitle("European gas, monthly average (grey: daily price)", "Click any month: the second chart and Month in focus follow it. "
                  "The phase buttons and price view change both charts.")
-        show_chart(main_figure(table, phase, view, show_us, sel), "gas_main_chart")
+        show_chart(main_figure(table, phase, view, show_us, sel, data["daily"]), "gas_main_chart")
 
     left, right = st.columns([2, 1])
     with left.container(border=True):
