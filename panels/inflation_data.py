@@ -49,6 +49,7 @@ PORTWATCH_API = ("https://services9.arcgis.com/weJ1QsnbMYJlCHdG/arcgis/rest/serv
 CHOKEPOINT = "Strait of Hormuz"
 
 # Oil and exchange rates: Yahoo Finance via yfinance (Sessions 6 and 11)
+SPOT_BRENT = DATA_DIR / "oil_monthly_brent_data.csv"     # EIA spot Brent (FRED MCOILBRENTEU), saved by the oil panel
 OIL_TICKER = "BZ=F"                                        # Brent crude, US$ per barrel
 FX_TICKERS = {"EUR": ("EURUSD=X", "usd_per"), "GBP": ("GBPUSD=X", "usd_per"),   # US$ per 1 unit
               "KRW": ("KRW=X", "per_usd"), "CNY": ("CNY=X", "per_usd"),       # units per US$
@@ -224,6 +225,19 @@ SOURCES = {   # file name in data/: (label shown on screen, download function)
 }
 
 
+def to_spot_brent(oil: pd.DataFrame) -> pd.DataFrame:
+    """Use the same Brent price as the oil panel (EIA spot, monthly, via FRED) instead of Yahoo's futures.
+
+    The exchange rates still come from Yahoo Finance: each currency's price is
+    rescaled so that it is spot Brent converted at that month's rate.
+    """
+    if not SPOT_BRENT.exists():                 # oil panel's file missing: keep the futures prices
+        return oil
+    spot = pd.read_csv(SPOT_BRENT, parse_dates=["observation_date"]).set_index("observation_date")["MCOILBRENTEU"]
+    rates = oil.div(oil["USD"], axis=0)         # units of each currency per US$
+    return rates.mul(spot.reindex(oil.index), axis=0).dropna()
+
+
 @st.cache_data(show_spinner="Loading inflation and oil data...")
 def load_data() -> dict:
     """Load every dataset this panel needs. Cached, so it runs once per session."""
@@ -243,7 +257,7 @@ def load_data() -> dict:
         inflation = inflation.dropna()
     oil = None
     if tables["oil"] is not None:
-        oil = tables["oil"].assign(date=pd.to_datetime(tables["oil"]["date"])).set_index("date")
+        oil = to_spot_brent(tables["oil"].assign(date=pd.to_datetime(tables["oil"]["date"])).set_index("date"))
     hormuz = None
     if tables["hormuz"] is not None:
         daily = tables["hormuz"].assign(date=pd.to_datetime(tables["hormuz"]["date"])).set_index("date")
