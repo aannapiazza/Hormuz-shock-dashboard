@@ -1,7 +1,8 @@
-streamlit
+streamlit>=1.47
 pandas
 matplotlib
 xlrd
 yfinance
-plotly>=5.24
-yfinance>=0.2.50
+plotly
+numpy
+requests

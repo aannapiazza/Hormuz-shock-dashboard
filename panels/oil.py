@@ -6,7 +6,7 @@ How the 2026 Iran war and the near-closure of the Strait of Hormuz moved the
 price of crude oil.
 
 HOW TO USE
-  • In the group app: listed in PANELS as ("🛢️ Oil prices", "panels/oil.py", "Erin").
+  • In the group app: listed in PANELS as ("Oil prices", "panels/oil.py", "Erin").
     The main app runs this file, and the dashboard draws itself.
   • On its own, for testing:   streamlit run panels/oil.py
 
@@ -20,6 +20,8 @@ pandas, numpy. Older Streamlit versions still work, with radio buttons instead.
 All widget keys start with "ho_" so they can't clash with the other panels.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -27,84 +29,65 @@ import streamlit as st
 
 
 # =============================================================================
-# ✏️  EDIT HERE
+#  EDIT HERE
 # =============================================================================
 
-# 1) MONTHLY PRICES — one line per month: ("YYYY-MM", Brent, WTI)
-#    Monthly averages in $ per barrel. Use None if a figure isn't available.
-#    To add a new month, add a line at the bottom of the list.
-MONTHLY_PRICES = [
-    ("2025-09", 67.99, None),
-    ("2025-10", 64.54, 60.89),
-    ("2025-11", 63.80, 60.06),
-    ("2025-12", 62.54, 57.97),
-    ("2026-01", 66.60, 60.04),
-    ("2026-02", 70.89, 64.51),
-    ("2026-03", 103.13, 90.84),
-    ("2026-04", 117.29, 100.32),
-    ("2026-05", 107.40, None),
-    ("2026-06", 85.40, 84.81),
-    ("2026-07", 83.76, 80.46),
-    ("2026-08", 91.08, 83.90),
-    ("2026-09", 114.16, 97.31),
-    ("2026-10", 123.93, 102.07),
-]
+# 0) DATA SETTINGS
+END = pd.Timestamp("2026-10-31")     # cut-off: nothing after this date is used anywhere
+START = pd.Timestamp("2025-09-01")   # first month shown on the charts
+LIVE = False                         # False = use the saved copies in data/ (default)
+                                     # True  = download fresh data from FRED, cut it at END, save it to data/
+# Data files: (FRED series ID, file name in data/)
+BRENT_MONTHLY = ("MCOILBRENTEU", "oil_monthly_brent_data.csv")   # Brent - Europe, monthly average
+WTI_MONTHLY = ("MCOILWTICO", "oil_monthly_wti_data.csv")         # WTI - Cushing, Oklahoma, monthly average
+BRENT_DAILY = ("DCOILBRENTEU", "oil_daily_brent_data.csv")       # Brent - Europe, daily
 
-# 2) LATEST PRICE — the most recent daily Brent price (shown on the first KPI card
-#    and as a dotted line at the end of the chart)
-LATEST_DATE = "2026-11-19"
-LATEST_PRICE = 91.98
-LATEST_LABEL = "Settlement"          # e.g. "Settlement" or "Spot"
+# 1) LATEST PRICE AND PRE-WAR REFERENCE
+#    Both are read from the daily file: the latest price is the last one on or before END,
+#    and the pre-war price is the last one on or before PREWAR_DATE.
+PREWAR_DATE = "2026-02-27"           # last trading day before the war (our choice)
+LATEST_LABEL = "Daily spot"
 
-# 3) PRE-WAR REFERENCE — the price everything is compared against
-PREWAR_DATE = "2026-02-27"
-PREWAR_PRICE = 71.32
-
-# 4) ESTIMATED FIGURES — months marked with * on the page.
+# 2) ESTIMATED FIGURES — months marked with * on the page.
 #    Delete a line once you have the real figure.
 ESTIMATED_MONTHS = {
-    "2026-05": "May 2026 Brent is derived from EIA's statement that June averaged $22 below May.",
+    # "YYYY-MM": "note explaining the estimate",
 }
 
-# 5) EVENTS — the phase buttons that shade the chart.
+# 3) EVENTS — the phase buttons that shade the chart.
 #    "Button name": ("start YYYY-MM-DD", "end YYYY-MM-DD", "colour", "description")
+#    Build-up start (1 Jan) is our choice. Prices and "highest since" come from the FRED data.
+#    Sources for the dates (also in data/oil_event_sources.csv):
+#      28 Feb war: S&P Global, 28 Feb 2026, "Iran claims Hormuz is shut down after IRGC threat to shipping"
+#      8 Apr ceasefire: ING Think, 8 Apr 2026, "Oil slumps below $100 after US, Iran agree to two-week ceasefire"
+#      8 Jul US strikes: Reuters photo caption via Al-Monitor, 12 Jul 2026,
+#        "Iran's IRGC navy says Strait of Hormuz closed until further notice, state media"
 EVENTS = {
     "Build-up": ("2026-01-01", "2026-02-28", "#e0a800",
-                 "Prices drift up as markets price in the risk of war with Iran."),
+                 "Brent's monthly average climbs from $62.54 in December to $70.89 in February."),
     "War & closure": ("2026-02-28", "2026-04-08", "#d64545",
-                      "The US–Israel strikes on 28 Feb trigger the near-closure of Hormuz. "
-                      "The IEA calls it the largest supply disruption in history, and Brent "
-                      "peaks near $138 on 7 Apr."),
-    "Ceasefire": ("2026-04-08", "2026-07-07", "#2e86de",
-                  "Brent drops about 16% on the 8 Apr ceasefire and falls again after the "
-                  "17 Jun US–Iran MOU, but tanker traffic barely recovers."),
-    "Conflict resumes": ("2026-07-07", "2026-11-19", "#8e44ad",
-                         "Strikes resume on 7 Jul. With inventories falling, Brent rises for "
-                         "three months to a $124 average in October, then eases in November."),
+                      "US–Israel strikes on 28 Feb, and Iran says it has shut the strait. Brent's March "
+                      "average jumps 45%, the biggest rise since 2020."),
+    "Ceasefire": ("2026-04-08", "2026-07-08", "#2e86de",
+                  "Brent falls as much as 16% on the 8 Apr ceasefire, and the monthly average drops to "
+                  "$83.76 by July."),
+    "Conflict resumes": ("2026-07-08", "2026-10-31", "#8e44ad",
+                         "US strikes resume on 8 Jul. Brent rises to a $124 average in October, the highest "
+                         "since March 2012."),
 }
 
-# 6) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
-#    Months without a note show their event's description instead.
-MONTH_NOTES = {
-    "2026-03": "War begins on 28 Feb. This is the biggest one-month jump in the series.",
-    "2026-04": "The peak month. Brent hit $138 on 7 Apr, before the next day's ceasefire.",
-    "2026-05": "Talks stall and the strait stays effectively shut.",
-    "2026-06": "The 17 Jun MOU raises hopes that the strait will reopen.",
-    "2026-07": "Strikes resume on 7 Jul, and Iran declares the strait closed on 12 Jul.",
-    "2026-09": "Prices rebound as global inventories keep falling.",
-    "2026-10": "The highest monthly average since July 2022, and 37 ships attacked in the month.",
-}
-BEFORE_EVENTS_NOTE = ("Before the war.",
-                      "Prices sit in the low-to-mid $60s on oversupply, the lowest levels since 2021.")
+# 4) MONTH NOTES — shown in the "Month in focus" panel. "YYYY-MM": "note".
+#    Months without a note show their event's description instead. Add a source for any note you add.
+MONTH_NOTES = {}
+BEFORE_EVENTS_NOTE = ("Before the war.", "Brent averages $62–68 a month, its lowest level since early 2021.")
 
-# 7) TEXT
+# 5) TEXT
 TITLE = "Hormuz Oil Shock Dashboard"
 SUBTITLE = "How the 2026 Iran war and the near-closure of the Strait of Hormuz have moved the price of crude"
-SOURCES = ("Data: EIA Europe Brent and Cushing WTI spot prices, monthly averages (via EIA, FRED and "
-           "EIA Short-Term Energy Outlooks). The latest price is the Brent futures settlement on "
-           "19 Nov 2026 (Reuters).")
+SOURCE_FRED = ("U.S. Energy Information Administration via FRED: Europe Brent (MCOILBRENTEU, DCOILBRENTEU) "
+               "and Cushing WTI (MCOILWTICO) spot prices")
 
-# 8) COLOURS
+# 6) COLOURS
 COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
           "red": "#d64545", "green": "#27ae60", "blue": "#2e86de",
           "purple": "#8e44ad", "grey": "#7f8c8d"}
@@ -115,11 +98,65 @@ COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785",
 
 
 # ----------------------------- data preparation -----------------------------
-def build_data():
-    df = pd.DataFrame(MONTHLY_PRICES, columns=["Month", "Brent", "WTI"])
-    df["Date"] = pd.to_datetime(df["Month"] + "-01")
-    df["WTI"] = pd.to_numeric(df["WTI"], errors="coerce")
+def data_folder():
+    """The repo's data/ folder (this file lives in panels/, one level down)."""
+    here = Path(__file__).resolve().parent if "__file__" in globals() else Path.cwd()
+    for folder in (here.parent / "data", here / "data", Path.cwd() / "data"):
+        if folder.is_dir():
+            return folder
+    return here.parent / "data"
+
+
+def up_to_end(series):
+    """Throw away anything after the END cut-off date."""
+    return series[series.index <= END]
+
+
+def read_fred_csv(source, monthly=True):
+    """Read a FRED CSV (file or URL) into a Series (one value per month if monthly=True).
+    Handles both FRED layouts and '.' or blank for missing values."""
+    raw = pd.read_csv(source)
+    values = pd.to_numeric(raw.iloc[:, 1], errors="coerce").values
+    series = pd.Series(values, index=pd.to_datetime(raw.iloc[:, 0], errors="coerce"))
+    series = series[series.index.notna()].dropna()
+    if not monthly:
+        return series.sort_index()
+    series.index = series.index.to_period("M").to_timestamp()   # first of the month
+    return series.groupby(level=0).mean().sort_index()
+
+
+def download(series, monthly=True):
+    """Fresh copy from FRED, cut at END, then saved over the copy in data/."""
+    series_id, file_name = series
+    data = up_to_end(read_fred_csv(f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}", monthly))
+    try:
+        data.rename(series_id).rename_axis("observation_date").to_csv(data_folder() / file_name)
+    except OSError:
+        pass   # e.g. a read-only server: still use the download, just don't save it
+    return data
+
+
+def load_series(series, monthly=True):
+    """LIVE = True: download (falling back to the saved copy if that fails).
+    LIVE = False: the saved copy. Either way it's cut at END again, just in case."""
+    if LIVE:
+        try:
+            return up_to_end(download(series, monthly)), "downloaded from FRED"
+        except Exception:
+            pass
+    return up_to_end(read_fred_csv(data_folder() / series[1], monthly)), "saved copy in data/"
+
+
+# The latest and pre-war prices come from the daily file
+DAILY = load_series(BRENT_DAILY, monthly=False)[0]
+LATEST_DATE, LATEST_PRICE = DAILY.index[-1].strftime("%Y-%m-%d"), DAILY.iloc[-1]
+PREWAR_DATE, PREWAR_PRICE = DAILY[:PREWAR_DATE].index[-1].strftime("%Y-%m-%d"), DAILY[:PREWAR_DATE].iloc[-1]
+LATEST_NOTE = f"The latest price is the daily spot price on {LATEST_DATE[8:].lstrip('0')} {pd.Timestamp(LATEST_DATE):%b %Y}."
+
+
+def add_metrics(df):
     df = df.sort_values("Date").reset_index(drop=True)
+    df["Month"] = df["Date"].dt.strftime("%Y-%m")
     df["MoM"] = (df["Brent"] / df["Brent"].shift(1) - 1) * 100
     df["Volatility"] = df["MoM"].rolling(window=3).std() * np.sqrt(12)
     df["Spread"] = df["Brent"] - df["WTI"]
@@ -129,7 +166,21 @@ def build_data():
     return df
 
 
-OIL = build_data()
+def build_data():
+    """Returns (data, source description, warning or None)."""
+    brent, how = load_series(BRENT_MONTHLY)
+    try:
+        wti, _ = load_series(WTI_MONTHLY)
+    except Exception:
+        wti = pd.Series(dtype=float)
+    df = pd.DataFrame({"Brent": brent})
+    df["WTI"] = wti.reindex(df.index)
+    df = add_metrics(df.rename_axis("Date").reset_index())   # full history, so YoY works
+    df = df[(df["Date"] >= START) & (df["Date"] <= END)].reset_index(drop=True)
+    return df, f"{SOURCE_FRED} ({how})", None
+
+
+OIL, DATA_SOURCE, DATA_WARNING = build_data()
 N = len(OIL)
 DATES = OIL["DateStr"].tolist()
 PHASES = {name: {"start": s, "end": e, "color": c, "text": t} for name, (s, e, c, t) in EVENTS.items()}
@@ -308,14 +359,14 @@ def phase_for(date_str):
 # ------------------------------- HTML snippets -------------------------------
 def header_html():
     return f"""
-<div style="background:{COLORS['navy']};color:#fff;padding:18px 24px;border-radius:8px;
+<div style="color:{COLORS['navy']};padding:6px 0 10px;
             display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">
   <div>
     <div style="font-size:22px;font-weight:700">{TITLE}</div>
-    <div style="color:#b8c4d3;font-size:13px;margin-top:3px">{SUBTITLE}</div>
+    <div style="color:{COLORS['muted']};font-size:13px;margin-top:3px">{SUBTITLE}</div>
   </div>
   <span style="background:{COLORS['orange']};color:#fff;font-weight:700;font-size:12px;padding:6px 10px;
-               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(LATEST_DATE).upper()}</span>
+               border-radius:4px;letter-spacing:.5px">BRENT · DATA TO {nice_date(END).upper()}</span>
 </div>"""
 
 
@@ -405,11 +456,11 @@ def apply_chart_click(chart_key):
 def show_chart(fig, key):
     """Clickable chart on Streamlit 1.35+, normal chart on older versions."""
     try:
-        st.plotly_chart(fig, use_container_width=True, key=key,
+        st.plotly_chart(fig, key=key,
                         on_select="rerun", selection_mode="points",
                         config={"displayModeBar": False})
     except TypeError:
-        st.plotly_chart(fig, use_container_width=True, key=key,
+        st.plotly_chart(fig, key=key,
                         config={"displayModeBar": False})
 
 
@@ -427,6 +478,8 @@ def render():
     sel = st.session_state["ho_sel"]
 
     st.markdown(header_html(), unsafe_allow_html=True)
+    if DATA_WARNING:
+        st.warning(DATA_WARNING)
 
     # KPI row
     peak_idx = OIL["Brent"].idxmax()
@@ -480,27 +533,56 @@ def render():
             st.markdown(detail_html(sel), unsafe_allow_html=True)
             b1, b2 = st.columns(2)
             b1.button("◀ Previous", key="ho_prev", on_click=step_month, args=(-1,),
-                      use_container_width=True, disabled=sel == 0)
+                      disabled=sel == 0)
             b2.button("Next ▶", key="ho_next", on_click=step_month, args=(1,),
-                      use_container_width=True, disabled=sel == N - 1)
+                      disabled=sel == N - 1)
             st.caption("Or click a point on either chart.")
 
     notes = " ".join(f"*{text}" for text in ESTIMATED_MONTHS.values())
-    footer = (f"{SOURCES} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
+    footer = (f"Data: {DATA_SOURCE}. {LATEST_NOTE} {notes} The pre-war reference is the {nice_date(PREWAR_DATE)} price "
               f"(${PREWAR_PRICE:.2f}).")
     st.caption(footer.replace("$", "\\$"))   # escape $ so Streamlit doesn't treat it as maths
 
 
 # -----------------------------------------------------------------------------
-# The group app runs this file directly (see PANELS in the main app), so the
-# dashboard draws as soon as the file is run. set_page_config is only for
-# testing on its own (streamlit run panels/oil.py). Inside the group app the
-# main app has already set it, so any error from a second call is ignored.
+# The home page of the group app loads this file to call render_card(), so the
+# full dashboard only draws when the file is run as the page itself (__main__).
+# set_page_config is for testing on its own (streamlit run panels/oil.py); inside
+# the group app the main app has already set it, so a second call is ignored.
 # -----------------------------------------------------------------------------
+def card_figure():
+    """Small Brent chart for the home-page card, with the key dates marked."""
+    fig = go.Figure(go.Scatter(x=DATES, y=OIL["Brent"], mode="lines+markers", marker=dict(size=4),
+                               line=dict(color=COLORS["navy"], width=2.5),
+                               hovertemplate="%{x|%b %Y}: $%{y:.2f}<extra></extra>"))
+    fig.add_hline(y=PREWAR_PRICE, line=dict(dash="dash", color="#9aa5b1", width=1),
+                  annotation_text="pre-war", annotation_position="bottom right")
+    fig.add_vrect(x0=EVENTS["War & closure"][0], x1=END.strftime("%Y-%m-%d"), fillcolor="#d64545",
+                  opacity=0.06, line_width=0, layer="below")
+    marks = [("War begins", "War & closure", 1), ("Ceasefire", "Ceasefire", 0.9), ("Strikes resume", "Conflict resumes", 1)]
+    for label, phase, y in marks:
+        fig.add_vline(x=EVENTS[phase][0], line=dict(dash="dot", color="#9aa5b1", width=1))
+        fig.add_annotation(x=EVENTS[phase][0], y=y, yref="paper", text=label, showarrow=False, xanchor="left",
+                           font=dict(size=11, color=COLORS["muted"]))
+    fig.update_layout(template="plotly_white", height=300, margin=dict(l=45, r=10, t=25, b=30),
+                      showlegend=False, yaxis=dict(title="$ per barrel"), xaxis=dict(type="date"))
+    return fig
+
+
+def render_card():
+    """Small summary for the home page (app.py calls this)."""
+    a, b = st.columns(2)
+    a.metric("Brent crude, 30 Oct", f"${LATEST_PRICE:.2f}",
+             f"{signed(pct(PREWAR_PRICE, LATEST_PRICE))}% since pre-war", delta_color="inverse")
+    b.metric("Brent–WTI gap, Oct", f"${OIL['Spread'].iloc[-1]:.2f}",
+             f"{OIL['Spread'].iloc[-1] - OIL['Spread'].iloc[0]:+.2f} vs start", delta_color="inverse")
+    st.plotly_chart(card_figure(), key="ho_card_chart", config={"displayModeBar": False})
+
+
 if __name__ == "__main__":
+    # Run this panel on its own:  python3 -m streamlit run panels/oil.py
     try:
         st.set_page_config(page_title=TITLE, layout="wide")
     except Exception:
         pass
-
-render()
+    render()
