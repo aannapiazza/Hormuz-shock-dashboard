@@ -306,7 +306,7 @@ def main_figure(table, phase, view, show_us, sel, daily=None):
         text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition=label_positions(y),
         textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
         marker=dict(size=[13 if i == sel else 7 for i in range(n)], line=dict(color="#fff", width=1.5),
-                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(n)]),
+                    color=[COLORS["orange"] if i == sel else phase_colour(table["phase"][i]) for i in range(n)]),   # dots in their phase colour
         selected=KEEP, unselected=KEEP, hovertemplate=f"Europe: {fmt}<extra></extra>"))
     if show_us:
         fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)",
@@ -349,20 +349,19 @@ def second_figure(mode, table, data, sel, phase, view):
     if mode == SECOND[1]:                    # EU storage (already in %, so the price view doesn't change it)
         st_ = data["storage"]
         fig = go.Figure()
-        # soft pastels for the comparisons; 2026 in navy with a light fill, its dots in the colour of each phase
-        for name, colour, dash, width in [("5-year average", "#f2a48f", "dash", 2.5),
-                                          ("2025 (same date)", "#8fbbe8", None, 2.5), ("2026", COLORS["navy"], None, 3.5)]:
+        # 2026 in red with a light red fill, 2025 in gold, the 5-year average as a grey dashed line
+        for name, colour, dash, width in [("5-year average", "#8a94a3", "dash", 2),
+                                          ("2025 (same date)", "#d9a21b", None, 2.5), ("2026", COLORS["red"], None, 3.5)]:
             s = st_[st_["series"] == name].sort_values("date")
             is_2026 = name == "2026"
             fig.add_scatter(x=s["date"], y=s["pct_full"], name=name.replace(" (same date)", ""), mode="lines+markers",
                             line=dict(color=colour, dash=dash, width=width, shape="spline", smoothing=0.5),
-                            fill="tozeroy" if is_2026 else None, fillcolor="rgba(27,42,65,0.07)",
-                            marker=dict(size=10 if is_2026 else 6, line=dict(color="#fff", width=1.5),
-                                        color=[PHASES[phase_for(d)]["color"] if phase_for(d) else COLORS["navy"]
-                                               for d in s["date"]] if is_2026 else colour),
+                            fill="tozeroy" if is_2026 else None, fillcolor="rgba(214,69,69,0.07)",
+                            marker=dict(size=9 if is_2026 else 7, color=colour, line=dict(color="#fff", width=1.5)),
                             hovertemplate=f"{name.split(' (')[0]}: %{{y:.1f}}%<extra></extra>")
-        fig.add_hline(y=90, line=dict(color=COLORS["teal"], dash="dot", width=1), annotation_text="EU target 90%",
-                      annotation_font_color=COLORS["teal"], annotation_position="top left")
+        for level, label in [(90, "EU target 90%"), (80, "Flexible target 80%")]:   # the EU's storage targets
+            fig.add_hline(y=level, line=dict(color=COLORS["teal"], dash="dot", width=1.2), annotation_text=label,
+                          annotation_font_color=COLORS["teal"], annotation_position="top left")
         shade(fig, phase)
         cursor(fig, table.iloc[sel]["date"])
         fig.update_layout(**layout(330, hovermode="x unified", legend=dict(orientation="h", y=1.12, x=0),
