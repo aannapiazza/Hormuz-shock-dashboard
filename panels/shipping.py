@@ -628,7 +628,7 @@ def render_card():
                         show_tankers=False, show_avg=True, base=base)
     fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)", selector=dict(name="All ships (7-day avg)"))
     fig.update_layout(height=280, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=30))
-    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline", config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", theme=None, key="shipping_card_timeline" , config={"displayModeBar": False})
 
 
     daily = build_daily(shipping_df)
