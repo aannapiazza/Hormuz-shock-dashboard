@@ -1,7 +1,7 @@
 """
 Hormuz | Shipping & Markets
 
-how much traffic goes through the Strait of Hormuz, and what Brent and WTI
+Story: how much traffic goes through the Strait of Hormuz, and what Brent and WTI
 oil futures did at the same time. Section 1 shows where things stand now. Section 2
 compares traffic and Brent over time. Section 3 zooms in on one month.
 
@@ -22,13 +22,12 @@ import plotly.graph_objects as go
 import streamlit as st
 import yfinance as yf
 
-# ---------- 1. SETTINGS: change dates, symbols and notes here, nowhere else ----------
+# SETTINGS: 
 END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole dashboard (None = all data)
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
           ("2026-06-17", "US–Iran MOU"), ("2026-07-07", "Strikes resume")]
 PREWAR_DATE = pd.Timestamp("2026-02-27")      # pre-war reference
-PREWAR_PRICE = 71.32                          # Brent settlement on PREWAR_DATE, USD per barrel
 BASELINE_START = pd.Timestamp("2026-01-01")   # normal traffic = average daily transits
 BASELINE_END = pd.Timestamp("2026-02-27")     # in this window (needs at least 14 days of data)
 MARKET_SYMBOLS = {"BRENT": "BZ=F", "WTI": "CL=F", "VIX": "^VIX", "DOLLAR INDEX": "DX-Y.NYB"}
@@ -53,9 +52,14 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
            "red": "#d23f3f", "green": "#2e9b57", "grey": "#98a2b3", "light": "#9db4d1"}
 
 
-# ---------- 2. DATA ----------
+# DATA 
 def load_shipping_data():
-    csv_path = Path(__file__).resolve().parent / "Daily_Chokepoints_Data.csv"
+    folder = Path(__file__).resolve().parent
+    candidates = [folder / "Daily_Chokepoints_Data.csv",
+                  folder.parent / "Daily_Chokepoints_Data.csv"]
+    csv_path = next((path for path in candidates if path.is_file()), None)
+    if csv_path is None:
+        raise FileNotFoundError("Place Daily_Chokepoints_Data.csv in panels/ or the project root.")
     df = pd.read_csv(csv_path)
     df.columns = df.columns.str.strip()
 
@@ -108,7 +112,7 @@ def safe_market_data(symbol):
         return pd.Series(dtype=float)
 
 
-# ---------- 3. ANALYSIS ----------
+# ANALYSIS
 def percentage_change(prices):
     """Percentage change between the last two observations."""
     if len(prices) < 2:
@@ -117,6 +121,14 @@ def percentage_change(prices):
     if not np.all(np.isfinite(values)) or values[0] <= 0:
         return None
     return float(np.diff(values)[0] / values[0] * 100)
+
+
+def get_prewar_price(brent):
+    """Exact reference-date close from the same BZ=F series; no spot fallback."""
+    if PREWAR_DATE not in brent.index:
+        return None
+    value = float(brent.loc[PREWAR_DATE])
+    return value if np.isfinite(value) and value > 0 else None
 
 
 def pct(old, new) -> float:
@@ -169,7 +181,7 @@ def build_monthly(shipping_df, brent, base):
     return m
 
 
-# ---------- 4. CHARTS (Plotly) ----------
+# CHARTS 
 def style(fig, height, title, **layout):
     """The look shared by all charts: white background, dark text, title on the left.
     Charts are drawn with theme=None, so they stay white in dark mode."""
@@ -236,22 +248,22 @@ def chart_traffic(daily, start, last, view, show_tankers, show_avg, base):
                              ticksuffix="%" if as_pct else ""))
 
 
-def chart_brent(brent, wti, start, last, view, show_wti):
+def chart_brent(brent, wti, start, last, view, show_wti, prewar_price=None):
     """Brent futures (and optionally WTI), as USD per barrel or % vs the pre-war price."""
-    as_pct = view == VIEWS[1]
+    as_pct = view == VIEWS[1] and prewar_price is not None
     b = between(brent, start, last)
     fmt = "%{y:+.1f}%" if as_pct else "$%{y:.2f}"
-    fig = go.Figure(line(b.index, (b / PREWAR_PRICE - 1) * 100 if as_pct else b, "Brent", COLOURS["green"], 3,
+    fig = go.Figure(line(b.index, (b / prewar_price - 1) * 100 if as_pct else b, "Brent", COLOURS["green"], 3,
                          f"Brent: {fmt}"))
     if show_wti and not as_pct and not wti.empty:
         w = between(wti, start, last)
         fig.add_trace(line(w.index, w, "WTI", COLOURS["grey"], 2, "WTI: $%{y:.2f}"))
 
     title = "Brent futures"
-    if not brent.empty:
-        change = pct(PREWAR_PRICE, brent.iloc[-1])
+    if not brent.empty and prewar_price is not None:
+        change = pct(prewar_price, brent.iloc[-1])
         title = f"Brent is {abs(change):.0f}% {'above' if change >= 0 else 'below'} its pre-war price"
-    return finish(fig, 420, title, start, last, (0 if as_pct else PREWAR_PRICE, "pre-war level"),
+    return finish(fig, 420, title, start, last, (0 if as_pct else prewar_price, "pre-war futures level") if prewar_price is not None else None,
                   yaxis=dict(title="% vs pre-war" if as_pct else "USD per barrel", ticksuffix="%" if as_pct else ""))
 
 
@@ -335,7 +347,7 @@ def chart_second(mode, monthly, selected, daily, brent, start, last):
                   yaxis=dict(title="% change on the previous day", ticksuffix="%"))
 
 
-# ---------- 5. LAYOUT ----------
+# LAYOUT
 def market_metric(column, label, prices, prefix="", caption="{date}"):
     """A metric with the latest price and its change on the previous observation."""
     if prices.empty:
@@ -346,9 +358,9 @@ def market_metric(column, label, prices, prefix="", caption="{date}"):
     column.caption(caption.format(date=f"{prices.index[-1]:%d %b %Y}"))
 
 
-def section_1_now(shipping_df, daily, base, brent, wti):
+def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 1: where do traffic and prices stand now?"""
-    st.subheader("1 · Where things stand")
+    st.subheader("Where things stand")
     traffic_col, tanker_col, brent_col, wti_col = st.columns(4)     # latest observations
     if shipping_df is not None:
         latest = shipping_df.iloc[-1]
@@ -370,22 +382,28 @@ def section_1_now(shipping_df, daily, base, brent, wti):
     average = daily["n_total_avg7"].dropna() if daily is not None else pd.Series(dtype=float)
     share = daily["share_avg7"].dropna() if daily is not None else pd.Series(dtype=float)
     if base is not None and not average.empty:
-        c1.metric("Traffic vs pre-war", f"{signed(pct(base['n_total'], average.iloc[-1]))}%",
+        c1.metric("Traffic vs pre-war (7-day avg)", f"{signed(pct(base['n_total'], average.iloc[-1]))}%",
                   help=f"7-day average of ships a day, against {base['n_total']:.0f} a day on average "
                        f"between {nice_date(BASELINE_START)} and {nice_date(BASELINE_END)}.")
     else:
-        c1.metric("Traffic vs pre-war", "n/a", help="The CSV does not cover the pre-war window.")
-    c2.metric("Tanker share", f"{share.iloc[-1]:.1f}%" if not share.empty else "n/a", help="7-day average.")
+        c1.metric("Traffic vs pre-war (7-day avg)", "n/a", help="The CSV does not cover the pre-war window.")
+    c2.metric("Tanker share (7-day)", f"{share.iloc[-1]:.1f}%" if not share.empty else "n/a", help="7-day average.")
     b, w = (None if p.empty else float(p.iloc[-1]) for p in (brent, wti))
-    c3.metric("Brent vs pre-war", f"{signed(pct(PREWAR_PRICE, b))}%" if b else "n/a",
-              help=f"Against ${PREWAR_PRICE:.2f} on {nice_date(PREWAR_DATE)}.".replace("$", "\\$"))
+    reference_help = (
+        f"BZ=F close of USD {prewar_price:.2f} on {nice_date(PREWAR_DATE)}; same series as the current price."
+        if prewar_price is not None
+        else f"No valid BZ=F close available on {nice_date(PREWAR_DATE)}."
+    )
+    c3.metric("Brent futures vs pre-war",
+              f"{signed(pct(prewar_price, b))}%" if b is not None and prewar_price is not None else "n/a",
+              help=reference_help)
     c4.metric("Brent–WTI gap", f"${b - w:.2f}" if b and w else "n/a", help="Latest futures prices.")
     st.caption("Market percentage changes compare the last two available observations.")
 
 
-def section_2_over_time(shipping_df, daily, base, brent, wti):
+def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 2: traffic and Brent over time. Returns the time window the charts use."""
-    st.subheader("2 · Traffic and prices over time")
+    st.subheader("Traffic and prices over time")
     c1, c2, c3 = st.columns([1.2, 1.2, 2])
     period = c1.selectbox("Time range", list(TIME_RANGES), index=list(TIME_RANGES).index(DEFAULT_RANGE),
                           key="hs_range")
@@ -416,7 +434,9 @@ def section_2_over_time(shipping_df, daily, base, brent, wti):
         if brent.empty:
             st.info("Brent prices are temporarily unavailable.")
         else:
-            st.plotly_chart(chart_brent(brent, wti, start, last, view, show_wti),
+            if view == VIEWS[1] and prewar_price is None:
+                st.caption("The reference-date BZ=F close is unavailable; Brent is shown in USD per barrel.")
+            st.plotly_chart(chart_brent(brent, wti, start, last, view, show_wti, prewar_price),
                             width="stretch", theme=None, key="hs_brent_chart")
             st.caption("Daily closes of Brent futures · Yahoo Finance. Quotes may be delayed. "
                        f"Shaded: since {nice_date(WAR_START)}.")
@@ -425,7 +445,7 @@ def section_2_over_time(shipping_df, daily, base, brent, wti):
 
 def section_3_month(monthly, daily, brent, start, last, shipping_last):
     """Section 3: a closer look, and one month in focus."""
-    st.subheader("3 · A closer look")
+    st.subheader("Closer look")
     left, right = st.columns([2, 1], gap="large")
     with right:                     # drawn first, because the chart needs the chosen month
         months = monthly["Month"].tolist()
@@ -437,9 +457,29 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         b.metric("Tankers a day", f"{row['Tankers']:.1f}")
         a.metric("Tanker share", f"{row['Share']:.1f}%")
         b.metric("vs pre-war traffic", "n/a" if pd.isna(row["vsPrewar"]) else f"{signed(row['vsPrewar'])}%")
-        brent_txt = "n/a" if pd.isna(row["Brent"]) else f"${row['Brent']:.2f}"
-        st.caption(f"Brent monthly average: {brent_txt} · days with data: "
-                   f"{int(row['Days'])} of {int(row['DaysInMonth'])}".replace("$", "\\$"))
+        month_start = pd.Timestamp(selected + "-01")
+        month_end = month_start + pd.offsets.MonthEnd(0)
+
+        month_prices = brent.loc[
+            (brent.index >= month_start)
+            & (brent.index <= month_end)
+        ].dropna()
+
+        if month_prices.empty:
+            st.caption("Brent futures monthly average: unavailable")
+        else:
+            average = month_prices.mean()
+            observations = month_prices.count()
+
+        st.caption(
+            f"Brent futures monthly average: USD {average:.2f}/barrel"
+            f" · {observations} trading observations"
+        )
+
+        st.caption(
+            f"Shipping data: {int(row['Days'])}"
+            f" of {int(row['DaysInMonth'])} calendar days"
+        )
         if row["Days"] < row["DaysInMonth"] and selected == months[-1]:
             st.caption(f"Partial month: data to {nice_date(shipping_last)}.")
         if selected in MONTH_NOTES:
@@ -464,7 +504,6 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
 
 
 def render():
-    st.header("Hormuz | Shipping & Markets")
     st.caption("Shipping: daily IMF PortWatch data from a local CSV. "
                "Markets: daily observations from Yahoo Finance; quotes may be delayed."
                + (f" Data shown to {nice_date(END)}." if END is not None else ""))
@@ -480,6 +519,12 @@ def render():
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
 
     brent, wti = market_data["BRENT"], market_data["WTI"]
+    prewar_price = get_prewar_price(brent)
+    if prewar_price is None:
+        st.warning(
+            f"No BZ=F close was retrieved for {nice_date(PREWAR_DATE)}. "
+            "Brent comparisons with the pre-war price are unavailable."
+        )
     daily = base = monthly = None
     if shipping_df is not None:
         daily, base = build_daily(shipping_df), prewar_baseline(shipping_df)
@@ -488,9 +533,9 @@ def render():
         st.stop()
 
     st.divider()
-    section_1_now(shipping_df, daily, base, brent, wti)
+    section_1_now(shipping_df, daily, base, brent, wti, prewar_price)
     st.divider()
-    start, last = section_2_over_time(shipping_df, daily, base, brent, wti)
+    start, last = section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price)
     if shipping_df is not None:
         st.divider()
         section_3_month(monthly, daily, brent, start, last, shipping_df["date"].max())
@@ -515,28 +560,73 @@ def render():
             st.download_button("Download Hormuz data", shipping_df.to_csv(index=False).encode("utf-8"),
                                file_name="hormuz_shipping.csv", mime="text/csv", key="download_hormuz_shipping")
 
+    with st.expander("Futures prices and download"):
+        futures = pd.concat([brent.rename("Brent BZ=F"), wti.rename("WTI CL=F")], axis=1)
+        futures.index.name = "Date"
+        st.caption("Yahoo Finance daily closes, USD per barrel. These are futures, not EIA spot prices.")
+        if futures.empty:
+            st.info("No futures prices available.")
+        else:
+            st.dataframe(futures.sort_index(ascending=False), width="stretch")
+            monthly_brent = brent.resample("MS").agg(["mean", "count"]).rename(
+                columns={"mean": "Brent futures monthly average", "count": "Price observations"})
+            st.dataframe(monthly_brent.sort_index(ascending=False).round(2), width="stretch")
+            st.download_button("Download futures prices", futures.to_csv().encode("utf-8"),
+                               file_name="hormuz_futures_prices.csv", mime="text/csv", key="hs_futures_download")
+
     base_note = (f" Pre-war traffic is the average of daily transits between {nice_date(BASELINE_START)} "
                  f"and {nice_date(BASELINE_END)}." if base else "")
+    brent_reference_note = (
+        f"The pre-war Brent futures reference is the BZ=F close on {nice_date(PREWAR_DATE)} "
+        f"(USD {prewar_price:.2f})."
+        if prewar_price is not None else "The pre-war Brent futures reference is unavailable."
+    )
     st.caption("Sources: IMF PortWatch (Hormuz daily transits) and Yahoo Finance (market prices). "
                "Shipping data updates when the CSV is replaced. Market requests are cached for five minutes "
                "and run when the app executes. Shipping and market observations may have different dates. "
-               f"The pre-war Brent reference is the {nice_date(PREWAR_DATE)} price (USD {PREWAR_PRICE:.2f})."
+               + brent_reference_note
                + base_note)
 
 
 def render_card():
-    """The small version for the overview grid: just one chart, no title. The full panel is render()."""
+    """Timeline shown in the overview card."""
     try:
         shipping_df = load_shipping_data()
     except Exception as error:
-        return st.error(f"Shipping data unavailable: {error}")
-    daily, base = build_daily(shipping_df), prewar_baseline(shipping_df)
-    last = shipping_df["date"].max()
-    fig = chart_traffic(daily, last - pd.Timedelta(days=364), last, VIEWS[0], False, True, base)
-    fig.update_layout(height=400, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=40))
-    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_chart")
+        st.error(f"Shipping data unavailable: {error}")
+        return
 
+    daily = build_daily(shipping_df)
+    base = prewar_baseline(shipping_df)
+
+    last = shipping_df["date"].max()
+    start = last - pd.Timedelta(days=364)
+
+    fig = chart_traffic(
+        daily,
+        start,
+        last,
+        view=VIEWS[0],
+        show_tankers=False,
+        show_avg=True,
+        base=base,
+    )
+
+    fig.update_layout(
+        height=400,
+        showlegend=False,
+        title_text="",
+        margin=dict(l=10, r=20, t=10, b=40),
+    )
+
+    st.plotly_chart(
+        fig,
+        width="stretch",
+        theme=None,
+        key="hs_card_timeline",
+    )
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
     render()
+    
