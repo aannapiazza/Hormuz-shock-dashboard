@@ -344,7 +344,6 @@ def bill_calculator(inflation: pd.DataFrame, oil: pd.DataFrame, end: pd.Timestam
 
 def render() -> None:
     """Draw the whole panel. app.py runs this file, which calls render() at the bottom."""
-    st.header("Inflation and households")
     data = load_data()
     problems = {k: v for k, v in data["status"].items() if not v.startswith(("saved", "live"))}
     if problems:
@@ -404,55 +403,22 @@ def method_and_sources(status: dict) -> None:
         
         
 def render_card() -> None:
-    """Chart shown in the overview card on the dashboard's home page."""
+    """The small version for the home page: two numbers and one chart, like the other panels' cards."""
     data = load_data()
-
     inflation = data["inflation"]
     if inflation is None:
         st.error("No inflation data available.")
         return
+    traffic = traffic_vs_normal(data["hormuz"]) if data["hormuz"] is not None else None
 
-    traffic = (
-        traffic_vs_normal(data["hormuz"])
-        if data["hormuz"] is not None
-        else None
-    )
+    c1, c2 = st.columns(2)
+    for col, card in zip((c1, c2), story_numbers(inflation, traffic, END)[1:]):
+        col.metric(card["label"], card["value"], card["delta"], delta_color=card["delta_color"])
 
-    countries = ["Euro area", "United Kingdom", "United States"]
-    measure = MEASURES[1]
-    start = pd.Timestamp(DEFAULT_PERIOD[0])
-    end = pd.Timestamp(DEFAULT_PERIOD[1])
-
-    have = [
-        country for country in countries
-        if not series_for(inflation, country, measure).empty
-    ]
-
-    if not have:
-        st.info("No inflation data available for the selected countries.")
-        return
-
-    fig = chart_inflation(
-        inflation=inflation,
-        countries=have,
-        measure=measure,
-        start=start,
-        end=end,
-        traffic=traffic,
-    )
-
-    fig.update_layout(
-        height=400,
-        title_text="",
-        margin=dict(l=10, r=50, t=10, b=90),
-    )
-
-    st.plotly_chart(
-        fig,
-        width="stretch",
-        theme=None,
-        key="infl_card_chart",
-    )
+    fig = chart_inflation(inflation, ["Euro area", "United Kingdom", "United States"], "Energy",
+                          pd.Timestamp("2025-09-01"), END, traffic)
+    fig.update_layout(height=280, title_text="", showlegend=False, margin=dict(l=10, r=40, t=10, b=30))
+    st.plotly_chart(fig, width="stretch", theme=None, key="infl_card_chart", config={"displayModeBar": False})
     
     
 if __name__ == "__main__":
