@@ -1,8 +1,7 @@
 streamlit>=1.47
 pandas
-matplotlib
-xlrd
-yfinance
-plotly
 numpy
+plotly
 requests
+yfinance
+pytest
