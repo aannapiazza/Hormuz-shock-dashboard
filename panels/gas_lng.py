@@ -73,8 +73,8 @@ SOURCE = ("World Bank Pink Sheet (monthly TTF), Yahoo Finance (daily TTF, Henry 
 DATA_NOTE = ("The LNG tanker counts combine S&P Global and Kpler figures as reported in the news; the two count "
              "ships slightly differently, so treat month-to-month changes as approximate. gas_tankers.csv, "
              "gas_storage.csv and gas_benchmarks.csv were compiled by hand from the reports linked in each file.")
-COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "green": "#27ae60",
-          "blue": "#2e86de", "purple": "#8e44ad", "teal": "#0f9b8e", "amber": "#d48806", "grey": "#7f8c8d"}
+COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "blue": "#2e86de",
+          "purple": "#8e44ad", "teal": "#0f9b8e", "grey": "#7f8c8d"}
 # =============================================================================
 # (You shouldn't need to change anything below this line.)
 # =============================================================================
@@ -219,23 +219,14 @@ def layout(height, **kwargs):
                 margin=dict(l=55, r=20, t=20, b=40), **kwargs)
 
 
-def shade(fig, phase, faint=False):
-    """Shade phases of the crisis on a chart.
-
-    faint=True: every phase as a light band with its name on top (the background of the main chart).
-    Otherwise: only the chosen phase, a little stronger, with its name.
-    """
-    for name, p in PHASES.items():
-        chosen = name == phase
-        if not (faint or chosen):
-            continue
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18 if chosen else 0.06,
-                      layer="below", line_width=0)
-        if chosen or faint:
-            mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
-            fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False,
-                               text=f"<b>{name}</b>" if chosen else name,
-                               font=dict(color=p["color"], size=12 if chosen else 11))
+def shade(fig, phase):
+    """Shade the chosen phase of the crisis on a chart that uses exact dates, with its name on top."""
+    if phase in PHASES:
+        p = PHASES[phase]
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18, layer="below", line_width=0)
+        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+        fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False, text=f"<b>{phase}</b>",
+                           font=dict(color=p["color"], size=12))
 
 
 def shade_months(fig, table, phase):
@@ -657,12 +648,13 @@ def render():
     apply_click("gas_second_chart", months)
     sel = st.session_state["gas_sel"]
 
-    st.markdown(f'<div style="background:{COLORS["navy"]};color:#fff;padding:18px 24px;border-radius:8px;'
-                f'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
-                f'<div><div style="font-size:22px;font-weight:700">{TITLE}</div><div style="color:#b8c4d3;'
-                f'font-size:13px">{SUBTITLE}</div></div><span style="background:{COLORS["orange"]};font-weight:700;'
-                f'font-size:12px;padding:6px 10px;border-radius:4px">TTF · DATA TO {f"{END:%d %b %Y}".upper()}</span>'
-                f'</div>', unsafe_allow_html=True)
+    # title on white, the same as the oil panel: navy title, grey subtitle, orange badge
+    st.markdown(f'<div style="color:{COLORS["navy"]};padding:6px 0 10px;display:flex;justify-content:space-between;'
+                f'align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">'
+                f'<div><div style="font-size:22px;font-weight:700">{TITLE}</div><div style="color:{COLORS["muted"]};'
+                f'font-size:13px;margin-top:3px">{SUBTITLE}</div></div><span style="background:{COLORS["orange"]};'
+                f'color:#fff;font-weight:700;font-size:12px;padding:6px 10px;border-radius:4px;letter-spacing:.5px">'
+                f'TTF · DATA TO {f"{END:%d %b %Y}".upper()}</span></div>', unsafe_allow_html=True)
 
     last, tk, now = table.iloc[-1], table.dropna(subset=["tankers"]).iloc[-1], storage_now(data["storage"])
     kpis = [("European gas (TTF)", f"&#36;{last['ttf']:.2f}", f"{signed(last['vs_prewar'], 0)}% since before the war",
