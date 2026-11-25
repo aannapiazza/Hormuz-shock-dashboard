@@ -648,13 +648,12 @@ def render():
     apply_click("gas_second_chart", months)
     sel = st.session_state["gas_sel"]
 
-    # title on white, the same as the oil panel: navy title, grey subtitle, orange badge
-    st.markdown(f'<div style="color:{COLORS["navy"]};padding:6px 0 10px;display:flex;justify-content:space-between;'
-                f'align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px">'
-                f'<div><div style="font-size:22px;font-weight:700">{TITLE}</div><div style="color:{COLORS["muted"]};'
-                f'font-size:13px;margin-top:3px">{SUBTITLE}</div></div><span style="background:{COLORS["orange"]};'
-                f'color:#fff;font-weight:700;font-size:12px;padding:6px 10px;border-radius:4px;letter-spacing:.5px">'
-                f'TTF · DATA TO {f"{END:%d %b %Y}".upper()}</span></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background:{COLORS["navy"]};color:#fff;padding:18px 24px;border-radius:8px;'
+                f'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:14px">'
+                f'<div><div style="font-size:22px;font-weight:700">{TITLE}</div><div style="color:#b8c4d3;'
+                f'font-size:13px">{SUBTITLE}</div></div><span style="background:{COLORS["orange"]};font-weight:700;'
+                f'font-size:12px;padding:6px 10px;border-radius:4px">TTF · DATA TO {f"{END:%d %b %Y}".upper()}</span>'
+                f'</div>', unsafe_allow_html=True)
 
     last, tk, now = table.iloc[-1], table.dropna(subset=["tankers"]).iloc[-1], storage_now(data["storage"])
     kpis = [("European gas (TTF)", f"&#36;{last['ttf']:.2f}", f"{signed(last['vs_prewar'], 0)}% since before the war",
