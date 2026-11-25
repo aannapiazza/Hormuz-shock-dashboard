@@ -6,7 +6,7 @@ compares traffic and Brent over time. Section 3 zooms in on one month.
 How this file is organised:
     1. SETTINGS  - every date, source and number you might want to change
     2. DATA      - the shipping CSV (IMF PortWatch) and the market prices (Yahoo Finance)
-    3. ANALYSIS  - the maths, as small functions with docstrings
+    3. ANALYSIS  - the maths,  functions with docstrings
     4. CHARTS    - Plotly figures
     5. LAYOUT    - the sections and their controls (Streamlit)
     
