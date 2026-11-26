@@ -21,7 +21,7 @@ The home page (`app.py`) shows a small card for each panel: two headline numbers
 |---|---|---|
 | Erin Dolly | Oil prices (`panels/oil.py`), oil data files and event sources | Oil card on the home page |
 | Anna Piazza | Shipping & Markets (`panels/shipping.py`), PortWatch and market data | Built the home page and the card layout (`app.py`), owns the repository, edited the README |
-| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, `tests/test_gas.py` | Gas section of the README |
+| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all 38 tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
 | Eleena Golchin | Inflation & households (`panels/inflation.py`, `panels/inflation_data.py`), `tests/test_inflation.py` | Matched the phases, cut-off and theme across the panels; tidied `requirements.txt` |
 
 Each member wrote and committed their own panel; the commit history on GitHub shows who changed what.
