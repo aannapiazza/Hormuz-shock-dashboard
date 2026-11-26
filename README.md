@@ -198,7 +198,7 @@ Every row of every gas data file has a `source` or `url` column, so each number 
 **Question:** how much of the Hormuz oil shock is reaching the prices people pay, and what would a new oil price mean for a household's energy bill?
 
 - **Controls:** a **Period** slider, **Countries** (the euro area, Ireland, Germany, France, Italy, Spain, the UK, the USA, South Korea, China and India) and **Measure** (headline, energy, food or services). The slider links the whole panel: the chart shows the months you pick, and the key takeaway, the three numbers and the bill calculator use the last one.
-- **Main chart:** *Over time* (inflation with the four phases shaded and tanker traffic through Hormuz on a second axis) or *By country* (each country's change since February 2026).
+- **Main chart:** *Over time* (inflation with the four phases shaded and tanker traffic through Hormuz on a second axis) or *By country* (a bar chart of each country's change since February 2026).
 - **Your energy bill:** pick a country, an oil price a year from now and your monthly bill to see your new bill, with a sensitivity chart of the bill at every oil price from $40 to $200.
 - **Home page card:** `render_card()` shows euro-area energy inflation and tanker traffic, with a small chart.
 
