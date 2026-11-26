@@ -226,6 +226,6 @@ US data ends in September 2026 and October 2025 was never published (government 
 As the module asks, each of us has listed which AI tools we used and what for.
 
 - Erin Dolly:
-- Anna Piazza:
+- Anna Piazza: Claude helped me visualise the data before writing the script and ensure consistency in the organisation of the plots. It was also useful for drafting some of the docstrings and improving the visual appearance of the charts. Once I had completed my panel, Copilot helped me check the accuracy of the data and verify its consistency with the other panels in the dashboard.
 - Eabha Kelly:
 - Eleena Golchin: Claude, to help plan the layout of my panel, explain and fix errors in my code, check that the data and dates matched across the four panels, and give step-by-step instructions for edits and git commits. Gemini, to review the project against the grading criteria. I tested every change myself and chose what went into the panel.
