@@ -192,7 +192,7 @@ Every row of every gas data file has a `source` or `url` column, so each number 
 
 **Tests:** `tests/test_gas.py` has 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
 
-**Limitations:** tanker counts come from two trackers (S&P Global counts laden tankers leaving, Kpler counts all LNG-carrier crossings), so months from different trackers aren't exactly comparable; hover over a bar to see which tracker counted it. EU storage readings are on the dates they were reported, not every day; the latest reading before the cut-off is 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
+**Limitations:** tanker counts come from two trackers that count slightly differently (hover over a bar to see which tracker counted it). Storage readings are on the dates they were reported, not every day; with the latest on 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
 
 ## Inflation & households (Eleena Golchin) — `panels/inflation.py`
 
