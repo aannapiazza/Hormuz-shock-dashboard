@@ -1,538 +1,391 @@
-# Gas & LNG panel: data processing and analysis
+# Gas & LNG: Data Processing and Analysis
 
-**Author:** Eabha Kelly · **File:** `panels/gas_lng.py` · **Tests:** `tests/test_gas.py` · **Data cut-off:** 31 October 2026
-
-This document explains, step by step, how the Gas & LNG panel of the Hormuz Shock dashboard turns five raw data files into the numbers, charts and summaries shown on screen. Every formula below is the one used in the code, and every worked example uses the saved data in `data/`, so the numbers match what the panel displays.
-
----
-
-## Contents
-
-1. [Overview of the pipeline](#1-overview-of-the-pipeline)
-2. [The data files](#2-the-data-files)
-3. [Loading and cleaning the data](#3-loading-and-cleaning-the-data)
-4. [Converting European prices into dollars per MMBtu](#4-converting-european-prices-into-dollars-per-mmbtu)
-5. [Building the monthly table](#5-building-the-monthly-table)
-6. [Assigning each date to a phase of the crisis](#6-assigning-each-date-to-a-phase-of-the-crisis)
-7. [Price changes](#7-price-changes)
-8. [The Europe / US price ratio](#8-the-europe--us-price-ratio)
-9. [LNG tanker traffic as a share of normal](#9-lng-tanker-traffic-as-a-share-of-normal)
-10. [EU gas storage and the gap to normal](#10-eu-gas-storage-and-the-gap-to-normal)
-11. [Volatility (price swings)](#11-volatility-price-swings)
-12. [Phase summaries](#12-phase-summaries)
-13. [Europe vs Asia: 2026 vs 2022](#13-europe-vs-asia-2026-vs-2022)
-14. [The "% vs pre-war" view](#14-the--vs-pre-war-view)
-15. [Where each number appears on the page](#15-where-each-number-appears-on-the-page)
-16. [Chart logic that depends on the data](#16-chart-logic-that-depends-on-the-data)
-17. [The downloadable tables](#17-the-downloadable-tables)
-18. [Testing](#18-testing)
-19. [Assumptions and limitations](#19-assumptions-and-limitations)
-20. [Full monthly results](#20-full-monthly-results)
-21. [Notation and settings](#21-notation-and-settings)
+**Prepared by:** Eabha Kelly  
+**Dashboard:** Hormuz Shock · **Implementation:** `panels/gas_lng.py` · **Tests:** `tests/test_gas.py`  
+**Data cut-off:** 31 October 2026  
+**Purpose:** Explain how the Gas & LNG panel's raw data is collected, processed, analysed and presented.
 
 ---
 
-## 1. Overview of the pipeline
+## Executive summary
+
+The panel combines five datasets to track European and US gas prices, LNG tanker traffic through the Strait of Hormuz, EU gas storage and price volatility. European prices are converted into US dollars per MMBtu, so they can be compared with US and Asian prices. A single monthly table then supplies every card, chart, summary and download.
+
+### Key figures, October 2026
+
+| Indicator | Result |
+|---|---:|
+| European gas price (TTF) | **\$28.50/MMBtu** |
+| Change since February 2026 | **+153.6%** |
+| Europe / US price ratio | **9.5×** |
+| LNG tankers through Hormuz | **31**, or 36.5% of February |
+| EU gas storage (27 October) | **75.0% full** |
+| Gap to the five-year average | **−13.1 percentage points** |
+| Volatility before / since the war | **53% / 79% a year** |
+
+**Interpretation:** By October, European gas cost more than two and a half times its pre-war level. It was also 9.5 times the US price. Tanker traffic remained about a third of normal, and EU storage entered winter well below its usual level. These indicators describe what happened. On their own, they do not prove causation.
+
+---
+
+## 1. Overview
+
+The panel investigates three related questions:
+
+1. **How far has the Hormuz shock raised European gas prices, and how does Europe compare with the US and Asia?**
+2. **How much LNG is still passing through the Strait of Hormuz?**
+3. **Is Europe prepared for winter, and how unstable has the market become?**
+
+### How the panel works
+
+| Stage | What happens | Main functions |
+|---|---|---|
+| 1. Collect | Read five saved CSV files, or download fresh daily prices from Yahoo Finance | `load_data()`, `download_daily()` |
+| 2. Process | Parse dates, apply the cut-off, convert units and currency, build the monthly table | `ttf_in_usd()`, `monthly_table()`, `phase_for()` |
+| 3. Analyse | Calculate price changes, the Europe/US ratio, tanker and storage measures, volatility and phase summaries | `price_swings()`, `swings_summary()`, `storage_now()`, `phase_summary()` |
+| 4. Present | Show the KPI cards, two linked charts, the Month in focus card, the takeaway and downloads | `render()`, `main_figure()`, `second_figure()` |
 
 ```mermaid
-flowchart LR
-    A[gas_prices_daily.csv<br/>Yahoo Finance] --> C[load_data<br/>read CSVs, parse dates,<br/>cut at 31 Oct 2026]
-    B[gas_prices_monthly.csv<br/>World Bank] --> C
-    T[gas_tankers.csv<br/>S&P Global / Kpler] --> C
-    S[gas_storage.csv<br/>GIE AGSI] --> C
-    K[gas_benchmarks.csv<br/>World Bank / EIA / IEA] --> C
-    C --> D[ttf_in_usd<br/>€/MWh → $/MMBtu]
-    D --> E[price_swings<br/>daily log returns,<br/>rolling volatility]
-    C --> F[monthly_table<br/>one row per month]
-    D --> F
-    E --> F
-    F --> G[KPI cards, charts,<br/>Month in focus,<br/>phase summaries,<br/>downloads]
-    E --> G
-    K --> G
+flowchart TD
+    A["gas_prices_daily.csv<br/>Yahoo Finance: TTF, Henry Hub, EUR/USD"]
+    B["gas_prices_monthly.csv<br/>World Bank Pink Sheet"]
+    C["gas_tankers.csv<br/>S&P Global and Kpler"]
+    D["gas_storage.csv<br/>GIE AGSI"]
+    E["gas_benchmarks.csv<br/>World Bank, EIA, IEA"]
+    A & B & C & D & E --> L["load_data()<br/>saved copy or download · cut at 31 Oct 2026 · cached"]
+    L --> U["ttf_in_usd()<br/>€/MWh → $/MMBtu with each day's rate"]
+    U --> S["price_swings()<br/>log returns · 21-day volatility × √252"]
+    U --> I["Daily CSV download"]
+    S --> M["monthly_table()<br/>one row per month, Jan–Oct 2026"]
+    L --> N["storage_now()<br/>latest level and gap to normal"]
+    M --> P["phase_summary()<br/>change in each phase"]
+    M --> F["Main chart · Month in focus"]
+    M --> G["Second chart<br/>tankers · storage · swings · 2026 vs 2022"]
+    M --> H["Monthly CSV download"]
+    M --> K["KPI cards · takeaway"]
+    N --> K
 ```
 
-The panel works in four stages:
-
-1. **Load:** read every CSV, convert dates and drop anything after the cut-off (`load_data`).
-2. **Convert:** put European daily prices on the same unit as US prices (`ttf_in_usd`).
-3. **Combine and calculate:** build one row per month with every measure the panel needs (`monthly_table`, `price_swings`, `storage_now`).
-4. **Present:** the page reads only from these results, so every chart and card shows the same numbers.
+Tests are in `tests/test_gas.py`.
 
 ---
 
-## 2. The data files
+## 2. Data sources
 
-All files are in `data/`. Every row has a `source` or `url` column, so each number can be traced back to where it came from.
+| Variable | Source | Coverage | Local file |
+|---|---|---|---|
+| Daily European gas price (TTF, €/MWh), US gas price (Henry Hub, \$/MMBtu) and EUR/USD | Yahoo Finance via `yfinance`: `TTF=F`, `NG=F`, `EURUSD=X` | 281 trading days, 1 Oct 2025 – 30 Oct 2026 | `data/gas_prices_daily.csv` |
+| Monthly European gas price (\$/MMBtu) | World Bank Pink Sheet (Natural gas, Europe = Dutch TTF) | Jan – Oct 2026 | `data/gas_prices_monthly.csv` |
+| LNG tankers through Hormuz | S&P Global Commodity Insights and Kpler, as reported in the news | Feb – Oct 2026 | `data/gas_tankers.csv` |
+| EU gas storage (% full) | GIE AGSI, as reported by Argus, GMK Center, S&P Global, TASS and others | 18 readings, Apr – Oct 2026 | `data/gas_storage.csv` |
+| Asian LNG price (JKM) and benchmarks | World Bank, EIA and IEA; the 2022 peak is rounded | 4 points in time | `data/gas_benchmarks.csv` |
 
-| File | Rows | Columns used | Source | How it was collected |
-|---|---|---|---|---|
-| `gas_prices_daily.csv` | 281 trading days (1 Oct 2025 – 30 Oct 2026) | `date`, `ttf_eur_mwh`, `hh_usd_mmbtu`, `eurusd` | Yahoo Finance via `yfinance`: `TTF=F` (Dutch TTF futures, €/MWh), `NG=F` (US Henry Hub futures, $/MMBtu), `EURUSD=X` | Downloaded with `yfinance` (saved copy used by default) |
-| `gas_prices_monthly.csv` | 10 months (Jan – Oct 2026) | `month`, `ttf_usd_per_mmbtu` | World Bank Pink Sheet (Natural gas, Europe = Dutch TTF), monthly average | Copied from the published series |
-| `gas_tankers.csv` | 9 months (Feb – Oct 2026) | `month`, `tankers`, `tracker`, `note` | S&P Global Commodity Insights and Kpler, as reported in the news | Compiled by hand from linked reports |
-| `gas_storage.csv` | 18 readings | `date`, `series`, `pct_full` | GIE AGSI, as reported by Argus, GMK Center, S&P Global, TASS and others | Compiled by hand; the `how` column says whether each value was reported or derived |
-| `gas_benchmarks.csv` | 4 rows | `period`, `ttf_usd_per_mmbtu`, `jkm_usd_per_mmbtu` | World Bank, EIA, IEA; 2022 peak rounded | Compiled by hand |
+The tanker, storage and benchmark files were compiled by hand from the reports linked on each row. Every row has a `source` or `url` column, so each number can be traced back. All data is cut at **31 October 2026**, like the other panels.
 
-**Units:**
-- **€/MWh**: euros per megawatt-hour, the unit European gas (TTF) trades in.
-- **$/MMBtu**: US dollars per million British thermal units, the unit US gas (Henry Hub) and Asian LNG (JKM) trade in.
-- **% full**: EU gas storage as a percentage of total storage capacity.
+**Units**
+- **€/MWh:** euros per megawatt-hour, the unit European gas (TTF) trades in.
+- **\$/MMBtu:** US dollars per million British thermal units, the unit for US gas (Henry Hub) and Asian LNG (JKM).
+- **% full:** EU gas storage as a share of total capacity.
 
-**Storage series.** `gas_storage.csv` holds three series in long format: `2026`, `2025 (same date)` and `5-year average`. Three of the 5-year average values are **derived**, not reported directly:
+### Storage data notes
+
+`gas_storage.csv` holds three series in long format: `2026`, `2025 (same date)` and `5-year average`. Three five-year-average values are derived from the 2026 level plus a reported gap:
 
 $$
 \text{5-year average}_d = \text{2026 level}_d + \text{reported gap}_d
 $$
 
-For example, on 6 October 2026: $73.0 + 15.11 = 88.1\%$. One 2025 value (1 April) was derived from the reported volume of gas in storage divided by EU storage capacity.
+For example, on 6 October 2026: $73.0 + 15.11 = 88.1\%$. One 2025 value (1 April) was derived from the reported volume in storage divided by EU capacity. The `how` column records whether each value was reported or derived.
 
 ---
 
-## 3. Loading and cleaning the data
+## 3. Collecting and processing the data
+
+### 3.1 Loading and the common cut-off
 
 **Function:** `load_data(live)`
 
-1. **Find the data folder** (`data_folder`): the code looks for `data/` next to `panels/`, so the panel runs from any working directory.
-2. **Read each CSV** with `pandas.read_csv` into a dictionary of DataFrames keyed by `prices`, `daily`, `tankers`, `storage` and `benchmarks`.
-3. **Optional live download.** If the user turns on *"Download the latest prices from Yahoo Finance"*, `download_daily()` fetches fresh daily closes:
-   - `yf.download(["TTF=F", "NG=F", "EURUSD=X"], start="2025-10-01")["Close"]`
-   - **Forward-fill** missing values, so a ticker with no trade on a given day takes the previous day's close: $x_t = x_{t-1}$ if $x_t$ is missing.
-   - **Drop** any row still missing a value, so the panel only uses days where all three series exist.
-   - The request is wrapped in `try / except`. If Yahoo Finance cannot be reached, the saved copy is used and the page says so.
-   - The download only overwrites `data/gas_prices_daily.csv` when `LIVE = True` at the top of the file, so the switch on the page never changes the repository's data.
-4. **Parse dates** with `pd.to_datetime`.
-5. **Apply the cut-off.** Every series is filtered to dates on or before `END` = 31 October 2026, the same cut-off as the other panels:
+1. **Find the data folder.** `data_folder()` locates `data/` relative to the project, so the panel runs from any working directory.
+2. **Read each CSV** into a pandas DataFrame and convert the date columns with `pd.to_datetime`.
+3. **Apply the cut-off.** Every series keeps only rows dated on or before 31 October 2026:
 
 $$
 \text{keep row } i \iff \text{date}_i \le \text{31 Oct 2026}
 $$
 
-This applies to the daily prices, the storage readings and the monthly prices. (The storage file originally ran to 15 November; the cut-off removes those readings so all four panels end on the same day.)
+This also removes storage readings from November, so all four panels end on the same day.
 
-6. **Caching.** `@st.cache_data(ttl="1h")` stores the result for an hour, so the files are not re-read on every click.
+4. **Cache the result.** `@st.cache_data(ttl="1h")` stores the loaded data for an hour, so clicking a control does not re-read the files.
 
----
+### 3.2 Using saved data or downloading live data
 
-## 4. Converting European prices into dollars per MMBtu
+| Setting | Processing approach |
+|---|---|
+| Page switch **off** (default) | Read the saved CSV files in `data/`. The panel runs offline and gives the same results every time. |
+| Page switch **on** | `download_daily()` requests fresh closes for `TTF=F`, `NG=F` and `EURUSD=X` from 1 October 2025. If Yahoo Finance cannot be reached, the saved copy is used and the page says so. |
+| `LIVE = True` in the code | The fresh download also overwrites `data/gas_prices_daily.csv`. The page switch alone never changes the repository's data. |
+
+The live download is cleaned in two steps. First, missing values are **forward-filled**: a ticker with no trade on a given day takes the previous close, so $x_t = x_{t-1}$. Then any row still missing a value is **dropped**, so only days with all three series are used.
+
+### 3.3 Converting European prices into dollars per MMBtu
 
 **Function:** `ttf_in_usd(daily)`
 
-European and US gas prices are quoted in different currencies **and** different energy units, so they cannot be compared directly. Each daily TTF price is converted using **that day's** exchange rate:
+European and US prices use different currencies and different energy units. Each daily TTF price is converted using **that day's** exchange rate:
 
 $$
-P^{\$/\text{MMBtu}}_t = P^{€/\text{MWh}}_t \times \text{EURUSD}_t \times 0.293071
+P^{\text{USD/MMBtu}}_t = P^{\text{EUR/MWh}}_t \times \text{EURUSD}_t \times 0.293071
 $$
 
-where:
-- $P^{€/\text{MWh}}_t$ is the TTF price on day $t$ (euros per MWh);
-- $\text{EURUSD}_t$ is the number of US dollars per euro on day $t$;
-- $0.293071$ is the number of MWh in one MMBtu ($1 \text{ MMBtu} = 0.293071 \text{ MWh}$).
-
-**Why the constant works:** multiplying €/MWh by \$/€ gives \$/MWh. One MMBtu is 0.293071 MWh, so the price of one MMBtu is 0.293071 times the price of one MWh:
+Multiplying €/MWh by dollars per euro gives \$/MWh. One MMBtu equals 0.293071 MWh, so multiplying by 0.293071 gives \$/MMBtu:
 
 $$
-\frac{\$}{\text{MMBtu}} = \frac{\$}{\text{MWh}} \times \frac{0.293071 \text{ MWh}}{1 \text{ MMBtu}}
+\frac{\text{USD}}{\text{MMBtu}} = \frac{\text{USD}}{\text{MWh}} \times \frac{0.293071\ \text{MWh}}{1\ \text{MMBtu}}
 $$
 
-**Worked example (30 October 2026, the last trading day):**
+**Worked example, 30 October 2026:**
 
 $$
-103.944 \times 1.11828 \times 0.293071 = \$34.07 \text{ per MMBtu}
+103.944 \times 1.11828 \times 0.293071 = 34.07\ \text{USD/MMBtu}
 $$
 
-Using each day's own exchange rate, rather than one average rate, means that movements in the euro do not distort the comparison.
+Using each day's rate, rather than one average rate, stops currency movements from distorting the comparison.
 
----
-
-## 5. Building the monthly table
+### 3.4 Building the monthly table
 
 **Function:** `monthly_table(data)`
 
-Everything on the page is driven by one table with **one row per month** (January – October 2026). It is built in these steps:
+Every number on the page comes from one table with **one row per month**, January to October 2026. Each dataset is aggregated or looked up to the same `YYYY-MM` key and attached with `.map()`.
 
-| Step | Column | How it is calculated |
-|---|---|---|
-| 1 | `month`, `ttf` | Copied from `gas_prices_monthly.csv` (World Bank monthly average, $/MMBtu) |
-| 2 | `date` | First day of the month + 14 days (mid-month), used to plot each month and assign its phase |
-| 3 | `vs_prev` | Month-on-month % change ([Section 7](#7-price-changes)) |
-| 4 | `vs_prewar` | % change since February 2026 ([Section 7](#7-price-changes)) |
-| 5 | `hh` | Monthly mean of daily Henry Hub prices: daily rows grouped by `YYYY-MM` with `groupby("month").mean()` |
-| 6 | `ratio` | `ttf / hh` ([Section 8](#8-the-europe--us-price-ratio)) |
-| 7 | `tankers`, `tracker`, `tanker_note` | Looked up from `gas_tankers.csv` by month with `.map()` |
-| 8 | `tanker_pct` | Tankers as % of February ([Section 9](#9-lng-tanker-traffic-as-a-share-of-normal)) |
-| 9 | `storage` | Last 2026 storage reading on or before the month's end ([Section 10](#10-eu-gas-storage-and-the-gap-to-normal)) |
-| 10 | `vol` | Monthly mean of the daily volatility ([Section 11](#11-volatility-price-swings)) |
-| 11 | `phase` | Phase of the crisis that the mid-month date falls in ([Section 6](#6-assigning-each-date-to-a-phase-of-the-crisis)) |
+| Column | How it is built |
+|---|---|
+| `month`, `ttf` | World Bank monthly TTF average, \$/MMBtu |
+| `date` | The 15th of the month, used for plotting and phase assignment |
+| `vs_prev` | Month-on-month % change (section 4.1) |
+| `vs_prewar` | % change since February 2026 (section 4.1) |
+| `hh` | Monthly mean of daily Henry Hub prices |
+| `ratio` | `ttf / hh` (section 4.2) |
+| `tankers`, `tracker`, `tanker_note` | Looked up from `gas_tankers.csv` |
+| `tanker_pct` | Tankers as % of February (section 4.3) |
+| `storage` | Latest 2026 storage reading on or before the month's end (section 4.4) |
+| `vol` | Monthly mean of daily annualised volatility (section 4.5) |
+| `phase` | The phase containing the mid-month date (section 3.5) |
 
-**Joining by month.** The monthly table is the "spine". Every other dataset is aggregated or looked up to the same `YYYY-MM` key and attached with `.map()`. A month with no matching value gets `NaN` (for example, January has no tanker count). The cards and charts display these as "n/a" instead of failing.
+A month with no matching value is left as `NaN` (January has no tanker count, for example). The panel shows these as "n/a".
 
-**Monthly mean of a daily series.** For a daily series $x_t$ and the set of trading days $D_m$ in month $m$:
+Daily series are averaged over the trading days $D_m$ in each month:
 
 $$
-\bar{x}_m = \frac{1}{|D_m|} \sum_{t \in D_m} x_t
+\bar{x}_m = \frac{1}{|D_m|}\sum_{t \in D_m} x_t
 $$
 
-For example, October 2026 had 22 trading days, and the mean Henry Hub price was $\bar{h}_{\text{Oct}} = \$3.00$ per MMBtu.
+For October 2026, the mean Henry Hub price was **\$3.00/MMBtu** across 22 trading days.
 
-**Why the World Bank series is used for the monthly European price,** rather than the monthly mean of the daily Yahoo series: it is the official, published monthly average, so the headline figures match an independent source. The daily series is used for the US comparison, the daily line on the main chart and volatility.
+The monthly European price uses the World Bank's published average, not the mean of the daily Yahoo series. This keeps the headline figures in line with an official, independent source. The daily series is used for the daily price line, the US comparison and volatility.
 
----
-
-## 6. Assigning each date to a phase of the crisis
+### 3.5 Assigning each month to a phase of the crisis
 
 **Function:** `phase_for(date)`
 
-The four phases are stored once in the `EVENTS` dictionary and shared with the other panels:
+The four phases are stored once in the `EVENTS` dictionary and shared across the dashboard:
 
 | Phase | Start | End | Colour |
 |---|---|---|---|
-| Build-up | 1 Jan 2026 | 28 Feb 2026 | yellow `#e0a800` |
-| War & closure | 28 Feb 2026 | 8 Apr 2026 | red `#d64545` |
-| Ceasefire | 8 Apr 2026 | 8 Jul 2026 | blue `#2e86de` |
-| Conflict resumes | 8 Jul 2026 | 31 Oct 2026 | purple `#8e44ad` |
+| Build-up | 1 Jan 2026 | 28 Feb 2026 | yellow |
+| War & closure | 28 Feb 2026 | 8 Apr 2026 | red |
+| Ceasefire | 8 Apr 2026 | 8 Jul 2026 | blue |
+| Conflict resumes | 8 Jul 2026 | 31 Oct 2026 | purple |
 
-The function loops through the phases **in order** and returns the first one that contains the date:
+The function returns the first phase whose dates contain the given date:
 
 $$
 \text{phase}(d) = \text{first } p \text{ such that } \text{start}_p \le d \le \text{end}_p
 $$
 
-If no phase contains the date (for example, December 2025), it returns `None`.
-
-**Monthly phases.** Each month is assigned using its mid-month date (the 15th). So February belongs to Build-up, March to War & closure, April–June to Ceasefire, and July–October to Conflict resumes. The same rule is used for the Month in focus card, the dot colours and the shading on monthly charts, so they always agree.
-
-**Shading on monthly charts** (`shade_months`). To line up with whole bars and points, a phase is shaded from the first day of its first month to the first day of the month after its last month. For example, Ceasefire is shaded from **1 April to 1 July**. The EU storage chart uses daily readings, so it keeps the exact phase dates (`shade`).
+Dates outside every phase return `None`. Each month is assigned by its 15th day. So February is Build-up, March is War & closure, April–June are Ceasefire and July–October are Conflict resumes.
 
 ---
 
-## 7. Price changes
+## 4. Implementing the analysis
 
-All price changes are **simple percentage changes**.
+### 4.1 Price changes
 
-**Month-on-month change** (`vs_prev`, using `pct_change()`):
+All price changes are simple percentage changes.
+
+**Month-on-month** (`pct_change()`):
 
 $$
 \Delta^{\text{MoM}}_m = \left(\frac{P_m}{P_{m-1}} - 1\right) \times 100
 $$
 
-**Change since before the war** (`vs_prewar`). February 2026 is the last full month before the strikes on 28 February, so it is the reference month:
+**Since before the war.** February 2026 is the last full month before the strikes on 28 February, so it is the reference:
 
 $$
 \Delta^{\text{pre-war}}_m = \left(\frac{P_m}{P_{\text{Feb 2026}}} - 1\right) \times 100
 $$
 
-**Worked examples:**
-
-| Month | Price ($/MMBtu) | Month-on-month | Since February |
-|---|---|---|---|
+| Month | TTF (\$/MMBtu) | Month-on-month | Since February |
+|---|---:|---:|---:|
 | February | 11.24 | −4.4% | 0.0% |
-| March | 17.91 | $\left(\frac{17.91}{11.24} - 1\right) \times 100 = +59.3\%$ | +59.3% |
-| October | 28.50 | $\left(\frac{28.50}{25.42} - 1\right) \times 100 = +12.1\%$ | $\left(\frac{28.50}{11.24} - 1\right) \times 100 = +153.6\%$ |
+| March | 17.91 | +59.3% | +59.3% |
+| October | 28.50 | +12.1% | +153.6% |
 
-The "+154% since before the war" on the KPI card and the home-page card is $\Delta^{\text{pre-war}}_{\text{Oct}}$, rounded.
+The KPI card rounds October's change to **+154%**.
 
----
+### 4.2 The Europe / US price ratio
 
-## 8. The Europe / US price ratio
-
-Both prices are in $/MMBtu (European from the World Bank, US as the monthly mean of daily Henry Hub), so the ratio shows **how many times more Europe pays**:
+Both prices are in \$/MMBtu, so the ratio shows how many times more Europe pays:
 
 $$
 R_m = \frac{P^{\text{TTF}}_m}{\bar{h}_m}
 $$
 
-**Worked example (October 2026):**
+In October, $28.50 / 3.00 = 9.5$. In February, it was $11.24 / 3.13 = 3.6$. The gap has widened because US gas does not pass through the Strait of Hormuz.
 
-$$
-R_{\text{Oct}} = \frac{28.50}{3.00} = 9.5\times
-$$
+### 4.3 LNG tanker traffic against normal
 
-Before the war, in February, the ratio was $11.24 / 3.13 = 3.6\times$. The gap between the two markets has widened because US gas does not depend on the Strait of Hormuz.
-
----
-
-## 9. LNG tanker traffic as a share of normal
-
-February 2026 is the reference month: about 85 laden LNG tankers left the Gulf through Hormuz (S&P Global).
+February 2026 is the reference month, with about **85 laden LNG tankers** leaving the Gulf (S&P Global):
 
 $$
 \text{Tankers \% of normal}_m = \frac{N_m}{N_{\text{Feb 2026}}} \times 100 = \frac{N_m}{85} \times 100
 $$
 
-**Worked examples:**
+**100 = the pre-war level.**
 
 | Month | Tankers | % of normal | Tracker |
-|---|---|---|---|
-| March | 0 | 0% | Kpler |
-| June | 40 | $\frac{40}{85} \times 100 = 47.1\%$ | Kpler |
-| October | 31 | $\frac{31}{85} \times 100 = 36.5\%$ | S&P Global |
+|---|---:|---:|---|
+| March | 0 | 0.0% | Kpler |
+| June | 40 | 47.1% | Kpler |
+| October | 31 | 36.5% | S&P Global |
 
-The home-page card shows the change relative to normal: $36.5\% - 100\% = -64\%$, displayed as "−64% vs pre-war". The tracker is stored for every month and shown when you hover over a bar ([Section 19](#19-assumptions-and-limitations)).
+The home-page card shows October as $36.5 - 100 = -63.5\%$, rounded to **−64% vs pre-war**.
 
----
+### 4.4 EU gas storage and the gap to normal
 
-## 10. EU gas storage and the gap to normal
+Storage readings arrive on the days they were reported, not on fixed dates. Two rules handle this.
 
-Storage readings arrive on the days they were reported, not on fixed dates, so two rules are used.
-
-**Monthly storage value** (in `monthly_table`). Each month takes the **latest 2026 reading on or before the last day of that month**:
+**Monthly value.** Each month takes the latest 2026 reading on or before its last day:
 
 $$
 S_m = S_{d^*}, \qquad d^* = \max\{\, d : d \le \text{end of month } m \,\}
 $$
 
-If no reading exists yet, the value is `NaN`. For example, October 2026 uses the 27 October reading of 75.0%.
+October therefore uses the 27 October reading of **75.0%**.
 
-**Latest storage and gap to normal** (`storage_now`, used on the KPI card):
-
-$$
-\text{Gap} = S^{2026}_{d_{\text{last}}} - A_{d'}, \qquad d' = \max\{\, d : d \le d_{\text{last}} \text{ and a 5-year average exists on } d \,\}
-$$
-
-where $A$ is the 5-year average. On the latest date there is no 5-year-average reading, so the gap uses the most recent one before it:
+**Gap to normal** (`storage_now()`). The latest 2026 reading is compared with the most recent five-year average on or before that date:
 
 $$
-\text{Gap} = 75.0 - 88.1 = -13.1 \text{ percentage points}
+\text{Gap} = S^{2026}_{d_{\text{last}}} - A_{d'}, \qquad d' = \max\{\, d \le d_{\text{last}} : A_d \text{ exists} \,\}
 $$
 
-This is shown as "−13 pts vs normal". Storage is already a percentage, so the gap is in **percentage points**, not per cent.
+$$
+75.0 - 88.1 = -13.1 \text{ percentage points}
+$$
 
-**Targets on the chart.** The EU storage chart draws the EU's **90%** storage target and the **80%** flexible target as reference lines.
+The KPI shows **−13 pts vs normal**. Storage is already a percentage, so the gap is in percentage points, not per cent. The storage chart also draws the EU's **90%** target and **80%** flexible target.
 
----
-
-## 11. Volatility (price swings)
+### 4.5 Volatility (price swings)
 
 **Functions:** `price_swings(daily)` and `swings_summary(swings)`
 
-Volatility measures how much the price moves from day to day. It uses the daily European price in $/MMBtu from [Section 4](#4-converting-european-prices-into-dollars-per-mmbtu).
+Volatility measures how much the price moves from day to day. It uses the daily European price in \$/MMBtu from section 3.3.
 
-### 11.1 Daily log returns
+**Stage 1: daily log returns**
 
 $$
-r_t = 100 \times \ln\!\left(\frac{P_t}{P_{t-1}}\right) = 100 \times \left(\ln P_t - \ln P_{t-1}\right)
+r_t = 100 \times \ln\left(\frac{P_t}{P_{t-1}}\right)
 $$
 
-In the code: `np.log(usd).diff() * 100`.
+```python
+ret = np.log(usd).diff() * 100
+```
 
-**Why log returns?** A rise followed by an equal fall cancels out exactly, and returns add up over time. For small moves, $r_t$ is very close to the simple percentage change: for example, $\ln(1.01) = 0.995\%$. The first day has no previous price, so $r_t$ is missing.
+Log returns add up over time, and a rise followed by an equal fall cancels out. For small moves they are very close to simple percentage changes. The first day has no return.
 
-### 11.2 Rolling standard deviation over 21 trading days
-
-With a window of $n = 21$ trading days (about one month), the sample standard deviation on day $t$ is:
+**Stage 2: rolling standard deviation over 21 trading days** (about one month)
 
 $$
 \bar{r}_t = \frac{1}{n}\sum_{i=0}^{n-1} r_{t-i}, \qquad
-s_t = \sqrt{\frac{1}{n-1}\sum_{i=0}^{n-1}\left(r_{t-i} - \bar{r}_t\right)^2}
+s_t = \sqrt{\frac{1}{n-1}\sum_{i=0}^{n-1}\left(r_{t-i} - \bar{r}_t\right)^2}, \qquad n = 21
 $$
 
-In the code: `ret.rolling(21).std()`. Pandas uses $n - 1$ in the denominator (the sample standard deviation). The first value appears once 21 returns are available, on 30 October 2025.
+```python
+vol = ret.rolling(21).std() * np.sqrt(252)
+```
 
-### 11.3 Scaling to a yearly figure
+Pandas uses the sample standard deviation, with $n - 1$ in the denominator.
 
-Daily volatility is converted to an **annualised** figure by multiplying by the square root of the number of trading days in a year (252). This assumes daily returns are independent, so variances add up over time and standard deviations scale with the square root of time (Hull, 2022):
+**Stage 3: scaling to a yearly figure**
 
 $$
 \sigma^{\text{annual}}_t = s_t \times \sqrt{252}
 $$
 
-Because $r_t$ is already in per cent, $\sigma^{\text{annual}}_t$ is in **per cent per year**.
+252 is the usual number of trading days in a year. If daily returns are independent, variances add over time, so standard deviations scale with the square root of time (Hull, 2022). The result is in per cent per year.
 
-### 11.4 Before vs since the war
-
-`swings_summary` splits all daily returns at the war's start (28 February 2026) and computes one annualised volatility for each period, using every return in that period rather than a rolling window:
+**Before vs since the war.** `swings_summary()` splits all returns at 28 February 2026. It calculates one annualised figure for each period, using every return rather than a rolling window:
 
 $$
 \sigma_{\text{before}} = \text{sd}\{\, r_t : t < \text{28 Feb} \,\} \times \sqrt{252}, \qquad
 \sigma_{\text{since}} = \text{sd}\{\, r_t : t \ge \text{28 Feb} \,\} \times \sqrt{252}
 $$
 
-### 11.5 Results
+The three biggest one-day rises are found with `nlargest(3, "ret")` and marked in red on the Price swings chart. For the monthly table, each month's volatility is the mean of its daily values.
 
-| Measure | Value |
-|---|---|
-| Volatility before the war | **53%** a year |
-| Volatility since the war | **79%** a year |
-| Peak 21-day volatility | **162%** a year, on 27 March 2026 |
-| Biggest one-day rises | **+32.8%** (2 March), **+19.3%** (3 March), **+11.7%** (19 March, the strike on Ras Laffan) |
-
-The three biggest one-day rises are found with `nlargest(3, "ret")` and drawn as red dots on the Price swings chart.
-
-### 11.6 Monthly volatility
-
-For the Month in focus card and the downloads, each month's volatility is the mean of that month's daily values:
-
-$$
-\text{vol}_m = \frac{1}{|D_m|} \sum_{t \in D_m} \sigma^{\text{annual}}_t
-$$
-
-For example, March 2026 averaged **156%** a year, compared with **49%** in October.
-
----
-
-## 12. Phase summaries
+### 4.6 Phase summaries
 
 **Function:** `phase_summary(table, data, phase)`
 
-When the user picks a phase, a one-line summary is calculated from the data.
+When the user picks a phase, three measures are calculated:
 
-**Price change over the phase.** The starting price is the last monthly price **before** the phase begins (or the phase's first month if there is none), and the end price is the phase's last month:
+- **Price change:** from the last monthly price before the phase to the phase's last month.
 
 $$
 \Delta_{\text{phase}} = \left(\frac{P_{\text{last month in phase}}}{P_{\text{last month before phase}}} - 1\right) \times 100
 $$
 
-**Average tanker traffic** over the months in the phase, $M_p$:
+- **Average tanker traffic:** the mean count and mean % of normal over the phase's months.
+- **Storage change:** the first and last 2026 readings inside the phase dates, shown when there are at least two.
+
+Build-up has no month before it, so its comparison starts from January.
+
+### 4.7 Europe vs Asia: 2026 and 2022
+
+The "2026 vs 2022" chart compares European (TTF) and Asian (JKM) prices at four points: before the war, March 2026, October 2026 and the rounded 2022 crisis peak.
+
+- October TTF was $\left(\frac{28.50}{11.24} - 1\right) \times 100 = +154\%$ above its pre-war level.
+- Against the 2022 peak, $28.50 / 90 \approx 0.32$, so about a third.
+
+When the two prices are within 3% of the axis range, one shared label replaces two overlapping ones:
 
 $$
-\bar{N}_p = \frac{1}{|M_p|}\sum_{m \in M_p} N_m, \qquad
-\overline{\text{\%}}_p = \frac{1}{|M_p|}\sum_{m \in M_p} \text{Tankers \% of normal}_m
+\left|P^{\text{TTF}} - P^{\text{JKM}}\right| < 0.03 \times \left(\max P - \min(P, 0)\right)
 $$
 
-**Storage change** is shown when there are at least two 2026 readings inside the phase dates: the first reading and the last reading.
+In October, $|28.50 - 28.59| = 0.09 < 2.7$, so the label reads "both ≈ \$28.5".
 
-**Results:**
+### 4.8 The "% vs pre-war" view
 
-| Phase | Price change | Average tankers | Storage |
-|---|---|---|---|
-| Build-up | $\left(\frac{11.24}{11.76} - 1\right) \times 100 = -4\%$ | 85 a month (100% of normal) | — |
-| War & closure | $\left(\frac{17.91}{11.24} - 1\right) \times 100 = +59\%$ | 0 a month (0% of normal) | — |
-| Ceasefire | $\left(\frac{15.17}{17.91} - 1\right) \times 100 = -15\%$ | 17 a month (20% of normal) | — |
-| Conflict resumes | $\left(\frac{28.50}{15.17} - 1\right) \times 100 = +88\%$ | 19 a month (22% of normal) | 55% → 75% full |
-
-Build-up has no month before it, so it starts from its own first month (January).
-
----
-
-## 13. Europe vs Asia: 2026 vs 2022
-
-The "2026 vs 2022" view compares European (TTF) and Asian (JKM) LNG prices at four points: before the war, March 2026, October 2026 and the 2022 crisis peak (rounded, for scale only).
-
-**Rise since before the war** (shown in the chart's subtitle):
-
-$$
-\left(\frac{28.50}{11.24} - 1\right) \times 100 = +154\%
-$$
-
-**Compared with the 2022 peak:**
-
-$$
-\frac{28.50}{90} \approx 0.32 \quad \text{(about a third)}
-$$
-
-**Overlapping labels.** When the two prices are within 3% of the axis range, one shared label is shown instead of two:
-
-$$
-|P^{\text{TTF}} - P^{\text{JKM}}| < 0.03 \times \left(\max(P) - \min(P, 0)\right) \;\Rightarrow\; \text{label "both} \approx \tfrac{P^{\text{TTF}} + P^{\text{JKM}}}{2}\text{"}
-$$
-
-For example, in October: $|28.50 - 28.59| = 0.09 < 0.03 \times 90 = 2.7$, so the label reads "both ≈ \$28.5".
-
----
-
-## 14. The "% vs pre-war" view
-
-When the user switches the price view, every price series on the main chart is rebased to its own February 2026 level:
+When selected, each price series is rebased to its own February 2026 level:
 
 $$
 y_t = \left(\frac{x_t}{x_{\text{Feb 2026}}} - 1\right) \times 100
 $$
 
-- **European gas** (monthly and daily) is rebased to the February World Bank price, $11.24.
-- **US gas** is rebased to its own February average, $3.13, so both lines start at 0% and their changes can be compared directly.
-- **LNG tankers** switch to "% of pre-war" ([Section 9](#9-lng-tanker-traffic-as-a-share-of-normal)), with the reference line at 100%.
-- **2026 vs 2022** rebases each market to its own pre-war price: TTF to $11.24 and JKM to $10.82.
-- **EU storage** and **volatility** are already percentages, so they do not change.
+- European gas (monthly and daily) is rebased to \$11.24, and US gas to its own February average of \$3.13. Both lines start at 0%, so their changes can be compared directly.
+- Tankers switch to % of normal, with a reference line at 100%.
+- In "2026 vs 2022", TTF is rebased to \$11.24 and JKM to \$10.82.
+- Storage and volatility are already percentages, so they do not change.
 
 ---
 
-## 15. Where each number appears on the page
+## 5. Main results and interpretation
 
-| Number on the page | Value | Formula |
-|---|---|---|
-| KPI: European gas (TTF) | $28.50 | October World Bank price |
-| KPI: change since before the war | +154% | $\Delta^{\text{pre-war}}_{\text{Oct}}$ ([7](#7-price-changes)) |
-| KPI: Europe pays vs the US | 9.5× | $R_{\text{Oct}}$ ([8](#8-the-europe--us-price-ratio)) |
-| KPI: LNG tankers via Hormuz | 31 (36% of normal) | $N_{\text{Oct}}$ and [Section 9](#9-lng-tanker-traffic-as-a-share-of-normal) |
-| KPI: EU gas storage | 75.0% (−13 pts vs normal) | `storage_now` ([10](#10-eu-gas-storage-and-the-gap-to-normal)) |
-| Month in focus: price, change, ratio, volatility | per month | [Sections 5–11](#5-building-the-monthly-table) |
-| Month in focus: donuts | tankers % of normal, storage % full | [Sections 9–10](#9-lng-tanker-traffic-as-a-share-of-normal) |
-| Phase summary line | per phase | [Section 12](#12-phase-summaries) |
-| Home-page card | $28.50 (+154%), 31 tankers (−64%) | [Sections 7 and 9](#7-price-changes) |
-| Takeaway | +154%, 36% of normal, 13 points below normal | [Sections 7, 9, 10](#7-price-changes) |
-
-Because every number is calculated from the data rather than typed in, the cards, summaries and takeaway update automatically if the data changes.
-
----
-
-## 16. Chart logic that depends on the data
-
-**Price labels on dips** (`label_positions`). A label is placed **below** a point if the point is lower than both its neighbours, so the line climbing out of the dip does not cross the label; otherwise it goes above:
-
-$$
-\text{position}_i = \begin{cases} \text{below} & \text{if } y_i < y_{i-1} \text{ and } y_i < y_{i+1} \\ \text{above} & \text{otherwise} \end{cases}
-$$
-
-(The first and last points are compared with $+\infty$ on their missing side.) With the 2026 data, the labels for February, April and June go below.
-
-**Linked selection.** Clicking a point stores the month in `st.session_state["gas_sel"]`. Picking a phase moves the selection to that phase's first month (`jump_to_phase`). Every chart and card reads the same selection, so they always show the same month.
-
----
-
-## 17. The downloadable tables
-
-The **"Gas data and download"** section provides two CSV files, generated from the same calculations:
-
-| File | Content | Rows |
-|---|---|---|
-| `gas_lng_monthly.csv` | The monthly table: month, phase, European and US prices, change since February, Europe/US ratio, tankers, tankers % of normal, tanker source, EU storage, volatility (`download_table`) | 10 |
-| `gas_lng_daily.csv` | Every trading day: date, TTF in €/MWh and $/MMBtu, Henry Hub, EUR/USD, newest first (`daily_table`) | 281 |
-
-Values are rounded to 2 decimal places (monthly) or 3 (daily). The downloads keep short machine-readable column names; the tables on screen use readable names.
-
----
-
-## 18. Testing
-
-`tests/test_gas.py` contains **23 tests** written with `pytest`. They run on the saved data, so no internet connection is needed:
-
-```
-python3 -m pytest -q tests/test_gas.py
-```
-
-| Area | What is checked |
-|---|---|
-| Unit conversion | $10 \text{ €/MWh} \times 1.1 \times 0.293071$ gives the expected $/MMBtu value |
-| Phases | Dates in each phase (and before the build-up) return the correct phase; benchmark row names map to the right months |
-| Cut-off | No daily or monthly price is after 31 October 2026 |
-| Monthly table | One row per month; every month has a phase; February is 0% vs pre-war and 100% of normal tanker traffic; the change since the war matches the formula; Europe pays more than the US in every month |
-| Storage | The latest reading is between 0% and 100% and below the 5-year average |
-| Volatility | A constant price gives zero volatility; a daily return equals $100 \ln(P_t / P_{t-1})$; the rolling value equals $\text{sd} \times \sqrt{252}$ on simulated data; volatility since the war is higher than before; every month has a volatility value |
-| Charts | Phase shading covers whole months (Ceasefire: 1 April – 1 July); no shading when no phase is chosen; labels go under dips |
-| Downloads | The monthly table has one row per month and clear column names; the daily table is newest first and its $/MMBtu column matches the conversion formula |
-
-A fresh install of the whole project from a downloaded zip was also tested: the requirements installed without errors and all 38 project tests passed.
-
----
-
-## 19. Assumptions and limitations
-
-1. **Two tanker trackers.** S&P Global counts *laden LNG tankers leaving* the Gulf, while Kpler counts *all LNG-carrier crossings*. February, July–October use S&P Global and March–June use Kpler, so month-to-month changes across the switch are approximate. The tracker is shown on hover.
-2. **February as "normal".** The pre-war reference is a single month (February 2026). A longer average would be more robust, but February is the last full month before the strikes and is available in every series.
-3. **Irregular storage dates.** Storage readings are on the days they were reported. Each month carries forward its latest reading, so a month without a new reading repeats the previous value (for example, April and May both show 27.7%).
-4. **Derived 5-year averages.** Three 5-year-average values are calculated from the 2026 level and a reported gap, not read directly from GIE. The latest gap compares 27 October with the 6 October average; the average changes very little over those weeks.
-5. **Futures prices.** Daily TTF and Henry Hub prices are front-month futures closes, not spot prices, and missing days are forward-filled.
-6. **Annualised volatility assumes independent daily returns** (the $\sqrt{252}$ rule). Energy prices can have clustered volatility, so the yearly figure is a standard approximation rather than an exact forecast.
-7. **The 2022 peak is rounded** and used only to show scale.
-8. **Description, not prediction.** The panel describes what happened. Two series moving together (for example, tanker traffic and prices) show association, not proof of cause.
-
----
-
-## 20. Full monthly results
+### 5.1 Full monthly results
 
 These are the values in the monthly table, as shown in the panel and in `gas_lng_monthly.csv`.
 
-| Month | Phase | TTF ($/MMBtu) | MoM % | vs Feb % | Henry Hub ($/MMBtu) | Europe ÷ US | Tankers | % of normal | Tracker | Storage % | Volatility % a year |
-|---|---|---|---|---|---|---|---|---|---|---|---|
+| Month | Phase | TTF \$/MMBtu | MoM % | vs Feb % | Henry Hub \$/MMBtu | Europe ÷ US | Tankers | % normal | Tracker | Storage % | Volatility % a year |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|
 | Jan 2026 | Build-up | 11.76 | — | +4.6 | 4.21 | 2.8 | — | — | — | — | 52.9 |
 | Feb 2026 | Build-up | 11.24 | −4.4 | 0.0 | 3.13 | 3.6 | 85 | 100.0 | S&P Global | — | 85.6 |
 | Mar 2026 | War & closure | 17.91 | +59.3 | +59.3 | 3.04 | 5.9 | 0 | 0.0 | Kpler | — | 155.8 |
@@ -544,35 +397,220 @@ These are the values in the monthly table, as shown in the panel and in `gas_lng
 | Sep 2026 | Conflict resumes | 25.42 | +20.4 | +126.2 | 2.95 | 8.6 | 23 | 27.1 | S&P Global | 71.5 | 50.8 |
 | Oct 2026 | Conflict resumes | 28.50 | +12.1 | +153.6 | 3.00 | 9.5 | 31 | 36.5 | S&P Global | 75.0 | 49.2 |
 
+### 5.2 Results by phase
+
+| Phase | European gas price | Average tankers | EU storage |
+|---|---:|---:|---|
+| Build-up | −4% (\$11.76 → \$11.24) | 85 a month (100% of normal) | — |
+| War & closure | +59% (\$11.24 → \$17.91) | 0 a month (0% of normal) | — |
+| Ceasefire | −15% (\$17.91 → \$15.17) | 17 a month (20% of normal) | — |
+| Conflict resumes | +88% (\$15.17 → \$28.50) | 19 a month (22% of normal) | 55% → 75% full |
+
+### 5.3 Volatility
+
+| Measure | Result |
+|---|---:|
+| Before the war | **53%** a year |
+| Since the war | **79%** a year |
+| Peak 21-day volatility | **162%** a year, 27 March 2026 |
+| Biggest one-day rises | **+32.8%** (2 Mar), **+19.3%** (3 Mar), **+11.7%** (19 Mar) |
+
+### 5.4 What the results suggest
+
+- **Prices followed the conflict, not the ceasefire.** Prices jumped 59% when the strait closed and eased by 15% during the ceasefire. They then rose by 88% once fighting resumed.
+- **The shock hit Europe far harder than the US.** The price gap grew from 3.6 times to 9.5 times. US gas is produced at home and does not depend on Hormuz.
+- **LNG traffic never recovered.** Even the best month since the war (June, 40 tankers) was under half of normal.
+- **The market became much less stable.** Volatility rose by about half after the war. It peaked at three times its pre-war level in late March.
+- **Europe enters winter exposed.** Storage refilled from 28% to 75%, but it remains 13 points below the five-year average. A cold winter could push prices higher.
+- **Context:** prices are still about a third of the 2022 peak. The 2026 shock is severe, but smaller than the 2022 crisis in absolute terms.
+
 ---
 
-## 21. Notation and settings
+## 6. Worked example: October 2026 from raw data to the page
+
+| Step | Calculation | Result |
+|---|---|---:|
+| Convert the last daily price | $103.944 \times 1.11828 \times 0.293071$ | \$34.07/MMBtu |
+| Monthly European price | World Bank October average | \$28.50 |
+| Change since before the war | $(28.50 / 11.24 - 1) \times 100$ | **+153.6%** |
+| Monthly US price | Mean of 22 daily Henry Hub closes | \$3.00 |
+| Europe / US ratio | $28.50 / 3.00$ | **9.5×** |
+| Tankers vs normal | $31 / 85 \times 100$ | **36.5%** |
+| Storage gap | $75.0 - 88.1$ | **−13.1 pts** |
+| Takeaway | Combines the three results above | "up 154% … 36% of normal … 13 points below normal" |
+
+The daily price (\$34.07) is above the monthly average (\$28.50) because prices rose through October. The KPI uses the monthly average, so it is less affected by any single day.
+
+---
+
+## 7. Presenting the results
+
+### 7.1 Where each number appears
+
+| Dashboard element | Data shown | Section |
+|---|---|---|
+| KPI: European gas (TTF) | \$28.50, +154% since before the war | 4.1 |
+| KPI: Europe pays vs the US | 9.5× | 4.2 |
+| KPI: LNG tankers via Hormuz | 31, 36% of normal | 4.3 |
+| KPI: EU gas storage | 75.0%, −13 pts vs normal | 4.4 |
+| Month in focus | Price, changes, ratio, volatility, plus donuts for tankers and storage | 3.4 |
+| Phase summary | Price change, average tankers, storage change | 4.6 |
+| Home-page card | \$28.50 (+154%), 31 tankers (−64% vs pre-war) | 4.1, 4.3 |
+| Takeaway | +154%, 36% of normal, 13 points below normal | 6 |
+
+Every value is calculated from the data, not typed in. If the data changes, the cards, summaries and takeaway update automatically.
+
+### 7.2 How the interactive controls affect the analysis
+
+| Control | Effect on the panel |
+|---|---|
+| **Highlight a phase of the crisis** | Shades the phase on both charts, shows its summary line, and moves the Month in focus to the phase's first month. |
+| **Price view** | *\$ per MMBtu* or *% vs pre-war* (section 4.8). Changes both charts. |
+| **Compare with US gas (Henry Hub)** | Adds the US price to the main chart. |
+| **Click a month on either chart** | Selects that month. The second chart and the Month in focus card follow it. |
+| **Second chart** | *LNG tankers*, *EU storage*, *Price swings* or *2026 vs 2022*. |
+| **◀ Previous / Next ▶** | Steps the Month in focus one month at a time. |
+| **Gas data and download** | Opens the monthly and daily tables with CSV downloads. |
+| **Download the latest prices from Yahoo Finance** | Switches from the saved copy to a live download (section 3.2). |
+
+All controls share one selected month, stored in `st.session_state["gas_sel"]`, so every chart and card always shows the same month. Changing a control only reruns the calculations, so the panel updates straight away.
+
+### 7.3 Chart rules that depend on the data
+
+- **Labels on dips** (`label_positions()`). A label goes below a point that is lower than both neighbours, so the line climbing out of the dip does not cross it:
+
+$$
+\text{position}_i = \begin{cases} \text{below} & \text{if } y_i < y_{i-1} \text{ and } y_i < y_{i+1} \\ \text{above} & \text{otherwise} \end{cases}
+$$
+
+The first and last points are compared with $+\infty$ on their missing side. In the 2026 data, February, April and June go below.
+
+- **Phase shading** (`shade_months()`). Monthly charts shade whole months, so the shading lines up with the bars and points. Ceasefire runs from 1 April to 1 July. The daily storage chart uses the exact phase dates.
+
+### 7.4 Downloadable tables
+
+| File | Contents | Rows |
+|---|---|---:|
+| `gas_lng_monthly.csv` | Month, phase, European and US prices, change since February, ratio, tankers and % of normal, tracker, storage, volatility | 10 |
+| `gas_lng_daily.csv` | Date, TTF in €/MWh and \$/MMBtu, Henry Hub, EUR/USD; newest first | 281 |
+
+Monthly values are rounded to 2 decimal places and daily values to 3. The files keep short machine-readable column names; the tables on screen use readable ones.
+
+---
+
+## 8. Testing and validation
+
+`tests/test_gas.py` has **23 tests** (19 test functions, one of which runs for five dates). They use the saved data, so they need no internet. Run them with:
+
+```bash
+python3 -m pytest -q tests/test_gas.py
+```
+
+### Data-processing tests
+
+| Test | What it checks |
+|---|---|
+| `test_euro_per_mwh_to_dollars_per_mmbtu` | The conversion gives €10/MWh × 1.1 × 0.293071 in \$/MMBtu. |
+| `test_each_date_falls_in_the_right_phase` | Five dates, including one before the build-up, return the correct phase. |
+| `test_benchmark_rows_map_to_months` | The benchmark rows are matched to the right months. |
+| `test_no_data_after_the_cut_off` | No daily or monthly price is dated after 31 October 2026. |
+| `test_one_row_per_month_and_every_month_has_a_phase` | The monthly table has one row per month, each with a phase. |
+| `test_february_is_the_pre_war_reference` | February is 0% vs pre-war and 100% of normal tanker traffic. |
+| `test_storage_is_a_percentage` | The latest storage reading lies between 0% and 100% and is below the five-year average. |
+
+### Analysis tests
+
+| Test | What it checks |
+|---|---|
+| `test_change_since_the_war_matches_the_prices` | The change since February matches the formula in section 4.1. |
+| `test_europe_pays_more_than_the_us_every_month` | The Europe/US ratio is above 1 in every month. |
+| `test_a_steady_price_has_no_volatility` | A constant price gives zero volatility. |
+| `test_daily_change_is_a_log_return_in_percent` | Each return equals $100 \ln(P_t / P_{t-1})$. |
+| `test_volatility_is_scaled_to_a_year` | The rolling value equals the standard deviation × √252 on simulated data. |
+| `test_the_war_made_the_market_jumpier` | Volatility since the war is higher than before. |
+| `test_every_month_has_a_volatility` | Every month has a volatility value. |
+
+### Presentation tests
+
+| Test | What it checks |
+|---|---|
+| `test_phase_shading_covers_whole_months` | Ceasefire shading runs from 1 April to 1 July. |
+| `test_no_shading_when_no_phase_is_picked` | No shading is drawn when no phase is selected. |
+| `test_labels_go_under_the_dips` | Labels go below local dips. |
+| `test_download_has_clear_column_names_and_one_row_per_month` | The monthly download has clear names and 10 rows. |
+| `test_daily_table_is_newest_first_and_converts_to_dollars` | The daily download is newest first and its \$/MMBtu column matches the conversion. |
+
+A fresh install of the whole project from a downloaded ZIP was also tested. The requirements installed without errors and all **38 project tests** passed.
+
+---
+
+## 9. Methodological choices
+
+| Choice | Reason |
+|---|---|
+| Use the World Bank monthly price for the headline | It is an official, published average, so the main figures can be checked independently. |
+| Convert with each day's exchange rate | A single average rate would let currency movements distort the comparison. |
+| Compare in \$/MMBtu | It is the unit used for US and Asian gas, so all three markets can be compared directly. |
+| Use February 2026 as the pre-war reference | It is the last full month before the strikes on 28 February and exists in every series. |
+| Use log returns for volatility | They add up over time and treat rises and falls symmetrically. |
+| Use a 21-day window | About one month of trading: long enough to be stable, short enough to show the March spike. |
+| Annualise with √252 | The standard convention, so the figures compare with published volatility measures (Hull, 2022). |
+| Carry storage forward to month-end | Readings are irregular, and this never uses a value from the future. |
+| Report the storage gap in percentage points | Storage is already a percentage, so a percentage change would be misleading. |
+| Assign months by their 15th day | Each month falls clearly into one phase, even when a phase starts mid-month. |
+| Show both tanker trackers, labelled | No single tracker covers every month. Showing the source on hover keeps the switch visible. |
+| Include the 2022 peak, rounded | It gives scale without claiming false precision. |
+| Use saved data by default | It makes the panel reproducible and usable offline, with a live download as an option. |
+| Share the 31 October cut-off | All four panels end on the same day, so their results can be read together. |
+
+---
+
+## 10. Limitations and interpretation
+
+1. **Two tanker trackers.** S&P Global counts laden LNG tankers leaving the Gulf; Kpler counts all LNG-carrier crossings. February and July–October use S&P Global, and March–June use Kpler. Changes across the switch are approximate.
+2. **A single reference month.** February 2026 is one month. A longer pre-war average would be more robust.
+3. **Irregular storage readings.** A month with no new reading repeats the previous one: April and May both show 27.7%.
+4. **Derived five-year averages.** Three values come from the 2026 level plus a reported gap. The latest gap compares 27 October with the 6 October average, which changes little over a few weeks.
+5. **Futures, not spot prices.** Daily TTF and Henry Hub prices are front-month futures closes, and missing days are forward-filled.
+6. **Annualised volatility is an approximation.** The √252 rule assumes independent daily returns, but energy prices often have clustered volatility.
+7. **The 2022 peak is rounded** and is used only for scale.
+8. **Association is not causation.** The panel describes what happened. Prices also respond to weather, demand and other supply routes, not only to Hormuz.
+
+---
+
+## 11. Overall conclusion
+
+The panel combines five sources into one monthly dataset, with European prices converted into a common unit. The results show a clear link between the conflict and the gas market. Prices rose 154% since February, tanker traffic remains about a third of normal, and volatility rose by about half. Europe now pays 9.5 times the US price and enters winter with storage 13 points below normal. Because every figure is calculated from documented sources and covered by tests, the results can be traced, checked and reproduced.
+
+---
+
+## Appendix: notation and settings
 
 | Symbol / setting | Meaning | Value |
 |---|---|---|
-| $P_t$ | Daily European gas price in $/MMBtu | from [Section 4](#4-converting-european-prices-into-dollars-per-mmbtu) |
-| $P_m$ | Monthly European gas price (World Bank) | $/MMBtu |
-| $\bar{h}_m$ | Monthly mean Henry Hub price | $/MMBtu |
-| $N_m$ | LNG tankers through Hormuz in month $m$ | count |
-| $S_m$, $A_d$ | EU storage in 2026 and the 5-year average | % full |
+| $P_t$ | Daily European gas price | USD/MMBtu |
+| $P_m$ | Monthly European gas price (World Bank) | USD/MMBtu |
+| $\bar{h}_m$ | Monthly mean Henry Hub price | USD/MMBtu |
+| $N_m$ | LNG tankers through Hormuz in month $m$ | Count |
+| $S_m$, $A_d$ | 2026 EU storage and five-year average | % full |
 | $r_t$ | Daily log return | % |
-| $s_t$ | Rolling sample standard deviation of $r_t$ | % per day |
+| $s_t$ | Rolling sample standard deviation | % per day |
 | $\sigma^{\text{annual}}_t$ | Annualised volatility | % per year |
-| `MWH_PER_MMBTU` | Energy conversion | 0.293071 |
-| `PREWAR_MONTH` | Reference month | 2026-02 |
-| `WAR_START` | Split date for before/since volatility | 2026-02-28 |
+| `MWH_PER_MMBTU` | Energy conversion constant | 0.293071 |
+| `PREWAR_MONTH` | Reference month | `2026-02` |
+| `WAR_START` | Volatility split date | `2026-02-28` |
 | `VOL_WINDOW` | Rolling window | 21 trading days |
 | `TRADING_DAYS` | Annualisation factor | 252 |
-| `END` | Data cut-off | 2026-10-31 |
+| `END` | Data cut-off | `2026-10-31` |
 
-All settings are in the **EDIT HERE** section at the top of `panels/gas_lng.py`. Changing one value there updates every calculation that uses it.
+All settings are in the **EDIT HERE** section at the top of `panels/gas_lng.py`. Changing one value updates every calculation that uses it.
 
 ---
 
-### References
+## References
 
-- Hull, J. C. (2022). *Options, Futures, and Other Derivatives*. 11th Edition. Harlow: Pearson. (Annualising volatility with the square root of time.)
-- McKinney, W. (2022). *Python for Data Analysis*. 3rd Edition. Sebastopol, CA: O'Reilly. (pandas `groupby`, `pct_change`, `rolling`.)
-- World Bank (2026). *Commodity Markets ("Pink Sheet") Data*. https://www.worldbank.org/en/research/commodity-markets
-- Gas Infrastructure Europe (2026). *AGSI+ Aggregated Gas Storage Inventory*. https://agsi.gie.eu
-- EIA (2025). *About One-Fifth of Global Liquefied Natural Gas Trade Flows through the Strait of Hormuz*. https://www.eia.gov/todayinenergy/detail.php?id=65584
+- EIA (2025). *About One-Fifth of Global Liquefied Natural Gas Trade Flows through the Strait of Hormuz*. Available at: https://www.eia.gov/todayinenergy/detail.php?id=65584
+- Gas Infrastructure Europe (2026). *AGSI+ Aggregated Gas Storage Inventory*. Available at: https://agsi.gie.eu
+- Hull, J. C. (2022). *Options, Futures, and Other Derivatives*. 11th edn. Harlow: Pearson.
+- McKinney, W. (2022). *Python for Data Analysis*. 3rd edn. Sebastopol, CA: O'Reilly.
+- World Bank (2026). *Commodity Markets ("Pink Sheet") Data*. Available at: https://www.worldbank.org/en/research/commodity-markets
