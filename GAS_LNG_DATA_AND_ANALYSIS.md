@@ -81,6 +81,20 @@ Tests are in `tests/test_gas.py`.
 
 The tanker, storage and benchmark files were compiled by hand from the reports linked on each row. Every row has a `source` or `url` column, so each number can be traced back. All data is cut at **31 October 2026**, like the other panels.
 
+### 2.1 How each source is accessed
+
+The panel uses three kinds of access: a live API, an official published series, and figures compiled by hand from reports. Saved copies of all five files are kept in `data/`, so the panel always runs, even offline.
+
+| Dataset | Type of access | How to get or refresh it | Link |
+|---|---|---|---|
+| Daily TTF, Henry Hub and EUR/USD | **Live API** | `download_daily()` calls `yf.download()`. Turn on *"Download the latest prices from Yahoo Finance"* in the panel, or set `LIVE = True` to also save the result | [TTF=F](https://finance.yahoo.com/quote/TTF=F), [NG=F](https://finance.yahoo.com/quote/NG=F), [EURUSD=X](https://finance.yahoo.com/quote/EURUSD=X) |
+| Monthly TTF price | **Official published series** | Copied from the World Bank's monthly Pink Sheet release | [World Bank Commodity Markets](https://www.worldbank.org/en/research/commodity-markets) |
+| LNG tankers | **Compiled from reports** | Each of the 9 rows links to the S&P Global or Kpler report it came from | `url` column in `gas_tankers.csv` |
+| EU gas storage | **Compiled from reports** of official GIE data | Each of the 18 readings links to its report; the underlying figures are published by GIE | [GIE AGSI+](https://agsi.gie.eu) and the `url` column in `gas_storage.csv` |
+| JKM and benchmarks | **Compiled from reports** | The JKM values link to EIA and IEA reports; the 2022 peak is rounded and has no single source | `jkm_url` column in `gas_benchmarks.csv` |
+
+No free API gives monthly counts of LNG carriers through Hormuz, and GIE's own API needs a registered key. Compiling these figures from reports, with a link on every row, was the most transparent option available. Anyone can open each link and check a number against its source.
+
 **Units**
 - **€/MWh:** euros per megawatt-hour, the unit European gas (TTF) trades in.
 - **\$/MMBtu:** US dollars per million British thermal units, the unit for US gas (Henry Hub) and Asian LNG (JKM).
@@ -540,7 +554,7 @@ python3 -m pytest -q tests/test_gas.py
 | `test_download_has_clear_column_names_and_one_row_per_month` | The monthly download has clear names and 10 rows. |
 | `test_daily_table_is_newest_first_and_converts_to_dollars` | The daily download is newest first and its \$/MMBtu column matches the conversion. |
 
-A fresh install of the whole project from a downloaded ZIP was also tested. The requirements installed without errors and all **38 project tests** passed.
+A fresh install of the whole project from a downloaded ZIP was also tested. The requirements installed without errors and every test in the project passed.
 
 ---
 

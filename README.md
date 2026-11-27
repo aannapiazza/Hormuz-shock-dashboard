@@ -21,7 +21,7 @@ The home page (`app.py`) shows a small card for each panel: two headline numbers
 |---|---|---|
 | Erin Dolly | Oil prices (`panels/oil.py`), oil data files and event sources | Oil card on the home page |
 | Anna Piazza | Shipping & Markets (`panels/shipping.py`), PortWatch and market data | Built the home page and the card layout (`app.py`), owns the repository, edited the README |
-| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all 38 tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
+| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
 | Eleena Golchin | Inflation & households (`panels/inflation.py`, `panels/inflation_data.py`), `tests/test_inflation.py` | Matched the phases, cut-off and theme across the panels; tidied `requirements.txt` |
 
 Each member wrote and committed their own panel; the commit history on GitHub shows who changed what.
@@ -67,11 +67,19 @@ You need Python 3.10 or newer.
    python3 -m pytest -q
 ```
 
-**Tested on a fresh download** (24 November 2026): the requirements install with no errors, all 38 tests pass (`tests/test_gas.py` and `tests/test_inflation.py`), and all four panels open.
+**Tested on a fresh download** (24 November 2026): the requirements install with no errors, all 43 tests pass (`tests/test_gas.py`, `tests/test_inflation.py` and `tests/test_shipping.py`), and all four panels open.
 
 ## Data and reproducibility
 
 Every panel reads saved copies of its data from `data/`, so the dashboard runs offline and always shows the same numbers. Each panel has a `LIVE` setting at the top of its file: set it to `True` to download fresh data from the source (it falls back to the saved copy if a website is down). Data after 31 October 2026 is cut off, so all panels stop on the same day. The sources and file names for each panel are listed in its section below.
+
+
+How each panel processes its data and implements its analysis is explained in more detail in:
+
+- [OIL_DATA_AND_ANALYSIS.md](OIL_DATA_AND_ANALYSIS.md)
+- [SHIPPING_and_MARKETS_ANALYSIS.md](SHIPPING_and_MARKETS_ANALYSIS.md)
+- [GAS_LNG_DATA_AND_ANALYSIS.md](GAS_LNG_DATA_AND_ANALYSIS.md)
+- [INFLATION_DATA_AND_ANALYSIS.md](INFLATION_DATA_AND_ANALYSIS.md)
 
 ## Project structure
 
@@ -158,19 +166,19 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 ## Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
 
-**Question:** about a fifth of the world's LNG passes through the Strait of Hormuz, almost all of it from Qatar. What has closing the strait done to European gas prices, LNG shipping and Europe's winter gas storage?
+**Question:** Roughly a fifth of global LNG passes through the Strait of Hormuz, almost all of it from Qatar. How did closing the strait affect European gas prices, LNG tanker traffic, and Europe’s winter storage?
 
-- **KPI cards:** the latest European gas price (Dutch TTF) and its change since before the war, how many times more Europe pays than the US, LNG tankers through Hormuz as a share of normal, and EU gas storage against the 5-year average.
-- **Main chart:** the monthly European gas price, with the daily price as a thin grey line behind it (from October 2025) and the pre-war level marked. The monthly points take the colour of their phase. You can highlight a phase, switch between $ per MMBtu and % vs pre-war, and add US gas (Henry Hub) for comparison.
-- **Second chart** (pick one):
+- **KPI cards:** Latest European gas price (Dutch TTF) and its change since before the war, the Europe-to-US price ratio, Hormuz LNG tanker traffic as a share of pre-war norms, and EU gas storage against its 5-year average. 
+- **Main chart:** Monthly European gas price (colour-coded by crisis phase), layered over a daily price trace (from October 2025) with the pre-war baseline marked. Includes phase highlighting, a toggle between $/MMBtu and % vs pre-war, and an optional US Henry Hub comparison line.
+- **Second chart** (switchable):
   - *LNG tankers:* tankers through Hormuz each month, against the pre-war level.
-  - *EU storage:* 2026 against 2025 and the 5-year average, with the EU's 90% target and 80% flexible target.
-  - *Price swings:* the volatility of the daily gas price, with the three biggest one-day jumps marked.
-  - *2026 vs 2022:* Europe vs Asia (JKM) prices before the war, in 2026 and at the 2022 crisis peak.
-- **Month in focus:** click any month on either chart, or use Previous/Next. The card shows that month's phase, two donuts (LNG traffic vs normal, EU storage % full), the price, its change since before the war, how much more Europe pays than the US, its volatility, and a note on what happened.
-- **Everything is linked:** choosing a month, a phase or the price view updates both charts and the Month in focus card together. Picking a phase also shows a summary line with that phase's price change, average tanker traffic and storage change.
+  - *EU storage:* 2026 storage fill levels plotted against 2025, the 5-year average, and the EU's 90% mandatory and 80% flexible targets.
+  - *Price swings:* Rolling 21-day annualised volatility, highlighting the three largest single-day price jumps.
+  - *2026 vs 2022:* Europe (TTF) vs Asia (JKM) prices before the war, in 2026 and at the 2022 energy crisis peak.
+- **Month in focus:** clicking any month on either chart (or using Previous/Next) updates the breakdown card showing that month's crisis phase, two donuts guages (LNG traffic vs normal, EU storage % full), the price, its change since before the war, how much more Europe pays than the US, its volatility, and a brief summary note on what happened.
+- **Everything is linked:** selecting a month, phase, or unit updates both charts and the focus card together, while picking a phase also displays a phase-level summary banner. 
 - **Gas data and download:** the monthly summary behind every chart and all daily prices as tables, each with a download button (CSV).
-- **Home page card:** `render_card()` shows the latest price and tanker count, and a chart of the daily and monthly price with the four phases named.
+- **Home page card:** `render_card()` shows the latest price, tanker count, and a chart of the daily and monthly price with the four phases named.
 
 **Analysis in the code:**
 - Daily TTF prices are converted from €/MWh to $/MMBtu using each day's EUR/USD rate, so they can be compared with US gas.
@@ -180,17 +188,17 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 | Data | Source | Saved copy |
 |---|---|---|
-| European gas price (Dutch TTF), monthly average | World Bank Pink Sheet | `data/gas_prices_monthly.csv` |
-| Daily TTF (€/MWh), US Henry Hub ($/MMBtu), EUR/USD | Yahoo Finance via yfinance (`TTF=F`, `NG=F`, `EURUSD=X`) | `data/gas_prices_daily.csv` |
+| European gas price (Dutch TTF), monthly average | [World Bank Pink Sheet](https://www.worldbank.org/en/research/commodity-markets) | `data/gas_prices_monthly.csv` |
+| Daily TTF (€/MWh), US Henry Hub ($/MMBtu), EUR/USD | Yahoo Finance API via yfinance ([`TTF=F`](https://finance.yahoo.com/quote/TTF=F), [`NG=F`](https://finance.yahoo.com/quote/NG=F), [`EURUSD=X`](https://finance.yahoo.com/quote/EURUSD=X)) | `data/gas_prices_daily.csv` |
 | LNG tankers through Hormuz each month | S&P Global Commodity Insights and Kpler, as reported in the news | `data/gas_tankers.csv` |
-| EU gas storage, % full (2026, 2025 and 5-year average) | GIE AGSI, as reported by Argus, GMK Center and others | `data/gas_storage.csv` |
+| EU gas storage, % full (2026, 2025 and 5-year average) | [GIE AGSI](https://agsi.gie.eu), as reported by Argus, GMK Center and others | `data/gas_storage.csv` |
 | Europe (TTF) vs Asia (JKM) prices: before the war, 2026 and the 2022 peak | World Bank, EIA, IEA, S&P Global | `data/gas_benchmarks.csv` |
 
-Every row of every gas data file has a `source` or `url` column, so each number can be traced back to where it came from. The tanker, storage and benchmark files were compiled by hand from the reports linked in each file.
+**Data access:** the daily prices come from a live API (Yahoo Finance via yfinance) and can be refreshed from the panel. The monthly price is the World Bank's official published series. No free source gives monthly counts of LNG carriers, so the tanker, storage and benchmark files were compiled by hand, with a link to the original report on every row. Saved copies of all five files are in `data/`, so the panel always runs. See [GAS_LNG_DATA_AND_ANALYSIS.md](GAS_LNG_DATA_AND_ANALYSIS.md), section 2.1, for how each source is accessed.
 
 **Running and updating:** by default the panel reads the saved copies. To fetch fresh daily prices, turn on **"Download the latest prices from Yahoo Finance"** at the bottom of the panel; it falls back to the saved copy if Yahoo Finance can't be reached, and it doesn't change the files in `data/`. To also save the download over `data/gas_prices_daily.csv`, set `LIVE = True` at the top of `panels/gas_lng.py`.
 
-**Tests:** `tests/test_gas.py` has 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
+**Tests:** `tests/test_gas.py` contains 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
 
 **Limitations:** tanker counts come from two trackers that count slightly differently (hover over a bar to see which tracker counted it). Storage readings are on the dates they were reported, not every day; with the latest on 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
 

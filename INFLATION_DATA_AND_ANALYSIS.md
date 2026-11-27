@@ -435,4 +435,4 @@ python3 -m pytest -q tests/test_inflation.py
 
 ## 13. Overall conclusion
 
-The panel combines five sources into one monthly dataset and shows that oil prices are linked to energy inflation in every country, though how strongly and how quickly differs. The bill calculator turns that link into illustrative scenarios, not predictions of an exact bill.
+The panel combines six sources into one monthly dataset and shows that oil prices are linked to energy inflation in every country, though how strongly and how quickly differs. The bill calculator turns that link into illustrative scenarios, not predictions of an exact bill.
