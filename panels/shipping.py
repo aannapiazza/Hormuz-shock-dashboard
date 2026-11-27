@@ -250,7 +250,9 @@ def build_monthly(shipping_df, brent, base):
     m["DaysInMonth"] = m["Start"].dt.days_in_month
     m["Month"] = m["Start"].dt.strftime("%Y-%m")
     return m
-    def monthly_takeaway(monthly, selected):
+
+
+def monthly_takeaway(monthly, selected):
     """Compare the selected month with the previous month."""
 
     rows = monthly.set_index("Month")
@@ -507,23 +509,22 @@ def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
               f"{signed(pct(prewar_price, b))}%" if b is not None and prewar_price is not None else "n/a",
               help=reference_help)
     common_prices = pd.concat(
-    [brent.rename("Brent"), wti.rename("WTI")],
-    axis=1,
-    join="inner"
-).dropna().sort_index()
+        [brent.rename("Brent"), wti.rename("WTI")],
+        axis=1,
+        join="inner"
+    ).dropna().sort_index()
 
-if common_prices.empty:
-    c4.metric("Brent–WTI futures spread", "n/a")
-else:
-    latest_pair = common_prices.iloc[-1]
+    if common_prices.empty:
+        c4.metric("Brent–WTI futures spread", "n/a")
+    else:
+        latest_pair = common_prices.iloc[-1]
+        c4.metric(
+            "Brent–WTI futures spread",
+            f"${latest_pair['Brent'] - latest_pair['WTI']:.2f}",
+            help="Difference between futures closing prices on the same date."
+        )
+        c4.caption(f"{common_prices.index[-1]:%d %b %Y}")
 
-    c4.metric(
-        "Brent–WTI futures spread",
-        f"${latest_pair['Brent'] - latest_pair['WTI']:.2f}",
-        help="Difference between futures closing prices on the same date."
-    )
-
-    c4.caption(f"{common_prices.index[-1]:%d %b %Y}")
     st.caption("Market percentage changes compare the last two available observations.")
 
 def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
@@ -536,12 +537,12 @@ def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None)
     with c3:
         show_tankers = st.toggle("Show tankers", value=True, key="hs_tankers")
         show_avg = st.toggle(
-    "Show 7-day averages",
-    value=True,
-    key="hs_avg",
-    disabled=(view == VIEWS[1] and base is not None),
-    help="Percentage comparisons always use 7-day averages."
-)
+            "Show 7-day averages",
+            value=True,
+            key="hs_avg",
+            disabled=(view == VIEWS[1] and base is not None),
+            help="Percentage comparisons always use 7-day averages."
+        )
         show_wti = st.toggle("Compare Brent with WTI", value=False, key="hs_wti", disabled=view == VIEWS[1],
                              help="Only in the absolute view.")
 
@@ -639,10 +640,10 @@ def render():
         shipping_df = load_shipping_data()
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
-   with st.spinner("Loading market data..."):
-    market_data, market_status = load_markets()
+    with st.spinner("Loading market data..."):
+        market_data, market_status = load_markets()
 
-st.caption(market_status)
+    st.caption(market_status)
     market_errors = [label for label, prices in market_data.items() if prices.empty]
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
