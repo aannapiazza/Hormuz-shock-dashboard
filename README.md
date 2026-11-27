@@ -67,11 +67,19 @@ You need Python 3.10 or newer.
    python3 -m pytest -q
 ```
 
-**Tested on a fresh download** (24 November 2026): the requirements install with no errors, all 38 tests pass (`tests/test_gas.py` and `tests/test_inflation.py`), and all four panels open.
+**Tested on a fresh download** (24 November 2026): the requirements install with no errors, all 43 tests pass (`tests/test_gas.py`, `tests/test_inflation.py` and `tests/test_shipping.py`), and all four panels open.
 
 ## Data and reproducibility
 
 Every panel reads saved copies of its data from `data/`, so the dashboard runs offline and always shows the same numbers. Each panel has a `LIVE` setting at the top of its file: set it to `True` to download fresh data from the source (it falls back to the saved copy if a website is down). Data after 31 October 2026 is cut off, so all panels stop on the same day. The sources and file names for each panel are listed in its section below.
+
+
+How each panel processes its data and implements its analysis is explained in more detail in:
+
+- [OIL_DATA_AND_ANALYSIS.md](OIL_DATA_AND_ANALYSIS.md)
+- [SHIPPING_and_MARKETS_ANALYSIS.md](SHIPPING_and_MARKETS_ANALYSIS.md)
+- [GAS_LNG_DATA_AND_ANALYSIS.md](GAS_LNG_DATA_AND_ANALYSIS.md)
+- [INFLATION_DATA_AND_ANALYSIS.md](INFLATION_DATA_AND_ANALYSIS.md)
 
 ## Project structure
 
