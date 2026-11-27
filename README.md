@@ -226,10 +226,10 @@ US data ends in September 2026 and October 2025 was never published (government 
 
 As required for the module, here is how each of us used AI tools while building our parts of the dashboard:
 
-Erin Dolly: Used Claude to help plan out the oil panel, track down bugs, write synthetic-data tests, and get git commit and PR commands right. Everything was tested by hand against the original FRED/EIA figures before making the cut.
+**Erin Dolly:** Used Claude to help plan out the oil panel, track down bugs, write synthetic-data tests, and get git commit and PR commands right. Everything was tested by hand against the original FRED/EIA figures before making the cut.
 
-Anna Piazza: Used Claude early on to sketch out chart ideas, keep plot layouts consistent, draft docstrings, and clean up styling, then used Copilot near the end to double-check numbers and make sure the shipping and market panel lined up with the rest of the app.
+**Anna Piazza:** Used Claude early on to sketch out chart ideas, keep plot layouts consistent, draft docstrings, and clean up styling, then used Copilot near the end to double-check numbers and make sure the shipping and market panel lined up with the rest of the app.
 
-Eabha Kelly: Used Claude to make sense of error messages, tweak layout and colour choices, and double-check git commands, while checking all figures directly against the underlying data and deciding what stayed in.
+**Eabha Kelly:** Used Claude to make sense of error messages, tweak layout and colour choices, and double-check git commands, while checking all figures directly against the underlying data and deciding what stayed in.
 
-Eleena Golchin: Used Claude to map out the inflation panel, fix bugs, line up dates and series across panels, and follow commit steps, plus Gemini to sanity-check the project against the grading rubric. All changes were checked manually before going in.
+**Eleena Golchin:** Used Claude to map out the inflation panel, fix bugs, line up dates and series across panels, and follow commit steps, plus Gemini to sanity-check the project against the grading rubric. All changes were checked manually before going in.
