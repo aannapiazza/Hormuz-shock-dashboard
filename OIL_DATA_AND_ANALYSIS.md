@@ -1,3 +1,4 @@
+[OIL_DATA_AND_ANALYSIS-2.md](https://github.com/user-attachments/files/35520856/OIL_DATA_AND_ANALYSIS-2.md)
 # Oil Prices: Data Processing and Analysis
 
 **Prepared by:** Erin Dolly  
@@ -199,8 +200,10 @@ $$
 **Column:** `vsPrewar`
 
 $$
-\text{Change since pre-war} = \left(\frac{\text{Brent this month}}{\text{Pre-war price (\$71.32)}} - 1\right) \times 100
+\text{Change since pre-war} = \left(\frac{\text{Brent this month}}{\text{Pre-war price}} - 1\right) \times 100
 $$
+
+The pre-war price is **\$71.32** (section 5.1).
 
 **Example:** October 2026: **+73.8%**. The same formula, applied to the latest daily price, gives the headline figure of **+68.5%**.
 
