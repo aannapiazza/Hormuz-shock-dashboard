@@ -393,15 +393,6 @@ Additional automated regression tests could verify these cases using small synth
 6. **The scatter plot is time-dependent.** Shared trends or event timing can produce an apparent relationship.
 7. **External data may be revised.** The panel relies on PortWatch and Yahoo Finance observations rather than independent measurements.
 
-### Implementation points to be aware of
-
-- Saved market snapshots are not checked for completeness in the same way as new downloads.
-- Some price captions may describe a download even when the saved copy is used; the status line shows the actual source.
-- Build-up shading starts on 1 January, although a Brent chart caption may refer to 28 February.
-- The final phase ends on a fixed 31 October date, so its definition must be updated if **END** changes.
-- The two-year market history is measured from the request date, not **END**.
-- Scatter colours depend on calendar month, so the same month in different years can share a colour.
-- **MONTH_NOTES** is defined but not displayed; numerical claims within it require sources before use.
 
 ## 13. Overall conclusion
 
