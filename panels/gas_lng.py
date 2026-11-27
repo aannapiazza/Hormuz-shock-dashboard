@@ -73,8 +73,8 @@ SOURCE = ("World Bank Pink Sheet (monthly TTF), Yahoo Finance (daily TTF, Henry 
 DATA_NOTE = ("The LNG tanker counts combine S&P Global and Kpler figures as reported in the news; the two count "
              "ships slightly differently, so treat month-to-month changes as approximate. gas_tankers.csv, "
              "gas_storage.csv and gas_benchmarks.csv were compiled by hand from the reports linked in each file.")
-COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "green": "#27ae60",
-          "blue": "#2e86de", "purple": "#8e44ad", "teal": "#0f9b8e", "amber": "#d48806", "grey": "#7f8c8d"}
+COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "blue": "#2e86de",
+          "purple": "#8e44ad", "teal": "#0f9b8e", "grey": "#7f8c8d"}
 # =============================================================================
 # (You shouldn't need to change anything below this line.)
 # =============================================================================
@@ -219,23 +219,14 @@ def layout(height, **kwargs):
                 margin=dict(l=55, r=20, t=20, b=40), **kwargs)
 
 
-def shade(fig, phase, faint=False):
-    """Shade phases of the crisis on a chart.
-
-    faint=True: every phase as a light band with its name on top (the background of the main chart).
-    Otherwise: only the chosen phase, a little stronger, with its name.
-    """
-    for name, p in PHASES.items():
-        chosen = name == phase
-        if not (faint or chosen):
-            continue
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18 if chosen else 0.06,
-                      layer="below", line_width=0)
-        if chosen or faint:
-            mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
-            fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False,
-                               text=f"<b>{name}</b>" if chosen else name,
-                               font=dict(color=p["color"], size=12 if chosen else 11))
+def shade(fig, phase):
+    """Shade the chosen phase of the crisis on a chart that uses exact dates, with its name on top."""
+    if phase in PHASES:
+        p = PHASES[phase]
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18, layer="below", line_width=0)
+        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+        fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False, text=f"<b>{phase}</b>",
+                           font=dict(color=p["color"], size=12))
 
 
 def shade_months(fig, table, phase):

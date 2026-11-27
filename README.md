@@ -21,7 +21,7 @@ The home page (`app.py`) shows a small card for each panel: two headline numbers
 |---|---|---|
 | Erin Dolly | Oil prices (`panels/oil.py`), oil data files and event sources | Oil card on the home page |
 | Anna Piazza | Shipping & Markets (`panels/shipping.py`), PortWatch and market data | Built the home page and the card layout (`app.py`), owns the repository, edited the README |
-| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, `tests/test_gas.py` | Gas section of the README |
+| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all 38 tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
 | Eleena Golchin | Inflation & households (`panels/inflation.py`, `panels/inflation_data.py`), `tests/test_inflation.py` | Matched the phases, cut-off and theme across the panels; tidied `requirements.txt` |
 
 Each member wrote and committed their own panel; the commit history on GitHub shows who changed what.
@@ -57,6 +57,7 @@ You need Python 3.10 or newer.
    python3 -m streamlit run app.py
 ```
    It opens in your browser at http://localhost:8501.
+
 4. To run one panel on its own:
 ```
    python3 -m streamlit run panels/gas_lng.py
@@ -159,7 +160,7 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 **Question:** about a fifth of the world's LNG passes through the Strait of Hormuz, almost all of it from Qatar. What has closing the strait done to European gas prices, LNG shipping and Europe's winter gas storage?
 
-- **KPI cards:** the latest European gas price (Dutch TTF) and its change since before the war, how many times more Europe pays than the US, LNG tankers through Hormuz as a share of normal, and how full EU gas storage is compared with the 5-year average.
+- **KPI cards:** the latest European gas price (Dutch TTF) and its change since before the war, how many times more Europe pays than the US, LNG tankers through Hormuz as a share of normal, and EU gas storage against the 5-year average.
 - **Main chart:** the monthly European gas price, with the daily price as a thin grey line behind it (from October 2025) and the pre-war level marked. The monthly points take the colour of their phase. You can highlight a phase, switch between $ per MMBtu and % vs pre-war, and add US gas (Henry Hub) for comparison.
 - **Second chart** (pick one):
   - *LNG tankers:* tankers through Hormuz each month, against the pre-war level.
@@ -191,67 +192,41 @@ Every row of every gas data file has a `source` or `url` column, so each number 
 
 **Tests:** `tests/test_gas.py` has 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
 
-**Limitations:** tanker counts come from two trackers (S&P Global counts laden tankers leaving, Kpler counts all LNG-carrier crossings), so months from different trackers aren't exactly comparable; hover over a bar to see which tracker counted it. EU storage readings are on the dates they were reported, not every day; the latest reading before the cut-off is 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
+**Limitations:** tanker counts come from two trackers that count slightly differently (hover over a bar to see which tracker counted it). Storage readings are on the dates they were reported, not every day; with the latest on 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
 
 ## Inflation & households (Eleena Golchin) — `panels/inflation.py`
 
 **Question:** how much of the Hormuz oil shock is reaching the prices people pay, and what would a new oil price mean for a household's energy bill?
 
-- **Key takeaway:** two sentences at the top that sum up the panel. They count how many of the countries that publish energy figures have seen energy inflation rise since the war, and compare the rise in euro-area energy inflation with the rise in overall inflation.
-- **Controls:** a **Period** slider (any months from January 2016 to October 2026; it starts at January 2025 to October 2026), **Countries** (any of 11: the euro area, Ireland, Germany, France, Italy, Spain, the UK, the USA, South Korea, China and India) and **Measure** (headline, energy, food or services).
-- **The time slider links the whole panel:** the chart shows only the months you pick, while the key takeaway, the three numbers and the bill calculator all use the last month you pick. Moving the end of the slider back to February 2026, for example, starts the calculator from the oil price just before the war.
-- **KPI cards:** euro-area inflation, euro-area energy inflation and oil-tanker traffic through Hormuz (as a % of its pre-war level), each with its change since February 2026, the last month before the war. Hover over the question mark for an explanation.
-- **Main chart** (pick a view):
-  - *Over time:* inflation for the chosen countries, with the four phases shaded, the 2% inflation target as a dashed line, and tanker traffic through Hormuz as a grey area on a second axis.
-  - *By country:* a bar chart of how far each country's inflation has moved since February 2026, largest first, with the countries you picked highlighted.
-- **Your energy bill:** pick a country, an oil price a year from now ($40 to $200 a barrel) and your monthly energy bill today (it starts with a typical bill for that country's currency). It shows your new monthly bill and how much more or less you would pay over a year.
-- **Sensitivity chart:** under the calculator, your bill at every oil price from $40 to $200, with your choice marked and today's bill as a dashed line.
-- **Method and sources:** a closed box at the bottom explains the model and lists where each series was loaded from.
-- **Home page card:** `render_card()` shows euro-area energy inflation and tanker traffic through Hormuz, with a small chart of energy inflation in the euro area, the UK and the USA.
+- **Controls:** a **Period** slider, **Countries** (the euro area, Ireland, Germany, France, Italy, Spain, the UK, the USA, South Korea, China and India) and **Measure** (headline, energy, food or services). The slider links the whole panel: the chart shows the months you pick, and the key takeaway, the three numbers and the bill calculator use the last one.
+- **Main chart:** *Over time* (inflation with the four phases shaded and tanker traffic through Hormuz on a second axis) or *By country* (a bar chart of each country's change since February 2026).
+- **Your energy bill:** pick a country, an oil price a year from now and your monthly bill to see your new bill, with a sensitivity chart of the bill at every oil price from $40 to $200.
+- **Home page card:** `render_card()` shows euro-area energy inflation and tanker traffic, with a small chart.
 
-**How the bill calculator works:**
-- For each country, the code takes the yearly change in the price of Brent crude in that country's own currency (spot Brent in US dollars, converted at each month's exchange rate), because a weaker currency makes oil more expensive even if the dollar price stays the same.
-- It tests delays of 0 to 6 months between that oil price change and energy inflation, and keeps the delay where the two are most closely correlated. This is roughly how long bills take to follow oil.
-- It fits a straight line through every month since 2016 with least squares (`np.polyfit`): energy inflation = intercept + slope × oil price change. The slope is how many points energy inflation rises for each 1% rise in oil.
-- Your oil price gives an oil price change, the line turns that into energy inflation, and your bill rises (or falls) by that percentage.
-
-**How the data was put together:**
-- Eurostat publishes inflation rates directly (the annual rate of change in the HICP, ECOICOP version 2; the older version stops in December 2025).
-- The OECD publishes CPI growth on the same month a year earlier for the UK, South Korea, China and India.
-- The US Bureau of Labor Statistics only publishes price index levels, so the code works out the rate itself: (this month / the same month a year earlier − 1) × 100. Months the BLS didn't publish are left empty rather than filled in.
-- Tanker traffic is the monthly average oil-tanker capacity through Hormuz from IMF PortWatch, as a % of the January–February 2026 average (the same pre-war window as the shipping panel).
-- Brent is the same EIA spot price as the oil panel, so the two panels show the same oil price.
+**How the model works:** for each country, the code takes the yearly change in Brent in that country's own currency, tests delays of 0 to 6 months, keeps the delay with the strongest correlation with energy inflation, and fits a least-squares line (`np.polyfit`) through every month since 2016.
 
 | Data | Source | Saved copy |
 |---|---|---|
-| HICP inflation: euro area, Ireland, Germany, France, Italy, Spain | [Eurostat](https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_minr/default/table) (`prc_hicp_minr`, ECOICOP ver.2) | `data/inflation_eurostat.csv` |
-| CPI inflation: UK, South Korea, China, India | [OECD Data Explorer](https://data-explorer.oecd.org) | `data/inflation_oecd.csv` |
-| CPI, USA | [US Bureau of Labor Statistics](https://www.bls.gov/cpi/) | `data/inflation_bls.csv` |
-| Brent crude, monthly average | US EIA via FRED (`MCOILBRENTEU`), the same file as the oil panel | `data/oil_monthly_brent_data.csv` |
-| Exchange rates (EUR, GBP, KRW, CNY, INR) | Yahoo Finance via yfinance | `data/inflation_oil.csv` |
-| Oil tankers through the Strait of Hormuz | [IMF PortWatch](https://portwatch.imf.org) daily chokepoint transits | `data/inflation_hormuz.csv` (from the raw `data/portwatch_daily_chokepoints.csv`) |
+| Inflation: euro area, Ireland, Germany, France, Italy, Spain | [Eurostat](https://ec.europa.eu/eurostat/databrowser/view/prc_hicp_minr/default/table) (`prc_hicp_minr`) | `data/inflation_eurostat.csv` |
+| Inflation: UK, South Korea, China, India | [OECD Data Explorer](https://data-explorer.oecd.org) | `data/inflation_oecd.csv` |
+| Inflation: USA | [US Bureau of Labor Statistics](https://www.bls.gov/cpi/) | `data/inflation_bls.csv` |
+| Brent crude, monthly | US EIA via FRED (`MCOILBRENTEU`), the same file as the oil panel | `data/oil_monthly_brent_data.csv` |
+| Exchange rates | Yahoo Finance via yfinance | `data/inflation_oil.csv` |
+| Oil tankers through Hormuz | [IMF PortWatch](https://portwatch.imf.org) | `data/inflation_hormuz.csv` |
 
-All data runs to October 2026 (US data to September 2026; October 2025 was never published because of the US government shutdown). China has no energy or services figures and India publishes only headline inflation. South Korea is used instead of Japan, because the OECD series for Japan stops in 2021.
+US data ends in September 2026 and October 2025 was never published (government shutdown). China has no energy figures and India publishes only headline inflation. South Korea replaces Japan, whose OECD series stops in 2021.
 
-**Running and updating:** the downloads are in `panels/inflation_data.py`. By default the panel reads the saved copies. To download fresh copies from the sources, run:
+**Running and updating:** the panel reads the saved copies by default. To refresh them, run `python3 -c "from panels.inflation_data import save_all; save_all()"` or set `LIVE = True` in `panels/inflation_data.py`.
 
-```
-python3 -c "from panels.inflation_data import save_all; save_all()"
-```
+**Tests:** `tests/test_inflation.py` has 15 tests using made-up data, so no internet is needed. Run them with `python3 -m pytest -q tests/test_inflation.py`.
 
-or set `LIVE = True` at the top of `panels/inflation_data.py` (it falls back to the saved copies if a website is down).
-
-**Tests:** `tests/test_inflation.py` has 15 tests, all with made-up data so no internet is needed. They check that the model finds the delay and slope it was built with, that the bill rises steadily with the oil price, that every dataset stops at October 2026, that the saved copy is used when a website fails, that months the BLS skipped stay empty, and that the numbers at the top follow the end of the time slider. Run them with `python3 -m pytest -q tests/test_inflation.py`.
-
-**Limitations:** the model is a simple straight line, so it is descriptive, not a forecast. It assumes exchange rates and non-energy prices stay where they are and ignores second-round effects such as wages. The correlation is similar for every delay from 0 to 6 months, so the timing of the pass-through isn't pinned down sharply, and a strong correlation is not proof of cause. The non-euro figures are national CPIs, which are close to, but not exactly comparable with, the euro-area HICP.
-
----
+**Limitations:** the model is a simple line, so it describes rather than forecasts. It assumes exchange rates and other prices stay the same, and a strong correlation is not proof of cause.
 
 ## Use of AI tools
 
 As the module asks, each of us has listed which AI tools we used and what for.
 
-- Erin Dolly:
-- Anna Piazza:
-- Eabha Kelly:
+- Erin Dolly: Claude, to help plan the structure of my panel, explain and fix errors in my code, write the tests using made-up data, and give step-by-step instructions for git commits and pull requests. I tested every change myself, checked the figures against the original sources, and decided what went into my panel.
+- Anna Piazza: Claude helped me visualise the data before writing the script and ensure consistency in the organisation of the plots. It was also useful for drafting some of the docstrings and improving the visual appearance of the charts. Once I had completed my panel, Copilot helped me check the accuracy of the data and verify its consistency with the other panels in the dashboard.
+- Eabha Kelly: Claude, to help explain errors in my code, suggest ways to improve the layout and colours of my panel, and give step-by-step instructions for git commands and pull requests. I tested every change myself, checked the numbers against my data, and made the final decisions on what went into my panel.
 - Eleena Golchin: Claude, to help plan the layout of my panel, explain and fix errors in my code, check that the data and dates matched across the four panels, and give step-by-step instructions for edits and git commits. Gemini, to review the project against the grading criteria. I tested every change myself and chose what went into the panel.
