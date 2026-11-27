@@ -170,11 +170,11 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 - **KPI cards:** Latest European gas price (Dutch TTF) and its change since before the war, the Europe-to-US price ratio, Hormuz LNG tanker traffic as a share of pre-war norms, and EU gas storage against its 5-year average. 
 - **Main chart:** Monthly European gas price (colour-coded by crisis phase), layered over a daily price trace (from October 2025) with the pre-war baseline marked. Includes phase highlighting, a toggle between $/MMBtu and % vs pre-war, and an optional US Henry Hub comparison line.
-- **Second chart** (pick one):
+- **Second chart** (switchable):
   - *LNG tankers:* tankers through Hormuz each month, against the pre-war level.
-  - *EU storage:* 2026 against 2025 and the 5-year average, with the EU's 90% target and 80% flexible target.
-  - *Price swings:* the volatility of the daily gas price, with the three biggest one-day jumps marked.
-  - *2026 vs 2022:* Europe vs Asia (JKM) prices before the war, in 2026 and at the 2022 crisis peak.
+  - *EU storage:* 2026 storage fill levels plotted against 2025, the 5-year average, and the EU's 90% mandatory and 80% flexible targets.
+  - *Price swings:* Rolling 21-day annualised volatility, highlighting the three largest single-day price jumps.
+  - *2026 vs 2022:* Europe (TTF) vs Asia (JKM) prices before the war, in 2026 and at the 2022 energy crisis peak.
 - **Month in focus:** click any month on either chart, or use Previous/Next. The card shows that month's phase, two donuts (LNG traffic vs normal, EU storage % full), the price, its change since before the war, how much more Europe pays than the US, its volatility, and a note on what happened.
 - **Everything is linked:** choosing a month, a phase or the price view updates both charts and the Month in focus card together. Picking a phase also shows a summary line with that phase's price change, average tanker traffic and storage change.
 - **Gas data and download:** the monthly summary behind every chart and all daily prices as tables, each with a download button (CSV).
