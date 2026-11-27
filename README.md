@@ -57,6 +57,7 @@ You need Python 3.10 or newer.
    python3 -m streamlit run app.py
 ```
    It opens in your browser at http://localhost:8501.
+
 4. To run one panel on its own:
 ```
    python3 -m streamlit run panels/gas_lng.py
