@@ -21,7 +21,7 @@ The home page (`app.py`) shows a small card for each panel: two headline numbers
 |---|---|---|
 | Erin Dolly | Oil prices (`panels/oil.py`), oil data files and event sources | Oil card on the home page |
 | Anna Piazza | Shipping & Markets (`panels/shipping.py`), PortWatch and market data | Built the home page and the card layout (`app.py`), owns the repository, edited the README |
-| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all 38 tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
+| Eabha Kelly | Gas & LNG (`panels/gas_lng.py`), gas data files, home page Gas card, `tests/test_gas.py` (23 tests) | Tested a fresh install of the project (all tests pass), added Plotly to `requirements.txt`, wrote the Gas section of the README |
 | Eleena Golchin | Inflation & households (`panels/inflation.py`, `panels/inflation_data.py`), `tests/test_inflation.py` | Matched the phases, cut-off and theme across the panels; tidied `requirements.txt` |
 
 Each member wrote and committed their own panel; the commit history on GitHub shows who changed what.
@@ -188,13 +188,13 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 | Data | Source | Saved copy |
 |---|---|---|
-| European gas price (Dutch TTF), monthly average | World Bank Pink Sheet | `data/gas_prices_monthly.csv` |
-| Daily TTF (€/MWh), US Henry Hub ($/MMBtu), EUR/USD | Yahoo Finance via yfinance (`TTF=F`, `NG=F`, `EURUSD=X`) | `data/gas_prices_daily.csv` |
+| European gas price (Dutch TTF), monthly average | [World Bank Pink Sheet](https://www.worldbank.org/en/research/commodity-markets) | `data/gas_prices_monthly.csv` |
+| Daily TTF (€/MWh), US Henry Hub ($/MMBtu), EUR/USD | Yahoo Finance API via yfinance ([`TTF=F`](https://finance.yahoo.com/quote/TTF=F), [`NG=F`](https://finance.yahoo.com/quote/NG=F), [`EURUSD=X`](https://finance.yahoo.com/quote/EURUSD=X)) | `data/gas_prices_daily.csv` |
 | LNG tankers through Hormuz each month | S&P Global Commodity Insights and Kpler, as reported in the news | `data/gas_tankers.csv` |
-| EU gas storage, % full (2026, 2025 and 5-year average) | GIE AGSI, as reported by Argus, GMK Center and others | `data/gas_storage.csv` |
+| EU gas storage, % full (2026, 2025 and 5-year average) | [GIE AGSI](https://agsi.gie.eu), as reported by Argus, GMK Center and others | `data/gas_storage.csv` |
 | Europe (TTF) vs Asia (JKM) prices: before the war, 2026 and the 2022 peak | World Bank, EIA, IEA, S&P Global | `data/gas_benchmarks.csv` |
 
-Every row includes a `source` or `url` column, so all figures can be traced back to their origin. The tanker, storage and benchmark files were compiled by hand from the reports linked in each file.
+**Data access:** the daily prices come from a live API (Yahoo Finance via yfinance) and can be refreshed from the panel. The monthly price is the World Bank's official published series. No free source gives monthly counts of LNG carriers, so the tanker, storage and benchmark files were compiled by hand, with a link to the original report on every row. Saved copies of all five files are in `data/`, so the panel always runs. See [GAS_LNG_DATA_AND_ANALYSIS.md](GAS_LNG_DATA_AND_ANALYSIS.md), section 2.1, for how each source is accessed.
 
 **Running and updating:** by default the panel reads the saved copies. To fetch fresh daily prices, turn on **"Download the latest prices from Yahoo Finance"** at the bottom of the panel; it falls back to the saved copy if Yahoo Finance can't be reached, and it doesn't change the files in `data/`. To also save the download over `data/gas_prices_daily.csv`, set `LIVE = True` at the top of `panels/gas_lng.py`.
 
