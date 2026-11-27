@@ -365,23 +365,13 @@ Additional automated regression tests could verify these cases using small synth
 
 ## 12. Limitations and interpretation
 
-1. **Correlation is not causation.** Oil prices also respond to demand, inventories, supply decisions and expectations.
-2. **Transit counts are not cargo volumes.** They do not show how much oil each tanker carries.
-3. **Futures are not spot prices.** Continuous front futures series may be affected by changes of contract and should not be treated as identical to EIA spot Brent.
-4. **The baseline is short.** Less than two months of pre-war traffic may not capture seasonal patterns.
-5. **Data coverage differs.** Shipping uses calendar days and futures use trading days; monthly results are calculated from available observations.
-6. **The scatter plot is time-dependent.** Shared trends or event timing can produce an apparent relationship.
-7. **External data may be revised.** The panel relies on PortWatch and Yahoo Finance observations rather than independent measurements.
-
-### Implementation points to be aware of
-
-- Saved market snapshots are not checked for completeness in the same way as new downloads.
-- Some price captions may describe a download even when the saved copy is used; the status line shows the actual source.
-- Build-up shading starts on 1 January, although a Brent chart caption may refer to 28 February.
-- The final phase ends on a fixed 31 October date, so its definition must be updated if **END** changes.
-- The two-year market history is measured from the request date, not **END**.
-- Scatter colours depend on calendar month, so the same month in different years can share a colour.
-- **MONTH_NOTES** is defined but not displayed; numerical claims within it require sources before use.
+1. Correlation is not causation: oil prices also respond to demand, inventories, supply decisions and expectations.
+2. Transit counts are not cargo volumes: they do not show how much oil each tanker carries.
+3. Futures are not spot prices: continuous front futures series may be affected by changes of contract and should not be treated as identical to EIA spot Brent.
+4. The baseline is short: less than two months of pre-war traffic may not capture seasonal patterns.
+5. Data coverage differs: shipping uses calendar days and futures use trading days; monthly results are calculated from available observations.
+6. The scatter plot is time-dependent: hared trends or event timing can produce an apparent relationship.
+7. External data may be revised: the panel relies on PortWatch and Yahoo Finance observations rather than independent measurements.
 
 ## 13. Overall conclusion
 
