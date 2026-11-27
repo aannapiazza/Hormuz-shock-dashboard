@@ -1,4 +1,4 @@
-name: Shipping Tests
+name: Tests
 
 on: workflow_dispatch
 
