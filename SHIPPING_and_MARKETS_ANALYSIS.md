@@ -16,20 +16,40 @@ The panel combines daily vessel-transit counts from IMF PortWatch with market ob
 
 | Stage | What happens | Main file |
 |---|---|---|
-| 1. Collect | Read the PortWatch CSV and saved market data, or download fresh market prices | **hormuz_dashboard.py** |
-| 2. Process | Filter the Strait of Hormuz, validate observations, standardise dates and apply a common end date | **hormuz_dashboard.py** |
-| 3. Analyse | Calculate changes from pre-war levels, moving averages, tanker share, the Brent–WTI spread and monthly summaries | **hormuz_dashboard.py** |
-| 4. Present | Display the results in headline figures, interactive charts and downloadable tables | **hormuz_dashboard.py** |
+| 1. Collect | Read the PortWatch CSV and saved market data, or download fresh market prices | **panels/shipping.py** |
+| 2. Process | Filter the Strait of Hormuz, validate observations, standardise dates and apply a common end date | **panels/shipping.py** |
+| 3. Analyse | Calculate changes from pre-war levels, moving averages, tanker share, the Brent–WTI spread and monthly summaries | **panels/shipping.py** |
+| 4. Present | Display the results in headline figures, interactive charts and downloadable tables | **panels/shipping.py** |
 
 ### Data flow
 
-| Input | Preparation | Main outputs |
-|---|---|---|
-| IMF PortWatch shipping data | Filter to the Strait of Hormuz, validate vessel counts and standardise dates | Daily ship and tanker figures, moving averages, pre-war comparisons |
-| Saved market data or Yahoo Finance | Clean, standardise and separate the four market series | Brent and WTI prices, their spread and additional market indicators |
-| Shipping and market data together | Align observation dates and aggregate by month | Monthly summaries and the traffic-versus-Brent scatter plot |
+```mermaid
+flowchart TD
+    P["IMF PortWatch CSV"] --> S["load_shipping_data(): filter and validate"]
+    C["Saved market CSV"] -->|Default| M["load_markets()"]
+    Y["Yahoo Finance"] -->|Refresh if needed| M
+    S --> D["build_daily(): 7-day averages"]
+    S --> B["prewar_baseline(): 1 Jan–27 Feb 2026"]
+    M --> F["market_series(): daily closes"]
+    F --> R["get_prewar_price(): 27 Feb 2026"]
+    D --> A["Prepared series and reference values"]
+    B --> A
+    F --> A
+    R --> A
+    A --> K["section_1_now(): headline metrics"]
+    A --> T["section_2_over_time(): trend charts"]
+    A --> N["build_monthly(): monthly averages"]
+    A --> X["Same-date traffic and Brent pairs"]
+    N --> L["section_3_month(): closer look"]
+    X --> L
+    K --> O["Shipping and Markets dashboard"]
+    T --> O
+    L --> O
+    D --> H["render_card(): home page preview"]
+    B --> H
+```
 
-The prepared data are displayed through the interactive Streamlit panel.
+The shipping and market series are prepared separately. A date match is applied where needed, such as the traffic-versus-Brent scatter plot. The home page preview uses shipping data only.
 
 Data processing uses **pandas** and **numpy**; market prices are retrieved through **yfinance**. Plotly produces the charts and Streamlit provides the interface.
 
@@ -365,13 +385,23 @@ Additional automated regression tests could verify these cases using small synth
 
 ## 12. Limitations and interpretation
 
-1. Correlation is not causation: oil prices also respond to demand, inventories, supply decisions and expectations.
-2. Transit counts are not cargo volumes: they do not show how much oil each tanker carries.
-3. Futures are not spot prices: continuous front futures series may be affected by changes of contract and should not be treated as identical to EIA spot Brent.
-4. The baseline is short: less than two months of pre-war traffic may not capture seasonal patterns.
-5. Data coverage differs: shipping uses calendar days and futures use trading days; monthly results are calculated from available observations.
-6. The scatter plot is time-dependent: hared trends or event timing can produce an apparent relationship.
-7. External data may be revised: the panel relies on PortWatch and Yahoo Finance observations rather than independent measurements.
+1. **Correlation is not causation.** Oil prices also respond to demand, inventories, supply decisions and expectations.
+2. **Transit counts are not cargo volumes.** They do not show how much oil each tanker carries.
+3. **Futures are not spot prices.** Continuous front futures series may be affected by changes of contract and should not be treated as identical to EIA spot Brent.
+4. **The baseline is short.** Less than two months of pre-war traffic may not capture seasonal patterns.
+5. **Data coverage differs.** Shipping uses calendar days and futures use trading days; monthly results are calculated from available observations.
+6. **The scatter plot is time-dependent.** Shared trends or event timing can produce an apparent relationship.
+7. **External data may be revised.** The panel relies on PortWatch and Yahoo Finance observations rather than independent measurements.
+
+### Implementation points to be aware of
+
+- Saved market snapshots are not checked for completeness in the same way as new downloads.
+- Some price captions may describe a download even when the saved copy is used; the status line shows the actual source.
+- Build-up shading starts on 1 January, although a Brent chart caption may refer to 28 February.
+- The final phase ends on a fixed 31 October date, so its definition must be updated if **END** changes.
+- The two-year market history is measured from the request date, not **END**.
+- Scatter colours depend on calendar month, so the same month in different years can share a colour.
+- **MONTH_NOTES** is defined but not displayed; numerical claims within it require sources before use.
 
 ## 13. Overall conclusion
 
