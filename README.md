@@ -166,7 +166,7 @@ By default the panel reads the saved copies. To download fresh market prices, se
 
 ## Gas & LNG (Eabha Kelly) — `panels/gas_lng.py`
 
-**Question:** about a fifth of the world's LNG passes through the Strait of Hormuz, almost all of it from Qatar. What has closing the strait done to European gas prices, LNG shipping and Europe's winter gas storage?
+**Question:** Roughly a fifth of global LNG passes through the Strait of Hormuz, almost all of it from Qatar. How did closing the strait affect European gas prices, LNG tanker traffic, and Europe’s winter storage?
 
 - **KPI cards:** the latest European gas price (Dutch TTF) and its change since before the war, how many times more Europe pays than the US, LNG tankers through Hormuz as a share of normal, and EU gas storage against the 5-year average.
 - **Main chart:** the monthly European gas price, with the daily price as a thin grey line behind it (from October 2025) and the pre-war level marked. The monthly points take the colour of their phase. You can highlight a phase, switch between $ per MMBtu and % vs pre-war, and add US gas (Henry Hub) for comparison.
