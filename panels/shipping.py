@@ -6,7 +6,7 @@ compares traffic and Brent over time. Section 3 zooms in on one month.
 How this file is organised:
     1. SETTINGS  - every date, source and number you might want to change
     2. DATA      - the shipping CSV (IMF PortWatch) and the market prices (Yahoo Finance)
-    3. ANALYSIS  - the maths, as small functions with docstrings
+    3. ANALYSIS  - the maths,  functions with docstrings
     4. CHARTS    - Plotly figures
     5. LAYOUT    - the sections and their controls (Streamlit)
     
@@ -106,20 +106,84 @@ def load_market_data(symbol, period=MARKET_HISTORY):
     return prices if END is None else prices[prices.index <= END]
 
 
-def load_markets(live=LIVE):
-    """All four market series: the saved copy in data/, or a fresh Yahoo download that is then saved."""
-    if live or not MARKET_FILE.exists():
-        try:
-            prices = pd.DataFrame({label: load_market_data(symbol) for label, symbol in MARKET_SYMBOLS.items()})
-            prices.index.name = "date"
-            prices.to_csv(MARKET_FILE)
-        except Exception:
-            pass
-    if not MARKET_FILE.exists():
-        return {label: pd.Series(dtype=float) for label in MARKET_SYMBOLS}
-    saved = pd.read_csv(MARKET_FILE, parse_dates=["date"], index_col="date")
-    return {label: saved[label].dropna() if label in saved else pd.Series(dtype=float) for label in MARKET_SYMBOLS}
+def clean_market_frame(frame):
+    """Validate and normalise market data."""
+    frame = frame.copy()
+    frame.index = pd.to_datetime(
+        frame.index, errors="coerce", utc=True
+    ).tz_convert(None).normalize()
 
+    frame = frame.loc[frame.index.notna()].sort_index()
+
+    if END is not None:
+        frame = frame.loc[frame.index <= END]
+
+    if frame.index.has_duplicates:
+        raise ValueError("Duplicate dates in market data.")
+
+    frame = frame.reindex(columns=list(MARKET_SYMBOLS))
+    frame = frame.apply(pd.to_numeric, errors="coerce")
+    frame = frame.replace([np.inf, -np.inf], np.nan)
+    frame.index.name = "date"
+
+    return frame
+
+
+def market_series(frame):
+    """Return one valid price series per market."""
+    return {
+        label: frame[label].dropna()
+        for label in MARKET_SYMBOLS
+    }
+
+
+def load_markets(live=LIVE):
+    """Load saved data or refresh only when new data is valid."""
+    saved = None
+
+    if MARKET_FILE.exists():
+        try:
+            saved = clean_market_frame(
+                pd.read_csv(MARKET_FILE, index_col="date")
+            )
+        except (OSError, ValueError):
+            saved = None
+
+    if not live and saved is not None:
+        return market_series(saved), "Market data: saved CSV snapshot."
+
+    try:
+        fresh = clean_market_frame(pd.DataFrame({
+            label: load_market_data(symbol)
+            for label, symbol in MARKET_SYMBOLS.items()
+        }))
+
+        prices = market_series(fresh)
+
+        if any(series.empty for series in prices.values()):
+            raise ValueError("Incomplete market data.")
+
+        if get_prewar_price(prices["BRENT"]) is None:
+            raise ValueError("Missing pre-war reference.")
+
+    except Exception:
+        if saved is not None:
+            return market_series(saved), "Market update failed: saved CSV retained."
+
+        return market_series(
+            clean_market_frame(pd.DataFrame())
+        ), "Market data unavailable."
+
+    temp_file = MARKET_FILE.with_suffix(".tmp")
+
+    try:
+        fresh.to_csv(temp_file, index_label="date")
+        temp_file.replace(MARKET_FILE)
+
+    except OSError:
+        return prices, "Fresh data loaded, but CSV could not be updated."
+
+    return prices, "Fresh market data loaded and saved."
 
 # ANALYSIS
 def percentage_change(prices):
@@ -186,6 +250,42 @@ def build_monthly(shipping_df, brent, base):
     m["DaysInMonth"] = m["Start"].dt.days_in_month
     m["Month"] = m["Start"].dt.strftime("%Y-%m")
     return m
+    def monthly_takeaway(monthly, selected):
+    """Compare the selected month with the previous month."""
+
+    rows = monthly.set_index("Month")
+    previous_month = str(pd.Period(selected, freq="M") - 1)
+
+    if previous_month not in rows.index:
+        return "No previous month available for comparison."
+
+    current = rows.loc[selected]
+    previous = rows.loc[previous_month]
+
+    if (
+        current["Days"] < current["DaysInMonth"]
+        or previous["Days"] < previous["DaysInMonth"]
+    ):
+        return "At least one month is incomplete."
+
+    if (
+        pd.isna(current["Brent"])
+        or pd.isna(previous["Brent"])
+        or previous["Brent"] <= 0
+        or previous["Total"] <= 0
+    ):
+        return "Not enough valid data for comparison."
+
+    traffic_change = pct(previous["Total"], current["Total"])
+    brent_change = pct(previous["Brent"], current["Brent"])
+
+    return (
+        f"Compared with {previous_month}, average daily "
+        f"vessel traffic changed by {traffic_change:+.1f}%, "
+        f"while average Brent futures prices changed "
+        f"by {brent_change:+.1f}%. "
+        "These changes do not establish causation."
+    )
 
 
 # CHARTS 
@@ -406,7 +506,24 @@ def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     c3.metric("Brent futures vs pre-war",
               f"{signed(pct(prewar_price, b))}%" if b is not None and prewar_price is not None else "n/a",
               help=reference_help)
-    c4.metric("Brent–WTI gap", f"${b - w:.2f}" if b and w else "n/a", help="Latest futures prices.")
+    common_prices = pd.concat(
+    [brent.rename("Brent"), wti.rename("WTI")],
+    axis=1,
+    join="inner"
+).dropna().sort_index()
+
+if common_prices.empty:
+    c4.metric("Brent–WTI futures spread", "n/a")
+else:
+    latest_pair = common_prices.iloc[-1]
+
+    c4.metric(
+        "Brent–WTI futures spread",
+        f"${latest_pair['Brent'] - latest_pair['WTI']:.2f}",
+        help="Difference between futures closing prices on the same date."
+    )
+
+    c4.caption(f"{common_prices.index[-1]:%d %b %Y}")
     st.caption("Market percentage changes compare the last two available observations.")
 
 def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
@@ -418,7 +535,13 @@ def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None)
     view = c2.selectbox("View", VIEWS, key="hs_view")
     with c3:
         show_tankers = st.toggle("Show tankers", value=True, key="hs_tankers")
-        show_avg = st.toggle("Show 7-day averages", value=True, key="hs_avg")
+        show_avg = st.toggle(
+    "Show 7-day averages",
+    value=True,
+    key="hs_avg",
+    disabled=(view == VIEWS[1] and base is not None),
+    help="Percentage comparisons always use 7-day averages."
+)
         show_wti = st.toggle("Compare Brent with WTI", value=False, key="hs_wti", disabled=view == VIEWS[1],
                              help="Only in the absolute view.")
 
@@ -487,8 +610,7 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         )
         if row["Days"] < row["DaysInMonth"] and selected == months[-1]:
             st.caption(f"Partial month: data to {nice_date(shipping_last)}.")
-        if selected in MONTH_NOTES:
-            st.info(MONTH_NOTES[selected])
+        st.info("**Key takeaway:** " + monthly_takeaway(monthly, selected))
     with left:
         mode = st.radio("Second chart", SECOND_CHARTS, index=2, horizontal=True, key="hs_second", label_visibility="collapsed")
         if mode == SECOND_CHARTS[2] and brent.empty:
@@ -517,8 +639,10 @@ def render():
         shipping_df = load_shipping_data()
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
-    with st.spinner("Loading market data..."):
-        market_data = load_markets()
+   with st.spinner("Loading market data..."):
+    market_data, market_status = load_markets()
+
+st.caption(market_status)
     market_errors = [label for label, prices in market_data.items() if prices.empty]
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
