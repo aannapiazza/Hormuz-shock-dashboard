@@ -194,11 +194,11 @@ By default the panel reads the saved copies. To download fresh market prices, se
 | EU gas storage, % full (2026, 2025 and 5-year average) | GIE AGSI, as reported by Argus, GMK Center and others | `data/gas_storage.csv` |
 | Europe (TTF) vs Asia (JKM) prices: before the war, 2026 and the 2022 peak | World Bank, EIA, IEA, S&P Global | `data/gas_benchmarks.csv` |
 
-Every row of every gas data file has a `source` or `url` column, so each number can be traced back to where it came from. The tanker, storage and benchmark files were compiled by hand from the reports linked in each file.
+Every row includes a `source` or `url` column, so all figures can be traced back to their origin. The tanker, storage and benchmark files were compiled by hand from the reports linked in each file.
 
 **Running and updating:** by default the panel reads the saved copies. To fetch fresh daily prices, turn on **"Download the latest prices from Yahoo Finance"** at the bottom of the panel; it falls back to the saved copy if Yahoo Finance can't be reached, and it doesn't change the files in `data/`. To also save the download over `data/gas_prices_daily.csv`, set `LIVE = True` at the top of `panels/gas_lng.py`.
 
-**Tests:** `tests/test_gas.py` has 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
+**Tests:** `tests/test_gas.py` contains 23 tests: the €→$ conversion, the phase of each date, the monthly table (cut-off, pre-war reference, changes), the volatility calculation, the phase shading and the data downloads. Run them with `python3 -m pytest -q tests/test_gas.py`.
 
 **Limitations:** tanker counts come from two trackers that count slightly differently (hover over a bar to see which tracker counted it). Storage readings are on the dates they were reported, not every day; with the latest on 27 October, compared with the latest 5-year average before it (6 October). The panel describes what happened and doesn't forecast prices.
 
