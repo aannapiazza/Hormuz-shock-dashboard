@@ -35,6 +35,9 @@ TICKERS = {"ttf_eur_mwh": "TTF=F", "hh_usd_mmbtu": "NG=F", "eurusd": "EURUSD=X"}
 DAILY_START = "2025-10-01"           # first day downloaded when LIVE = True
 PREWAR_MONTH = "2026-02"             # last full month before the 28 Feb strikes: the "before the war" reference
 MWH_PER_MMBTU = 0.293071             # 1 MMBtu = 0.293071 MWh (to put European prices in $/MMBtu)
+WAR_START = "2026-02-28"             # the day of the strikes: "before the war" means before this day
+VOL_WINDOW = 21                      # trading days in the rolling volatility window (about one month)
+TRADING_DAYS = 252                   # trading days a year, to turn daily swings into a yearly figure
 
 # Phases that shade the chart: same names, dates and colours as panels/oil.py.
 EVENTS = {
@@ -67,15 +70,18 @@ TITLE = "Gas & LNG: Qatar's exports cut off"
 SUBTITLE = "About a fifth of the world's LNG passes through Hormuz, almost all of it from Qatar"
 SOURCE = ("World Bank Pink Sheet (monthly TTF), Yahoo Finance (daily TTF, Henry Hub, EUR/USD), S&P Global and "
           "Kpler (LNG tankers), GIE AGSI (EU storage), EIA and IEA (Asian LNG)")
-COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "green": "#27ae60",
-          "blue": "#2e86de", "purple": "#8e44ad", "teal": "#0f9b8e", "amber": "#d48806", "grey": "#7f8c8d"}
+DATA_NOTE = ("The LNG tanker counts combine S&P Global and Kpler figures as reported in the news; the two count "
+             "ships slightly differently, so treat month-to-month changes as approximate. gas_tankers.csv, "
+             "gas_storage.csv and gas_benchmarks.csv were compiled by hand from the reports linked in each file.")
+COLORS = {"navy": "#1b2a41", "orange": "#f2711c", "muted": "#6b7785", "red": "#d64545", "blue": "#2e86de",
+          "purple": "#8e44ad", "teal": "#0f9b8e", "grey": "#7f8c8d"}
 # =============================================================================
 # (You shouldn't need to change anything below this line.)
 # =============================================================================
 
 PHASES = {name: dict(start=s, end=e, color=c, text=t) for name, (s, e, c, t) in EVENTS.items()}
 VIEWS = ["$ per MMBtu", "% vs pre-war"]
-SECOND = ["LNG tankers", "EU storage", "2026 vs 2022"]
+SECOND = ["LNG tankers", "EU storage", "Price swings", "2026 vs 2022"]
 KEEP = dict(marker=dict(opacity=1))   # stops Plotly fading the other points after a click
 
 
@@ -124,6 +130,7 @@ def load_data(live: bool = LIVE) -> tuple:
     data["daily"]["date"] = pd.to_datetime(data["daily"]["date"])
     data["daily"] = data["daily"][data["daily"]["date"] <= END].reset_index(drop=True)
     data["storage"]["date"] = pd.to_datetime(data["storage"]["date"])
+    data["storage"] = data["storage"][data["storage"]["date"] <= END].reset_index(drop=True)
     data["prices"] = data["prices"][pd.to_datetime(data["prices"]["month"]) <= END]
     return data, how
 
@@ -159,6 +166,8 @@ def monthly_table(data: dict) -> pd.DataFrame:
     month_ends = pd.to_datetime(t["month"]) + pd.offsets.MonthEnd(0)
     t["storage"] = [s26.loc[s26["date"] <= d, "pct_full"].iloc[-1] if (s26["date"] <= d).any() else np.nan
                     for d in month_ends]
+    swings = price_swings(data["daily"]).assign(month=lambda x: x["date"].dt.strftime("%Y-%m"))
+    t["vol"] = t["month"].map(swings.groupby("month")["vol"].mean())          # average volatility that month
     t["phase"] = [phase_for(d) for d in t["date"]]
     return t.reset_index(drop=True)
 
@@ -171,11 +180,32 @@ def phase_for(date) -> str | None:
     return None
 
 
+def price_swings(daily: pd.DataFrame) -> pd.DataFrame:
+    """How much the European gas price moves from day to day.
+
+    ret = the daily change in %, measured as a log return (so a rise and an equal fall cancel out).
+    vol = the rolling standard deviation of those daily changes over VOL_WINDOW trading days, scaled
+          to a yearly figure (x square root of TRADING_DAYS): the usual way to measure volatility.
+    """
+    usd = ttf_in_usd(daily)
+    ret = np.log(usd).diff() * 100
+    vol = ret.rolling(VOL_WINDOW).std() * np.sqrt(TRADING_DAYS)
+    return pd.DataFrame({"date": daily["date"], "usd": usd, "ret": ret, "vol": vol})
+
+
+def swings_summary(swings: pd.DataFrame, top: int = 3) -> dict:
+    """Volatility before and since the war (from all daily changes in each period), and the biggest daily jumps."""
+    before = swings["date"] < pd.Timestamp(WAR_START)
+    yearly = lambda r: r.std() * np.sqrt(TRADING_DAYS)
+    return {"before": yearly(swings.loc[before, "ret"]), "since": yearly(swings.loc[~before, "ret"]),
+            "biggest": swings.nlargest(top, "ret")[["date", "ret"]].reset_index(drop=True)}
+
+
 def storage_now(storage: pd.DataFrame) -> dict:
-    """Latest EU storage reading, and how far it is from the 5-year average on that date."""
+    """Latest EU storage reading, and how far it is from the latest 5-year average on or before that date."""
     s26 = storage[storage["series"] == "2026"].sort_values("date").iloc[-1]
-    avg = storage[(storage["series"] == "5-year average") & (storage["date"] == s26["date"])]["pct_full"]
-    return {"date": s26["date"], "pct": s26["pct_full"], "gap": s26["pct_full"] - avg.iloc[0] if len(avg) else np.nan}
+    avg = storage[(storage["series"] == "5-year average") & (storage["date"] <= s26["date"])].sort_values("date")["pct_full"]
+    return {"date": s26["date"], "pct": s26["pct_full"], "gap": s26["pct_full"] - avg.iloc[-1] if len(avg) else np.nan}
 
 
 # --------------------------------- helpers ---------------------------------
@@ -189,23 +219,14 @@ def layout(height, **kwargs):
                 margin=dict(l=55, r=20, t=20, b=40), **kwargs)
 
 
-def shade(fig, phase, faint=False):
-    """Shade phases of the crisis on a chart.
-
-    faint=True: every phase as a light band with its name on top (the background of the main chart).
-    Otherwise: only the chosen phase, a little stronger, with its name.
-    """
-    for name, p in PHASES.items():
-        chosen = name == phase
-        if not (faint or chosen):
-            continue
-        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18 if chosen else 0.06,
-                      layer="below", line_width=0)
-        if chosen or faint:
-            mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
-            fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False,
-                               text=f"<b>{name}</b>" if chosen else name,
-                               font=dict(color=p["color"], size=12 if chosen else 11))
+def shade(fig, phase):
+    """Shade the chosen phase of the crisis on a chart that uses exact dates, with its name on top."""
+    if phase in PHASES:
+        p = PHASES[phase]
+        fig.add_vrect(x0=p["start"], x1=p["end"], fillcolor=p["color"], opacity=0.18, layer="below", line_width=0)
+        mid = pd.Timestamp(p["start"]) + (pd.Timestamp(p["end"]) - pd.Timestamp(p["start"])) / 2
+        fig.add_annotation(x=mid, yref="paper", y=1.0, yanchor="bottom", showarrow=False, text=f"<b>{phase}</b>",
+                           font=dict(color=p["color"], size=12))
 
 
 def shade_months(fig, table, phase):
@@ -253,8 +274,12 @@ def label_positions(values) -> list:
     return out
 
 
-def main_figure(table, phase, view, show_us, sel):
-    """Main chart: European gas, monthly average, with price labels and optional US gas."""
+def main_figure(table, phase, view, show_us, sel, daily=None):
+    """Main chart: European gas, monthly average, with price labels and optional US gas.
+
+    If the daily prices are given, they are drawn as a thin grey line behind the monthly average
+    (from October 2025), so you can see the calm before the war and the daily spikes the averages smooth out.
+    """
     as_pct = view == VIEWS[1]
     def tf(values, ref):
         values = np.asarray(values, dtype=float)
@@ -262,12 +287,17 @@ def main_figure(table, phase, view, show_us, sel):
     prewar = table.loc[table["month"] == PREWAR_MONTH].iloc[0]
     fmt = "%{y:+.0f}%" if as_pct else "$%{y:.2f}"
     n, y = len(table), tf(table["ttf"], prewar["ttf"])
-    fig = go.Figure(go.Scatter(
+    fig = go.Figure()
+    if daily is not None:
+        fig.add_scatter(x=daily["date"], y=tf(ttf_in_usd(daily), prewar["ttf"]), name="Europe, daily",
+                        mode="lines", line=dict(color="#b8bfc9", width=1),
+                        hovertemplate=f"Daily: {fmt}<extra></extra>")
+    fig.add_trace(go.Scatter(
         x=table["date"], y=y, name="Europe (TTF)", mode="lines+markers+text",
         text=[f"{v:+.0f}%" if as_pct else f"${v:.1f}" for v in y], textposition=label_positions(y),
         textfont=dict(size=10.5, color="#475467"), line=dict(color=COLORS["navy"], width=3),
         marker=dict(size=[13 if i == sel else 7 for i in range(n)], line=dict(color="#fff", width=1.5),
-                    color=[COLORS["orange"] if i == sel else COLORS["navy"] for i in range(n)]),
+                    color=[COLORS["orange"] if i == sel else phase_colour(table["phase"][i]) for i in range(n)]),   # dots in their phase colour
         selected=KEEP, unselected=KEEP, hovertemplate=f"Europe: {fmt}<extra></extra>"))
     if show_us:
         fig.add_scatter(x=table["date"], y=tf(table["hh"], prewar["hh"]), name="US gas (Henry Hub)",
@@ -278,13 +308,13 @@ def main_figure(table, phase, view, show_us, sel):
                   annotation_text="Pre-war level" if as_pct else f"Pre-war (Feb avg) ${prewar['ttf']:.2f}",
                   annotation_position="bottom right", annotation_font=dict(size=11, color=COLORS["muted"]))
     shade_months(fig, table, phase)
-    fig.update_layout(**layout(430, hovermode="x unified", showlegend=show_us,
+    start = daily["date"].min() if daily is not None else table["date"].iloc[0] - pd.Timedelta(days=20)
+    fig.update_layout(**layout(430, hovermode="x unified", showlegend=True,
                                legend=dict(orientation="h", x=1, xanchor="right", y=1.1),
                                yaxis=dict(title="% vs pre-war" if as_pct else "$ per MMBtu", gridcolor="#edf0f3",
                                           zeroline=False, ticksuffix="%" if as_pct else ""),
                                xaxis=dict(**MONTH_AXIS,
-                                          range=[table["date"].iloc[0] - pd.Timedelta(days=20),
-                                                 table["date"].iloc[-1] + pd.Timedelta(days=20)])))
+                                          range=[start, table["date"].iloc[-1] + pd.Timedelta(days=20)])))
     fig.update_layout(margin_t=40)
     return fig
 
@@ -310,31 +340,62 @@ def second_figure(mode, table, data, sel, phase, view):
     if mode == SECOND[1]:                    # EU storage (already in %, so the price view doesn't change it)
         st_ = data["storage"]
         fig = go.Figure()
-        # soft pastels for the comparisons; 2026 in navy with a light fill, its dots in the colour of each phase
-        for name, colour, dash, width in [("5-year average", "#f2a48f", "dash", 2.5),
-                                          ("2025 (same date)", "#8fbbe8", None, 2.5), ("2026", COLORS["navy"], None, 3.5)]:
+        # 2026 in red with a light red fill, 2025 in gold, the 5-year average as a grey dashed line
+        for name, colour, dash, width in [("5-year average", "#8a94a3", "dash", 2),
+                                          ("2025 (same date)", "#d9a21b", None, 2.5), ("2026", COLORS["red"], None, 3.5)]:
             s = st_[st_["series"] == name].sort_values("date")
             is_2026 = name == "2026"
             fig.add_scatter(x=s["date"], y=s["pct_full"], name=name.replace(" (same date)", ""), mode="lines+markers",
                             line=dict(color=colour, dash=dash, width=width, shape="spline", smoothing=0.5),
-                            fill="tozeroy" if is_2026 else None, fillcolor="rgba(27,42,65,0.07)",
-                            marker=dict(size=10 if is_2026 else 6, line=dict(color="#fff", width=1.5),
-                                        color=[PHASES[phase_for(d)]["color"] if phase_for(d) else COLORS["navy"]
-                                               for d in s["date"]] if is_2026 else colour),
+                            fill="tozeroy" if is_2026 else None, fillcolor="rgba(214,69,69,0.07)",
+                            marker=dict(size=9 if is_2026 else 7, color=colour, line=dict(color="#fff", width=1.5)),
                             hovertemplate=f"{name.split(' (')[0]}: %{{y:.1f}}%<extra></extra>")
-        fig.add_hline(y=90, line=dict(color=COLORS["teal"], dash="dot", width=1), annotation_text="EU target 90%",
-                      annotation_font_color=COLORS["teal"], annotation_position="top left")
+        for level, label in [(90, "EU target 90%"), (80, "Flexible target 80%")]:   # the EU's storage targets
+            fig.add_hline(y=level, line=dict(color=COLORS["teal"], dash="dot", width=1.2), annotation_text=label,
+                          annotation_font_color=COLORS["teal"], annotation_position="top left")
         shade(fig, phase)
         cursor(fig, table.iloc[sel]["date"])
         fig.update_layout(**layout(330, hovermode="x unified", legend=dict(orientation="h", y=1.12, x=0),
                                    yaxis=dict(title="% full", range=[0, 105], ticksuffix="%", gridcolor="#edf0f3"),
-                                   xaxis=dict(type="date", range=["2026-03-20", "2026-11-20"], tickformat="%b")))
+                                   xaxis=dict(type="date", range=["2026-03-20", "2026-10-31"], tickformat="%b")))
         now = storage_now(st_)
         return (fig, "EU gas storage: refilling fell short",
                 f"On {now['date']:%d %b} storage was {now['pct']:.0f}% full, {abs(now['gap']):.0f} points below the "
                 "5-year average. The dotted line is the month in focus.")
 
-    if mode == SECOND[2]:                    # 2026 vs 2022
+    if mode == SECOND[2]:                    # Price swings (already in %, so the price view doesn't change it)
+        sw = price_swings(data["daily"])
+        summary = swings_summary(sw)
+        fig = go.Figure(go.Scatter(x=sw["date"], y=sw["vol"], mode="lines", name="30-day volatility",
+                                   line=dict(color=COLORS["navy"], width=2), fill="tozeroy",
+                                   fillcolor="rgba(27,42,65,0.07)",
+                                   hovertemplate="%{x|%d %b %Y}: %{y:.0f}% a year<extra></extra>"))
+        fig.add_hline(y=summary["before"], line=dict(color=COLORS["teal"], dash="dash", width=1.5),
+                      annotation_text=f"Before the war: {summary['before']:.0f}%", annotation_position="top left",
+                      annotation_font_color=COLORS["teal"])
+        # the biggest one-day jumps: a red dot on the line for each, and one tidy label listing them
+        # (they are only days apart, so separate labels would sit on top of each other)
+        big = summary["biggest"].merge(sw[["date", "vol"]], on="date")
+        fig.add_scatter(x=big["date"], y=big["vol"], mode="markers", name="Biggest one-day jumps",
+                        marker=dict(size=10, color=COLORS["red"], line=dict(color="#fff", width=1.5)),
+                        customdata=big["ret"], hovertemplate="%{x|%d %b %Y}: %{customdata:+.0f}% in one day<extra></extra>")
+        listing = " · ".join(f"{d:%d %b} {r:+.0f}%" for d, r in zip(big["date"], big["ret"]))
+        fig.add_annotation(xref="paper", yref="paper", x=0.99, y=0.97, xanchor="right", yanchor="top",
+                           showarrow=False, align="right", text=f"<b>Biggest one-day jumps</b> (red dots)<br>{listing}",
+                           font=dict(size=11, color=COLORS["red"]), bgcolor="rgba(255,255,255,0.9)",
+                           bordercolor="#f3c6c6", borderwidth=1, borderpad=4)
+        shade(fig, phase)
+        cursor(fig, table.iloc[sel]["date"])
+        fig.update_layout(**layout(330, showlegend=False,
+                                   yaxis=dict(title="Volatility (% a year)", gridcolor="#edf0f3", ticksuffix="%",
+                                              range=[0, sw["vol"].max() * 1.25]),     # room above the peak
+                                   xaxis=dict(type="date", tickformat="%b %y")))
+        return (fig, "Price swings: how jumpy the gas market got",
+                f"Volatility of the daily European gas price over the last {VOL_WINDOW} trading days, as a yearly "
+                f"figure. {summary['before']:.0f}% before the war, {summary['since']:.0f}% since. "
+                "The dotted line is the month in focus.")
+
+    if mode == SECOND[3]:                    # 2026 vs 2022
         b = data["benchmarks"]
         rows = list(b["period"])
         ttf, jkm = b["ttf_usd_per_mmbtu"], b["jkm_usd_per_mmbtu"]
@@ -446,6 +507,36 @@ def card_figure(table, daily):
     return fig
 
 
+def download_table(table: pd.DataFrame) -> pd.DataFrame:
+    """The monthly numbers behind the panel, with clear column names, for the download button."""
+    cols = {"month": "month", "phase": "phase", "ttf": "european_gas_usd_per_mmbtu",
+            "vs_prewar": "change_vs_feb_2026_pct", "hh": "us_gas_usd_per_mmbtu", "ratio": "europe_vs_us_times",
+            "tankers": "lng_tankers", "tanker_pct": "tankers_pct_of_normal", "tracker": "tanker_source",
+            "storage": "eu_storage_pct_full", "vol": "volatility_pct_a_year"}
+    return table[list(cols)].rename(columns=cols).round(2)
+
+
+def daily_table(daily: pd.DataFrame) -> pd.DataFrame:
+    """The daily prices behind the panel, newest first, with clear column names and European gas in $ too."""
+    out = pd.DataFrame({"date": daily["date"].dt.date, "european_gas_eur_per_mwh": daily["ttf_eur_mwh"],
+                        "european_gas_usd_per_mmbtu": ttf_in_usd(daily), "us_gas_usd_per_mmbtu": daily["hh_usd_mmbtu"],
+                        "eur_usd": daily["eurusd"]})
+    return out.sort_values("date", ascending=False).round(3).reset_index(drop=True)
+
+
+SCREEN_NAMES = {"month": "Month", "phase": "Phase", "european_gas_usd_per_mmbtu": "European gas ($/MMBtu)",
+                "change_vs_feb_2026_pct": "vs pre-war (%)", "us_gas_usd_per_mmbtu": "US gas ($/MMBtu)",
+                "europe_vs_us_times": "Europe pays (× US)", "lng_tankers": "LNG tankers",
+                "tankers_pct_of_normal": "Tankers (% of normal)", "tanker_source": "Tanker source",
+                "eu_storage_pct_full": "EU storage (% full)", "volatility_pct_a_year": "Volatility (% a year)",
+                "date": "Date", "european_gas_eur_per_mwh": "European gas (€/MWh)", "eur_usd": "EUR/USD"}
+
+
+def readable(df: pd.DataFrame) -> pd.DataFrame:
+    """The same table with column names for showing on screen (the CSV downloads keep the short names)."""
+    return df.rename(columns=SCREEN_NAMES)
+
+
 # ------------------------------ page pieces -------------------------------
 def kpi_html(title, value, desc, color):
     """A KPI card, same style as panels/oil.py."""
@@ -486,14 +577,15 @@ def focus_table_html(row):
         return "n/a" if pd.isna(v) else f'<span style="color:{"#c0392b" if v > 0 else "#1e8449"}">{signed(v)}%</span>'
     rows = [("European gas (TTF)", f"&#36;{row['ttf']:.2f}"),
             ("vs before the war", coloured(row["vs_prewar"])),
-            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US")]
+            ("Europe pays", "n/a" if pd.isna(row["ratio"]) else f"{row['ratio']:.1f}× the US"),
+            ("Price swings (volatility)", "n/a" if pd.isna(row["vol"]) else f"{row['vol']:.0f}% a year")]
     # keep the table's grid lines, with space between the text and the lines on every side
     cell = "padding:10px 14px;border-bottom:1px solid #eef0f3"
     table = "".join(f'<tr><td style="{cell}">{a}</td><td style="{cell};text-align:right;font-weight:700">{b}</td></tr>'
                     for a, b in rows)
     return (f'<table style="width:100%;border-collapse:collapse;margin:0 0 10px;font-size:14px">{table}</table>'
             f'<div style="background:#f7f9fb;border-left:3px solid {phase_colour(row["phase"])};padding:10px 12px;'
-            f'font-size:13px;line-height:1.5">{MONTH_NOTES.get(row["month"], "")}</div>')
+            f'font-size:13px;line-height:1.5;margin-bottom:16px">{MONTH_NOTES.get(row["month"], "")}</div>')   # space above the buttons
 
 
 def apply_click(key, months):
@@ -585,9 +677,9 @@ def render():
     if phase in PHASES:
         st.markdown(phase_summary(table, data, phase), unsafe_allow_html=True)
     with st.container(border=True):
-        subtitle("European gas, monthly average", "Click any month: the second chart and Month in focus follow it. "
+        subtitle("European gas, monthly average (grey: daily price)", "Click any month: the second chart and Month in focus follow it. "
                  "The phase buttons and price view change both charts.")
-        show_chart(main_figure(table, phase, view, show_us, sel), "gas_main_chart")
+        show_chart(main_figure(table, phase, view, show_us, sel, data["daily"]), "gas_main_chart")
 
     left, right = st.columns([2, 1])
     with left.container(border=True):
@@ -614,11 +706,24 @@ def render():
     st.success("**Takeaway:** Europe's gas price is up " + f"{last['vs_prewar']:.0f}% since before the war and LNG "
                f"traffic through Hormuz is only {tk['tanker_pct']:.0f}% of normal. Europe enters winter with storage "
                f"{abs(now['gap']):.0f} points below normal, so a cold snap could push prices higher still.")
+    with st.expander("Gas data and download"):
+        st.markdown("**Monthly summary** (the numbers behind the charts and the Month in focus card)")
+        monthly = download_table(table)
+        st.dataframe(readable(monthly.iloc[::-1]), hide_index=True, width="stretch")
+        st.download_button("Download monthly data (CSV)", key="gas_csv", file_name="gas_lng_monthly.csv",
+                           mime="text/csv", data=monthly.to_csv(index=False))
+        st.markdown(f"**Daily prices** ({len(data['daily'])} trading days, Yahoo Finance; European gas converted "
+                    "to &#36; per MMBtu with that day's exchange rate)", unsafe_allow_html=True)
+        daily = daily_table(data["daily"])
+        st.dataframe(readable(daily), hide_index=True, width="stretch", height=300)
+        st.download_button("Download daily prices (CSV)", key="gas_csv_daily", file_name="gas_lng_daily.csv",
+                           mime="text/csv", data=daily.to_csv(index=False))
     st.toggle("Download the latest prices from Yahoo Finance", key="gas_live", value=LIVE,
               help="Off: the saved copy in data/ (same numbers every time). On: a fresh download of TTF, "
                    "Henry Hub and EUR/USD. Falls back to the saved copy if Yahoo Finance can't be reached.")
     st.caption(f"Data: {SOURCE}. Daily prices: {how}. Prices to {END:%d %B %Y}; EU storage to "
                f"{now['date']:%d %B %Y}. Sources are listed row by row in data/gas_*.csv.".replace("$", "\\$"))
+    st.caption(DATA_NOTE)
 
 
 if __name__ == "__main__":   # only when run on its own; inside the group app this is already set

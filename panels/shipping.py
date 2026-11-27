@@ -1,17 +1,15 @@
 """
 Hormuz | Shipping & Markets
-
 Story: how much traffic goes through the Strait of Hormuz, and what Brent and WTI
 oil futures did at the same time. Section 1 shows where things stand now. Section 2
 compares traffic and Brent over time. Section 3 zooms in on one month.
-
 How this file is organised:
     1. SETTINGS  - every date, source and number you might want to change
     2. DATA      - the shipping CSV (IMF PortWatch) and the market prices (Yahoo Finance)
-    3. ANALYSIS  - the maths, as small functions with docstrings
+    3. ANALYSIS  - the maths,  functions with docstrings
     4. CHARTS    - Plotly figures
     5. LAYOUT    - the sections and their controls (Streamlit)
-
+    
 Run on its own:   python3 -m streamlit run hormuz_dashboard.py
 """
 from pathlib import Path
@@ -27,6 +25,10 @@ END = pd.Timestamp("2026-10-31")          # last day shown, same for the whole d
 WAR_START = pd.Timestamp("2026-02-28")    # US-Israel strikes on Iran
 EVENTS = [("2026-02-28", "War begins"), ("2026-04-08", "Ceasefire"),
           ("2026-06-17", "US–Iran MOU"), ("2026-07-08", "Strikes resume")]
+PHASES = [("2026-01-01", "2026-02-28", "#e0a800"),   # Build-up   (the same phases and colours
+          ("2026-02-28", "2026-04-08", "#d64545"),   # War & closure  as the oil, gas and
+          ("2026-04-08", "2026-07-08", "#2e86de"),   # Ceasefire      inflation panels)
+          ("2026-07-08", "2026-10-31", "#8e44ad")]   # Conflict resumes
 PREWAR_DATE = pd.Timestamp("2026-02-27")      # pre-war reference
 BASELINE_START = pd.Timestamp("2026-01-01")   # normal traffic = average daily transits
 BASELINE_END = pd.Timestamp("2026-02-27")     # in this window (needs at least 14 days of data)
@@ -57,7 +59,7 @@ COLOURS = {"navy": "#1b2a41", "blue": "#2e6fd8", "orange": "#c2410c", "purple": 
 
 # DATA 
 def load_shipping_data():
-    csv_path = DATA_DIR / "portwatch_daily_chokepoints.csv"     # the same PortWatch file the inflation panel uses
+    csv_path = DATA_DIR / "portwatch_daily_chokepoints.csv" 
     if not csv_path.is_file():
         raise FileNotFoundError("data/portwatch_daily_chokepoints.csv is missing (download it from portwatch.imf.org).")
     df = pd.read_csv(csv_path)
@@ -104,32 +106,84 @@ def load_market_data(symbol, period=MARKET_HISTORY):
     return prices if END is None else prices[prices.index <= END]
 
 
+def clean_market_frame(frame):
+    """Validate and normalise market data."""
+    frame = frame.copy()
+    frame.index = pd.to_datetime(
+        frame.index, errors="coerce", utc=True
+    ).tz_convert(None).normalize()
+
+    frame = frame.loc[frame.index.notna()].sort_index()
+
+    if END is not None:
+        frame = frame.loc[frame.index <= END]
+
+    if frame.index.has_duplicates:
+        raise ValueError("Duplicate dates in market data.")
+
+    frame = frame.reindex(columns=list(MARKET_SYMBOLS))
+    frame = frame.apply(pd.to_numeric, errors="coerce")
+    frame = frame.replace([np.inf, -np.inf], np.nan)
+    frame.index.name = "date"
+
+    return frame
+
+
+def market_series(frame):
+    """Return one valid price series per market."""
+    return {
+        label: frame[label].dropna()
+        for label in MARKET_SYMBOLS
+    }
+
+
 def load_markets(live=LIVE):
-    """All four market series: the saved copy in data/, or a fresh Yahoo download that is then saved.
+    """Load saved data or refresh only when new data is valid."""
+    saved = None
 
-    If the download fails, the saved copy is used (the Session 11 pattern), so the
-    numbers stay the same on every run and the panel works offline.
-    """
-    if live or not MARKET_FILE.exists():
+    if MARKET_FILE.exists():
         try:
-            prices = pd.DataFrame({label: load_market_data(symbol) for label, symbol in MARKET_SYMBOLS.items()})
-            prices.index.name = "date"
-            prices.to_csv(MARKET_FILE)
-        except Exception:
-            pass
-    if not MARKET_FILE.exists():
-        return {label: pd.Series(dtype=float) for label in MARKET_SYMBOLS}
-    saved = pd.read_csv(MARKET_FILE, parse_dates=["date"], index_col="date")
-    return {label: saved[label].dropna() if label in saved else pd.Series(dtype=float) for label in MARKET_SYMBOLS}
+            saved = clean_market_frame(
+                pd.read_csv(MARKET_FILE, index_col="date")
+            )
+        except (OSError, ValueError):
+            saved = None
 
+    if not live and saved is not None:
+        return market_series(saved), "Market data: saved CSV snapshot."
 
-def safe_market_data(symbol):
-    """load_market_data, but an empty Series instead of an error if Yahoo fails."""
     try:
-        return load_market_data(symbol)
-    except Exception:
-        return pd.Series(dtype=float)
+        fresh = clean_market_frame(pd.DataFrame({
+            label: load_market_data(symbol)
+            for label, symbol in MARKET_SYMBOLS.items()
+        }))
 
+        prices = market_series(fresh)
+
+        if any(series.empty for series in prices.values()):
+            raise ValueError("Incomplete market data.")
+
+        if get_prewar_price(prices["BRENT"]) is None:
+            raise ValueError("Missing pre-war reference.")
+
+    except Exception:
+        if saved is not None:
+            return market_series(saved), "Market update failed: saved CSV retained."
+
+        return market_series(
+            clean_market_frame(pd.DataFrame())
+        ), "Market data unavailable."
+
+    temp_file = MARKET_FILE.with_suffix(".tmp")
+
+    try:
+        fresh.to_csv(temp_file, index_label="date")
+        temp_file.replace(MARKET_FILE)
+
+    except OSError:
+        return prices, "Fresh data loaded, but CSV could not be updated."
+
+    return prices, "Fresh market data loaded and saved."
 
 # ANALYSIS
 def percentage_change(prices):
@@ -141,9 +195,8 @@ def percentage_change(prices):
         return None
     return float(np.diff(values)[0] / values[0] * 100)
 
-
 def get_prewar_price(brent):
-    """Exact reference-date close from the same BZ=F series; no spot fallback."""
+    """Exact reference-date close from the same BZ=F series."""
     if PREWAR_DATE not in brent.index:
         return None
     value = float(brent.loc[PREWAR_DATE])
@@ -158,7 +211,6 @@ def pct(old, new) -> float:
 def signed(v, decimals=1) -> str:
     """A number with a + sign when positive."""
     return f"{'+' if v > 0 else ''}{v:.{decimals}f}"
-
 
 def nice_date(ts) -> str:
     """'19 Nov 2026'."""
@@ -200,6 +252,44 @@ def build_monthly(shipping_df, brent, base):
     return m
 
 
+def monthly_takeaway(monthly, selected):
+    """Compare the selected month with the previous month."""
+
+    rows = monthly.set_index("Month")
+    previous_month = str(pd.Period(selected, freq="M") - 1)
+
+    if previous_month not in rows.index:
+        return "No previous month available for comparison."
+
+    current = rows.loc[selected]
+    previous = rows.loc[previous_month]
+
+    if (
+        current["Days"] < current["DaysInMonth"]
+        or previous["Days"] < previous["DaysInMonth"]
+    ):
+        return "At least one month is incomplete."
+
+    if (
+        pd.isna(current["Brent"])
+        or pd.isna(previous["Brent"])
+        or previous["Brent"] <= 0
+        or previous["Total"] <= 0
+    ):
+        return "Not enough valid data for comparison."
+
+    traffic_change = pct(previous["Total"], current["Total"])
+    brent_change = pct(previous["Brent"], current["Brent"])
+
+    return (
+        f"Compared with {previous_month}, average daily "
+        f"vessel traffic changed by {traffic_change:+.1f}%, "
+        f"while average Brent futures prices changed "
+        f"by {brent_change:+.1f}%. "
+        "These changes do not establish causation."
+    )
+
+
 # CHARTS 
 def style(fig, height, title, **layout):
     """The look shared by all charts: white background, dark text, title on the left.
@@ -225,7 +315,10 @@ def finish(fig, height, title, start, last, reference=None, **layout):
     if reference is not None:
         fig.add_hline(y=reference[0], line=dict(color="#6b7785", dash="dash", width=1),
                       annotation_text=reference[1], annotation_position="bottom right")
-    fig.add_vrect(x0=WAR_START, x1=last, fillcolor="#d23f3f", opacity=0.07, line_width=0, layer="below")
+    for p_start, p_end, colour in PHASES:          # the four phases, same colours as the other panels
+        p_start, p_end = max(pd.Timestamp(p_start), start), min(pd.Timestamp(p_end), last)
+        if p_start < p_end:
+            fig.add_vrect(x0=p_start, x1=p_end, fillcolor=colour, opacity=0.08, line_width=0, layer="below")
     zoomed_in = (last - start).days <= 400
     for i, (date, label) in enumerate(EVENTS):
         when = pd.Timestamp(date)
@@ -376,7 +469,6 @@ def market_metric(column, label, prices, prefix="", caption="{date}"):
                   delta=f"{change:+.2f}%" if change is not None else None, delta_color="off")
     column.caption(caption.format(date=f"{prices.index[-1]:%d %b %Y}"))
 
-
 def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 1: where do traffic and prices stand now?"""
     st.subheader("Where things stand")
@@ -416,9 +508,24 @@ def section_1_now(shipping_df, daily, base, brent, wti, prewar_price=None):
     c3.metric("Brent futures vs pre-war",
               f"{signed(pct(prewar_price, b))}%" if b is not None and prewar_price is not None else "n/a",
               help=reference_help)
-    c4.metric("Brent–WTI gap", f"${b - w:.2f}" if b and w else "n/a", help="Latest futures prices.")
-    st.caption("Market percentage changes compare the last two available observations.")
+    common_prices = pd.concat(
+        [brent.rename("Brent"), wti.rename("WTI")],
+        axis=1,
+        join="inner"
+    ).dropna().sort_index()
 
+    if common_prices.empty:
+        c4.metric("Brent–WTI futures spread", "n/a")
+    else:
+        latest_pair = common_prices.iloc[-1]
+        c4.metric(
+            "Brent–WTI futures spread",
+            f"${latest_pair['Brent'] - latest_pair['WTI']:.2f}",
+            help="Difference between futures closing prices on the same date."
+        )
+        c4.caption(f"{common_prices.index[-1]:%d %b %Y}")
+
+    st.caption("Market percentage changes compare the last two available observations.")
 
 def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None):
     """Section 2: traffic and Brent over time. Returns the time window the charts use."""
@@ -429,7 +536,13 @@ def section_2_over_time(shipping_df, daily, base, brent, wti, prewar_price=None)
     view = c2.selectbox("View", VIEWS, key="hs_view")
     with c3:
         show_tankers = st.toggle("Show tankers", value=True, key="hs_tankers")
-        show_avg = st.toggle("Show 7-day averages", value=True, key="hs_avg")
+        show_avg = st.toggle(
+            "Show 7-day averages",
+            value=True,
+            key="hs_avg",
+            disabled=(view == VIEWS[1] and base is not None),
+            help="Percentage comparisons always use 7-day averages."
+        )
         show_wti = st.toggle("Compare Brent with WTI", value=False, key="hs_wti", disabled=view == VIEWS[1],
                              help="Only in the absolute view.")
 
@@ -487,13 +600,10 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         if month_prices.empty:
             st.caption("Brent futures monthly average: unavailable")
         else:
-            average = month_prices.mean()
-            observations = month_prices.count()
-
-        st.caption(
-            f"Brent futures monthly average: USD {average:.2f}/barrel"
-            f" · {observations} trading observations"
-        )
+            st.caption(
+                f"Brent futures monthly average: USD {month_prices.mean():.2f}/barrel"
+                f" · {month_prices.count()} trading observations"
+            )
 
         st.caption(
             f"Shipping data: {int(row['Days'])}"
@@ -501,8 +611,7 @@ def section_3_month(monthly, daily, brent, start, last, shipping_last):
         )
         if row["Days"] < row["DaysInMonth"] and selected == months[-1]:
             st.caption(f"Partial month: data to {nice_date(shipping_last)}.")
-        if selected in MONTH_NOTES:
-            st.info(MONTH_NOTES[selected])
+        st.info("**Key takeaway:** " + monthly_takeaway(monthly, selected))
     with left:
         mode = st.radio("Second chart", SECOND_CHARTS, index=2, horizontal=True, key="hs_second", label_visibility="collapsed")
         if mode == SECOND_CHARTS[2] and brent.empty:
@@ -532,7 +641,9 @@ def render():
     except Exception as error:
         st.error(f"Shipping data unavailable: {error}")
     with st.spinner("Loading market data..."):
-         market_data = load_markets()
+        market_data, market_status = load_markets()
+
+    st.caption(market_status)
     market_errors = [label for label, prices in market_data.items() if prices.empty]
     if market_errors:
         st.warning("Market data could not be retrieved for: " + ", ".join(market_errors) + ".")
@@ -616,50 +727,24 @@ def render_card():
     daily = build_daily(shipping_df)
     base = prewar_baseline(shipping_df)
     last = shipping_df["date"].max()
+    start = last - pd.Timedelta(days=364)
 
     month = shipping_df[shipping_df["date"] >= last.replace(day=1)]
     c1, c2 = st.columns(2)
-    for col, column, label in [(c1, "n_total", "Ships a day through Hormuz"), (c2, "n_tanker", "Tankers a day")]:
+    for col, column, label in [(c1, "n_total", "Ships a day through Hormuz"),
+                               (c2, "n_tanker", "Tankers a day")]:
         now = month[column].mean()
         col.metric(f"{label}, {last:%b}", f"{now:.1f}",
                    f"{pct(base[column], now):+.0f}% vs pre-war" if base else None)
 
-    fig = chart_traffic(daily, pd.Timestamp("2025-09-01"), last, view=VIEWS[0],
+    fig = chart_traffic(daily, start, last, view=VIEWS[0],
                         show_tankers=False, show_avg=True, base=base)
-    fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)", selector=dict(name="All ships (7-day avg)"))
-    fig.update_layout(height=280, showlegend=False, title_text="", margin=dict(l=10, r=20, t=10, b=30))
-    st.plotly_chart(fig, width="stretch", theme=None, key="shipping_card_timeline" , config={"displayModeBar": False})
-
-
-    daily = build_daily(shipping_df)
-    base = prewar_baseline(shipping_df)
-
-    last = shipping_df["date"].max()
-    start = last - pd.Timedelta(days=364)
-
-    fig = chart_traffic(
-        daily,
-        start,
-        last,
-        view=VIEWS[0],
-        show_tankers=False,
-        show_avg=True,
-        base=base,
-    )
-
-    fig.update_layout(
-        height=400,
-        showlegend=False,
-        title_text="",
-        margin=dict(l=10, r=20, t=10, b=40),
-    )
-
-    st.plotly_chart(
-        fig,
-        width="stretch",
-        theme=None,
-        key="hs_card_timeline",
-    )
+    fig.update_traces(fill="tozeroy", fillcolor="rgba(27,42,65,0.06)",
+                      selector=dict(name="All ships (7-day avg)"))
+    fig.update_layout(height=300, showlegend=False, title_text="",
+                      margin=dict(l=10, r=20, t=10, b=40))
+    st.plotly_chart(fig, width="stretch", theme=None, key="hs_card_timeline",
+                    config={"displayModeBar": False})
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Hormuz | Shipping & Markets", layout="wide")
